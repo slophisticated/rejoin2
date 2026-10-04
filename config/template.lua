@@ -50,16 +50,15 @@ return {
     -- Delta mod: /sdcard/Delta/Autoexecute (internal storage, tidak perlu root).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
-    -- "Launch All" launches clones ONE AT A TIME, waiting for each to reopen before
-    -- starting the next (so floating-window clones each get a chance to appear).
-    -- launchWaitInterval: how often (s) to poll for the process while waiting.
-    -- launchWaitTimeout:   how long (s) to wait before giving up on one clone and moving on.
-    -- launchSettleDelay:   extra pause (s) after a clone is detected, before launching next.
+    -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
+    -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
+    -- clone 2, and so on. Clones without a logged-in account are skipped.
+    -- launchWaitInterval: how often (s) to check while waiting.
+    -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
+    -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
     launchWaitInterval = 3,
-    -- How long (s) to wait for a clone to become ACTIVE (RSS >= minRss) during the
-    -- Menu 1 sequential launch (Starting -> Running) before moving on to the next one.
     launchWaitTimeout = 60,
-    launchSettleDelay = 5,
+    launchSettleDelay = 20,
     -- Run shell commands as root (su -c). Required on a rooted device Android 11+ so that
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.

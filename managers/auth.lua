@@ -31,6 +31,12 @@ local Auth = {}
 local cache = {}
 local TTL = 30 -- seconds
 
+-- Resolved sqlite3 runner: nil = not probed yet, false = none available.
+local sqliteRunner = nil
+
+-- WebKit stores expiry as microseconds since 1601-01-01.
+local WEBKIT_EPOCH_OFFSET = 11644473600
+
 local function defaultBaseDir(pkg)
     return "/data/data/" .. pkg
 end
@@ -52,9 +58,58 @@ function Auth.getBaseDir(instance)
     return baseDir(instance)
 end
 
--- Grep recursively (as root) for the token under `base`. Returns the number of lines
--- matched, or nil if the probe itself failed (dir missing / not readable / grep error).
-local function countToken(base)
+-- Files that may contain the token text without being a live session: our own
+-- Cookies DB backups (`Cookies.bak-<stamp>`) and SQLite rollback journals. Counting
+-- them made a logged-out clone read as logged in forever, so the monitor kept
+-- force-stopping and relaunching it.
+local function isStaleCopy(path)
+    return path:find(".bak-", 1, true) ~= nil or path:sub(-8) == "-journal"
+end
+
+-- Authoritative check: ask SQLite whether any Cookies DB under `base` holds a live,
+-- non-empty .ROBLOSECURITY row. Logging out deletes the row, but its bytes can stay in
+-- the DB file, so grepping the raw file is not enough. Returns true/false, or nil when
+-- there is no Cookies DB or sqlite3 is unavailable (caller falls back to grep).
+local function sessionInCookieDb(base)
+    local okReq, CookieInjector = pcall(require, "managers.cookie_injector")
+    if not okReq then return nil end
+    local dbs = CookieInjector.locateCookieDbs(base)
+    if not dbs or #dbs == 0 then return nil end
+    if sqliteRunner == nil then
+        sqliteRunner = CookieInjector.resolveSqlite3(dbs[1]) or false
+    end
+    if not sqliteRunner then return nil end
+
+    local now = string.format("%.0f", (os.time() + WEBKIT_EPOCH_OFFSET) * 1000000)
+    local answered = false
+    for _, db in ipairs(dbs) do
+        local quoted = "'" .. db:gsub("'", "'\\''") .. "'"
+        local sql = "SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY'"
+            .. " AND length(value) > 0 AND (expires_utc = 0 OR expires_utc > " .. now .. ");"
+        local called, succeeded, out = pcall(function()
+            return Shell.exec(sqliteRunner .. " " .. quoted .. " \"" .. sql .. "\"")
+        end)
+        local n = called and succeeded and tonumber((out or ""):match("^%s*(%d+)%s*$"))
+        if n then
+            answered = true
+            if n > 0 then return true end
+        end
+    end
+    if answered then return false end
+    return nil
+end
+
+-- Cookie DB files (main DB plus its WAL/SHM), already read row-by-row via SQLite.
+local function isCookieDb(path)
+    return path:match("/Cookies$") ~= nil or path:match("/Cookies%-wal$") ~= nil
+        or path:match("/Cookies%-shm$") ~= nil
+end
+
+-- Grep recursively (as root) for the token under `base`. Returns the matching file
+-- paths (newline separated, "" = none), or nil if the probe itself failed. Stale copies
+-- are always skipped; `skipCookieDbs` also skips Cookies DBs that SQLite already
+-- answered for, so only other session stores (modded clones) count.
+local function countToken(base, skipCookieDbs)
     -- `grep -a -r -l` prints the file paths that contain the token; `-l` means we only
     -- get file names (one per line) so the count is the number of files with the token.
     local quoted = "'" .. base:gsub("'", "'\\''") .. "'"
@@ -70,7 +125,13 @@ local function countToken(base)
     -- Empty output = no matches found (dir exists and was scanned OK). We cannot tell a
     -- truly empty result from "grep failed" via output alone, so first verify the base
     -- dir is readable; if it is, empty means "no session".
-    return out
+    local live = {}
+    for line in out:gmatch("[^\r\n]+") do
+        if not isStaleCopy(line) and not (skipCookieDbs and isCookieDb(line)) then
+            live[#live + 1] = line
+        end
+    end
+    return table.concat(live, "\n")
 end
 
 local function baseDirExists(base)
@@ -107,16 +168,23 @@ function Auth.isLoggedIn(instance)
             -- Could not even probe the dir => indeterminate.
             result = nil
         else
-            local hits = countToken(base)
-            if hits == nil then
-                -- grep probe failed => indeterminate.
-                result = nil
-            elseif hits ~= "" then
-                result = true
-            else
-                result = false
+            result = sessionInCookieDb(base)
+        end
+        -- Modded/Lite clones may keep the session outside the WebView Cookies DB, so a
+        -- "no row" answer is still cross-checked against the rest of the data dir.
+        if exists and result ~= true then
+            local hits = countToken(base, result == false)
+            if hits ~= nil then
+                result = hits ~= ""
             end
         end
+    end
+
+    -- A probe that fails once (e.g. a slow grep hitting the shell timeout) must not
+    -- flip a known logged-out clone back to "unknown", which callers treat as
+    -- logged in and recover. Keep the last definite answer until a new one arrives.
+    if result == nil and cached and cached.result ~= nil then
+        result = cached.result
     end
 
     cache[pkg] = { result = result, at = now }

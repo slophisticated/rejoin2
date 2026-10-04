@@ -153,6 +153,11 @@ return {
     anrCheckEnabled = true,     -- deteksi ANR via logcat (best-effort, lebih andal dgn root)
     minRss = 300,               -- MB ambang proses clone dianggap AKTIF (RSS)
 
+    -- Launch All (menu 1): clone dibuka satu per satu.
+    launchSettleDelay = 20,     -- detik jeda setelah clone jalan, sebelum clone berikutnya
+    launchWaitTimeout = 60,     -- detik maks nunggu satu clone kebuka
+    launchWaitInterval = 3,     -- detik interval cek selama nunggu
+
     -- Turunkan prioritas CPU/I/O semua clone.
     optimizer = {
         enabled = true,
@@ -249,7 +254,7 @@ rejoin/
 ## Menu
 
 ### Main Menu
-- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live)
+- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Clone yang belum login dilewati (tidak di-force-stop).
 - `2) Instances Manager`
 - `3) Settings`
 - `4) View Logs`
@@ -274,6 +279,7 @@ rejoin/
 - `appAutoExecutePath`, `logPath`
 - `clonePackagePrefix`
 - `freezeTimeout` (detik sebelum relaunch app freeze), `gracePeriod`, `anrCheckEnabled`
+- `13) Edit launch settings (jeda antar clone)`: `launchSettleDelay` (jeda setelah Roblox jalan sebelum clone berikutnya — naikkan kalau game butuh waktu lama buat masuk), `launchWaitTimeout`, `launchWaitInterval`. Kosongkan input untuk tetap pakai nilai lama.
 
 ---
 

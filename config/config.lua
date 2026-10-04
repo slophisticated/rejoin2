@@ -19,9 +19,12 @@ return {
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
-    -- How long (s) to wait for one clone to become active (RSS >= minRss) during the
-    -- Menu 1 sequential launch before moving on to the next instance.
+    -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
+    -- launchWaitTimeout detik), tunggu launchSettleDelay detik biar masuk game,
+    -- baru clone berikutnya. Clone yang belum login dilewati.
+    launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchSettleDelay = 20,
     -- Automatic per-cycle diagnostics: written to this file whenever the app is
     -- launched via Menu 1 (Launch + Monitor). Shows running/isActive/RSS per clone.
     launchLogPath = "launch.log",

@@ -56,53 +56,93 @@ local function setRecovering(id, val)
 end
 
 -- Menu 1 flow: launch the clones ONE AT A TIME, showing the live dashboard the whole
--- time. Each instance flips to Starting, gets force-stopped + joined, and only after
--- it is really RUNNING (RSS >= threshold, i.e. isActive) do we move to the next one.
--- Timeout per instance is conf.launchWaitTimeout (default 60s) before moving on.
+-- time. Each instance flips to Starting, gets force-stopped + joined, and the next one
+-- only starts after this one is really RUNNING (RSS >= minRss, i.e. isActive) and has
+-- then stayed up for launchSettleDelay seconds (time to load into the game).
+--   launchWaitTimeout  - max seconds to wait for the clone to become active
+--   launchWaitInterval - seconds between checks while waiting
+--   launchSettleDelay  - seconds to wait after it is active, before the next clone
+-- Clones without a logged-in account are skipped: force-stopping and booting them
+-- only costs memory and can push the other clones out.
 local function runSequentialLaunch(conf)
     local instances = instanceManager.getAll()
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
+    local poll = tonumber(conf and conf.launchWaitInterval) or 3
+    if poll <= 0 then poll = 3 end
+    local settle = tonumber(conf and conf.launchSettleDelay) or 5
+    if settle < 0 then settle = 0 end
+    local function stopped() return not running end
+
     for i, inst in ipairs(instances) do
         if not running then break end
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
 
+        if Auth.isLoggedIn(inst) == false then
+            Logger.info(string.format("Monitor: skipping launch of %s (%s): not logged in", name, tostring(pkg)))
+            ProbeLog.line(string.format("[%s] EVENT launch_skip_nologin #%d %s (%s)", os.date("%H:%M:%S"), i, name, tostring(pkg)))
+            goto next_instance
+        end
+
         Status.beginStarting(id)
         Status.printSummary(instanceManager.getAll())
         Logger.info(string.format("Monitor: launching #%d %s (%s)", i, name, tostring(pkg)))
         ProbeLog.line(string.format("[%s] EVENT launch_begin #%d %s (%s)", os.date("%H:%M:%S"), i, name, tostring(pkg)))
 
-        local p_ok, l_ok = pcall(function() return recoveryManager.launchAndJoin(inst) end)
-        if not p_ok or not l_ok then
-            Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
-        end
+        do
+            local p_ok, l_ok = pcall(function() return recoveryManager.launchAndJoin(inst) end)
+            local launched = p_ok and l_ok
+            if not launched then
+                Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
+            end
 
-        local waited = 0
-        while running do
-            local activeNow = false
-            if pkg then
+            local function isActiveNow()
+                if not pkg then return false end
                 local okA, resA = pcall(function() return apkManager.isActive(pkg) end)
-                activeNow = okA and resA
+                return okA and resA
             end
-            if activeNow then break end
-            if waited >= timeout then
-                Logger.warn(string.format("Monitor: %s not active (RSS) within %ds; moving on", name, timeout))
-                ProbeLog.line(string.format("[%s] EVENT launch_timeout %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                break
-            end
-            Timer.sleepInterruptible(2, function() return not running end)
-            waited = waited + 2 -- bounded; sleepInterruptible may stop earlier on Ctrl+C
-            if running then Status.printSummary(instanceManager.getAll()) end
-        end
 
-        Status.endStarting(id)
-        -- New process got a new pid during this launch: deprioritize it now.
-        pcall(function() return Optimizer.applyForInstance(inst) end)
-        ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds", os.date("%H:%M:%S"), i, name, tostring(pkg), waited))
+            -- 1) Wait for the clone to come up (RSS >= minRss).
+            local waited = 0
+            local active = false
+            while launched and running do
+                active = isActiveNow()
+                if active then break end
+                if waited >= timeout then
+                    Logger.warn(string.format("Monitor: %s not active (RSS) within %ds; moving on", name, timeout))
+                    ProbeLog.line(string.format("[%s] EVENT launch_timeout %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    break
+                end
+                Timer.sleepInterruptible(poll, stopped)
+                waited = waited + poll -- bounded; sleepInterruptible may stop earlier on Ctrl+C
+                if running then Status.printSummary(instanceManager.getAll()) end
+            end
+
+            -- 2) Give it time to load into the game before starting the next clone.
+            local settled = 0
+            while active and running and settled < settle do
+                local step = math.min(poll, settle - settled)
+                Timer.sleepInterruptible(step, stopped)
+                settled = settled + step
+                if running then Status.printSummary(instanceManager.getAll()) end
+                if not isActiveNow() then
+                    Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
+                    break
+                end
+            end
+
+            Status.endStarting(id)
+            -- New process got a new pid during this launch: deprioritize it now.
+            pcall(function() return Optimizer.applyForInstance(inst) end)
+            ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds settled=%ds",
+                os.date("%H:%M:%S"), i, name, tostring(pkg), waited, settled))
+        end
         if running then
             Status.printSummary(instanceManager.getAll())
         end
+
+        ::next_instance::
     end
 end
 
