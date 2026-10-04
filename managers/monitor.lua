@@ -292,6 +292,10 @@ function Monitor.start(conf, opts)
         -- Print the per-instance status table for the user to see.
         Status.printSummary(instances)
 
+        -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
+        -- left the terminal in raw mode.
+        os.execute("stty isig 2>/dev/null")
+
         Timer.sleepInterruptible(interval, function() return not running end)
     end
 
