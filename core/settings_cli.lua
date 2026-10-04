@@ -26,6 +26,7 @@ local function printSettings(conf)
     print("  launchWaitInterval = " .. tostring(conf.launchWaitInterval))
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
+    print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
@@ -47,6 +48,7 @@ function CLI.run()
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
     conf.launchSettleDelay = conf.launchSettleDelay or 5
+    conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
 
     while true do
@@ -105,6 +107,7 @@ function CLI.run()
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
             askNumber("launchSettleDelay", "Jeda setelah Roblox jalan, sebelum clone berikutnya (detik, waktu masuk game)", true)
+            askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")

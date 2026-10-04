@@ -59,6 +59,9 @@ return {
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchSettleDelay = 20,
+    -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
+    -- can appear before the next clone starts.
+    launchEmptyDelay = 5,
     -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
     -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as
     -- logged out, so the clone shows NoLogin and is never force-stopped/relaunched.

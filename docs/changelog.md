@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Launch All: clone kosong dapat jeda singkat `launchEmptyDelay` (default 5 dtk)**: tanpa jeda sama sekali, clone berikutnya dibuka di detik yang sama dan jendela floating clone kosong kadang tidak muncul. Bisa diatur di Settings `13`.
+
 - **Fix: Ctrl+C kadang tidak bisa stop dashboard monitor (harus exit lewat notif bar)**: perintah root (`su -c ...`) mewarisi terminal sebagai stdin, dan Magisk `su` mengubah terminal ke mode raw selama perintah jalan — Ctrl+C jadi byte biasa, bukan SIGINT. Monitor hampir selalu sedang menjalankan `su`, jadi Ctrl+C sering hilang; kalau `su` terputus, terminal bisa tertinggal raw. Sekarang `Shell.exec` menjalankan semua perintah dengan stdin `/dev/null` (dibungkus `{ ...; }` supaya berlaku untuk perintah gabungan), dan loop monitor memastikan `stty isig` tiap siklus.
 
 - **Cek login diverifikasi ke Roblox (curl) + status NoLogin saat clone jalan + debug log**: token `.ROBLOSECURITY` dibaca dari Cookies DB (atau grep, tanpa file `.bak-*`) lalu dicek ke `users.roblox.com/v1/users/authenticated`. HTTP 401 = logout/kicked → `NoLogin`; jaringan gagal = pakai hasil lokal. Cache per clone `loginVerifyInterval` (default 600 dtk), langsung dicek ulang kalau tokennya berubah; bisa dimatikan `loginVerifyRemote = false`. `Status.check` sekarang cek login juga saat RSS clone tinggi (sebelumnya clone yang logout tapi RAM-nya besar tetap tampil Running). Log baru di `data/rejoin.log`: `[LOGIN] ...` (sumber token, panjang token, kode HTTP, hasil) dan `[STATUS] nama: lama -> baru (rss, login)`. Username dashboard memakai nama dari verifikasi ini (token tidak dikirim dua kali).

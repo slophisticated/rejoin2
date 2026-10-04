@@ -156,6 +156,7 @@ return {
 
     -- Launch All (menu 1): clone dibuka satu per satu.
     launchSettleDelay = 20,     -- detik jeda setelah clone jalan, sebelum clone berikutnya
+    launchEmptyDelay = 5,       -- detik jeda setelah clone KOSONG dibuka (biar jendelanya muncul)
     launchWaitTimeout = 60,     -- detik maks nunggu satu clone kebuka
     launchWaitInterval = 3,     -- detik interval cek selama nunggu
 
@@ -259,7 +260,7 @@ rejoin/
 ## Menu
 
 ### Main Menu
-- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Semua clone dibuka; clone yang kebaca belum login tidak ditunggu (langsung lanjut ke clone berikutnya).
+- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Semua clone dibuka; clone yang kebaca belum login hanya ditunggu `launchEmptyDelay` detik (default 5) biar jendelanya sempat muncul.
 - `2) Instances Manager`
 - `3) Settings`
 - `4) View Logs`
@@ -284,7 +285,7 @@ rejoin/
 - `appAutoExecutePath`, `logPath`
 - `clonePackagePrefix`
 - `freezeTimeout` (detik sebelum relaunch app freeze), `gracePeriod`, `anrCheckEnabled`
-- `13) Edit launch settings (jeda antar clone)`: `launchSettleDelay` (jeda setelah Roblox jalan sebelum clone berikutnya — naikkan kalau game butuh waktu lama buat masuk), `launchWaitTimeout`, `launchWaitInterval`. Kosongkan input untuk tetap pakai nilai lama.
+- `13) Edit launch settings (jeda antar clone)`: `launchSettleDelay` (jeda setelah Roblox jalan sebelum clone berikutnya — naikkan kalau game butuh waktu lama buat masuk), `launchEmptyDelay` (jeda setelah clone kosong), `launchWaitTimeout`, `launchWaitInterval`. Kosongkan input untuk tetap pakai nilai lama.
 
 ---
 

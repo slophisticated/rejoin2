@@ -62,6 +62,7 @@ end
 --   launchWaitTimeout  - max seconds to wait for the clone to become active
 --   launchWaitInterval - seconds between checks while waiting
 --   launchSettleDelay  - seconds to wait after it is active, before the next clone
+--   launchEmptyDelay   - seconds to wait after a clone with no account, before the next
 -- Every clone is launched. One that reads as not logged in only gets a short pause
 -- instead of the full wait, since it will sit on the login screen with low RSS.
 local function runSequentialLaunch(conf)
@@ -71,6 +72,8 @@ local function runSequentialLaunch(conf)
     if poll <= 0 then poll = 3 end
     local settle = tonumber(conf and conf.launchSettleDelay) or 5
     if settle < 0 then settle = 0 end
+    local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
+    if emptyDelay < 0 then emptyDelay = 0 end
     local function stopped() return not running end
 
     for i, inst in ipairs(instances) do
@@ -93,8 +96,11 @@ local function runSequentialLaunch(conf)
             local loggedIn = Auth.isLoggedIn(inst)
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
             if launched and loggedIn == false then
-                -- Login screen never reaches minRss: start the next clone right away.
-                Logger.info(string.format("Monitor: %s not logged in; not waiting for it", name))
+                -- Login screen never reaches minRss, so don't wait for it to be "active".
+                -- Still give its window a short head start: launching the next clone at
+                -- the same instant can stop this one's floating window from appearing.
+                Logger.info(string.format("Monitor: %s not logged in; short pause %ds", name, emptyDelay))
+                Timer.sleepInterruptible(emptyDelay, stopped)
                 launched = false
             end
 

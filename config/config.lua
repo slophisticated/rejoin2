@@ -25,6 +25,8 @@ return {
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchSettleDelay = 20,
+    -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
+    launchEmptyDelay = 5,
     -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
     -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.
     -- loginVerifyInterval: jeda (detik) antar verifikasi per clone.
