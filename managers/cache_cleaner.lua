@@ -20,10 +20,12 @@ local function config()
     return ok and type(conf) == "table" and conf or {}
 end
 
+-- Auto clear on relaunch defaults to OFF (enabled must be exactly true).
+-- Manual clears (menu / --clear-cache) pass { manual = true } and bypass it.
 function CacheCleaner.getConfig()
     local cc = config().cacheCleaner
     if type(cc) ~= "table" then cc = {} end
-    return { enabled = cc.enabled ~= false, clearWebView = cc.clearWebView ~= false }
+    return { enabled = cc.enabled == true, clearWebView = cc.clearWebView ~= false }
 end
 
 local function validPackage(pkg)

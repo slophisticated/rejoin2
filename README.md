@@ -22,7 +22,7 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
 - **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
-- **Cache Manager** — menu `10` menampilkan cache penyimpanan dan RAM per clone, bisa bersihkan satu/semua clone yang sudah berhenti, dan mengatur auto clear saat relaunch serta cache WebView. Clone yang masih jalan dilewati supaya sesi floating tidak putus. `lua main.lua --clear-cache` melakukan hal yang sama untuk semua clone yang berhenti. Cache otomatis dibersihkan setelah force-stop sebelum relaunch. **Login aman** — `Cookies` (`.ROBLOSECURITY`), Local Storage, `shared_prefs`, `databases`, dan `files` tidak disentuh. Membersihkan cache penyimpanan tidak langsung mengurangi RAM clone yang masih aktif.
+- **Cache Manager** — menu `10` menampilkan cache penyimpanan dan RAM per clone, bisa bersihkan satu/semua clone yang sudah berhenti, dan mengatur auto clear saat relaunch serta cache WebView. Clone yang masih jalan dilewati supaya sesi floating tidak putus. `lua main.lua --clear-cache` melakukan hal yang sama untuk semua clone yang berhenti. Auto clear cache saat relaunch (setelah force-stop) **default MATI** — aktifkan lewat menu Cache Manager atau Settings (`cacheCleaner.enabled`); clear manual tetap jalan walau auto mati. **Login aman** — `Cookies` (`.ROBLOSECURITY`), Local Storage, `shared_prefs`, `databases`, dan `files` tidak disentuh. Membersihkan cache penyimpanan tidak langsung mengurangi RAM clone yang masih aktif.
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
 - **AutoExecute / Script Manager** — kelola **script `.lua`** langsung di `appAutoExecutePath` (mis. `/sdcard/Delta/Autoexecute`) lewat menu `6) AutoExecute Manager`: di layar langsung tampil isi folder (Add / Edit / Delete). Rejoin adalah pengelola script — **semua logika ditulis user** di dalam file script.
 - **Inject Cookie** — menu `7) Inject Cookie`: inject token **`.ROBLOSECURITY`** ke Cookies DB WebView clone mana pun dari daftar config (auto `am force-stop` dulu, target path sama dengan deteksi login / `cookiePath`, backup DB dulu, verifikasi setelahnya). Butuh `sqlite3` di device (`pkg install sqlite`). Sebelum menulis, token **diverifikasi dulu ke Roblox** (`users.roblox.com/v1/users/authenticated`, pakai curl) — verifikasi **fail-closed**: kalau bukan respons jelas valid (`HTTP 200` + body berisi `"name"`), inject langsung dibatalkan dan body respons Roblox ditampilkan, jadi tidak akan lagi "DB tertulis tapi tidak login". Bisa cek token tanpa inject lewat submenu `3) Cek validitas token`. Baris cookie hasil inject dibuat **identik dengan baris login asli in-app** (host_key `.roblox.com`, samesite `-1`, expires jauh ke depan, `creation/last_access` real), sisa baris lama yang salah dihapus otomatis.
@@ -162,9 +162,10 @@ return {
     },
 
     -- Auto clear cache tiap clone saat cold start / relaunch (setelah force-stop).
-    -- clearWebView=true juga wipe cache WebView. Clone yang masih jalan dilewati.
+    -- DEFAULT MATI; aktifkan lewat Settings > 15) Toggle auto clear cache. clearWebView=true
+    -- juga wipe cache WebView. Clone yang masih jalan dilewati.
     cacheCleaner = {
-        enabled = true,
+        enabled = false,
         clearWebView = true,
     },
 
