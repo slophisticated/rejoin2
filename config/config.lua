@@ -34,14 +34,6 @@ return {
         renice = 19,   -- CPU scheduling priority (higher = lower). 19 = lowest.
         ionice = 3,    -- I/O class: 0=none,1=realtime,2=best-effort,3=idle.
     },
-    -- Bersihkan cache tiap clone saat cold start / relaunch (setelah force-stop, sebelum
-    -- launch) biar tiap boot fresh: storage & RAM lebih ringan. Tidak menyentuh Cookies
-    -- (.ROBLOSECURITY), Local Storage, shared_prefs, atau databases -> login aman.
-    -- clearWebView=true juga wipe cache WebView (bloat terbesar di clone Roblox).
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
-    },
     -- Folder tujuan Deploy (Script Manager / AutoExecute). Scripts di-deploy ke sini
     -- sebagai <name>.lua. Path ini shared untuk semua instance (Delta mod: internal storage).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",

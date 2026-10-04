@@ -22,7 +22,6 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
 - **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
-- **Cache Manager** — menu `10` menampilkan cache penyimpanan dan RAM per clone, bisa bersihkan satu/semua clone yang sudah berhenti, dan mengatur auto clear saat relaunch serta cache WebView. Clone yang masih jalan dilewati supaya sesi floating tidak putus. `lua main.lua --clear-cache` melakukan hal yang sama untuk semua clone yang berhenti. Auto clear cache saat relaunch (setelah force-stop) **default MATI** — aktifkan lewat menu Cache Manager atau Settings (`cacheCleaner.enabled`); clear manual tetap jalan walau auto mati. **Login aman** — `Cookies` (`.ROBLOSECURITY`), Local Storage, `shared_prefs`, `databases`, dan `files` tidak disentuh. Membersihkan cache penyimpanan tidak langsung mengurangi RAM clone yang masih aktif.
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
 - **AutoExecute / Script Manager** — kelola **script `.lua`** langsung di `appAutoExecutePath` (mis. `/sdcard/Delta/Autoexecute`) lewat menu `6) AutoExecute Manager`: di layar langsung tampil isi folder (Add / Edit / Delete). Rejoin adalah pengelola script — **semua logika ditulis user** di dalam file script.
 - **Inject Cookie** — menu `7) Inject Cookie`: inject token **`.ROBLOSECURITY`** ke Cookies DB WebView clone mana pun dari daftar config (auto `am force-stop` dulu, target path sama dengan deteksi login / `cookiePath`, backup DB dulu, verifikasi setelahnya). Butuh `sqlite3` di device (`pkg install sqlite`). Sebelum menulis, token **diverifikasi dulu ke Roblox** (`users.roblox.com/v1/users/authenticated`, pakai curl) — verifikasi **fail-closed**: kalau bukan respons jelas valid (`HTTP 200` + body berisi `"name"`), inject langsung dibatalkan dan body respons Roblox ditampilkan, jadi tidak akan lagi "DB tertulis tapi tidak login". Bisa cek token tanpa inject lewat submenu `3) Cek validitas token`. Baris cookie hasil inject dibuat **identik dengan baris login asli in-app** (host_key `.roblox.com`, samesite `-1`, expires jauh ke depan, `creation/last_access` real), sisa baris lama yang salah dihapus otomatis.
@@ -64,7 +63,7 @@ lua main.lua
    ```
    - Jika `config/config.lua` belum ada, **Setup Wizard** akan berjalan untuk mendeteksi/menambah instance.
 
-4. Gunakan Main Menu untuk: **Instances**, **Settings**, **View Logs**, **Start Monitor**, dan **Cache Manager** (menu `10`).
+4. Gunakan Main Menu untuk: **Instances**, **Settings**, **View Logs**, dan **Start Monitor**.
 
 ### Headless / automated run
 
@@ -161,14 +160,6 @@ return {
         ionice = 3,    -- kelas I/O (3 = idle)
     },
 
-    -- Auto clear cache tiap clone saat cold start / relaunch (setelah force-stop).
-    -- DEFAULT MATI; aktifkan lewat Settings > 15) Toggle auto clear cache. clearWebView=true
-    -- juga wipe cache WebView. Clone yang masih jalan dilewati.
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
-    },
-
     instances = {
         {
             id = 1,
@@ -230,7 +221,6 @@ rejoin/
 │   ├── instances_cli.lua       # menu instances
 │   ├── autoexecute_cli.lua     # menu AutoExecute / Script Manager
 │   ├── settings_cli.lua        # menu settings
-│   ├── cache_cli.lua           # menu Cache Manager
 │   ├── logs_cli.lua            # viewer log
 │   ├── inject_cookie_cli.lua   # menu Inject Cookie
 │   └── runtime.lua             # flag runtime (dry-run)
@@ -240,7 +230,6 @@ rejoin/
 │   ├── monitor.lua             # loop monitor
 │   ├── recovery.lua            # engine recovery
 │   ├── optimizer.lua           # renice/ionice deprioritasi clone
-│   ├── cache_cleaner.lua       # inspeksi dan pembersihan cache clone berhenti
 │   ├── autoexecute.lua         # AutoExecute: kelola langsung folder app (list/add/edit/delete)
 │   ├── auth.lua                # deteksi login via cookie (.ROBLOSECURITY)
 │   ├── cookie_injector.lua     # inject .ROBLOSECURITY ke Cookies DB clone (sqlite3)

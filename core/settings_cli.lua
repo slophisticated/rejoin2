@@ -27,9 +27,6 @@ local function printSettings(conf)
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
-    local cc = conf.cacheCleaner or {}
-    print("  cacheCleaner.enabled (auto clear cache) = " .. tostring(cc.enabled == true))
-    print("  cacheCleaner.clearWebView = " .. tostring(cc.clearWebView ~= false))
 end
 
 function CLI.run()
@@ -52,12 +49,8 @@ function CLI.run()
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
 
-    conf.cacheCleaner = conf.cacheCleaner or {}
-    conf.cacheCleaner.enabled = conf.cacheCleaner.enabled == true
-    conf.cacheCleaner.clearWebView = conf.cacheCleaner.clearWebView ~= false
-
     while true do
-        print('\nSettings Menu:\n  1) View settings\n  2) Edit monitorInterval\n  3) Edit recoveryDelay\n  4) Edit recoveryRetries\n  5) Edit checkTimeout\n  6) Toggle debug\n  7) Edit appAutoExecutePath\n  8) Edit logPath\n  9) Edit clonePackagePrefix\n 10) Edit freezeTimeout\n 11) Edit gracePeriod\n 12) Toggle anrCheckEnabled\n 13) Edit launch wait settings\n 14) Edit logLevel\n 15) Toggle auto clear cache (cacheCleaner.enabled)\n 16) Toggle clearWebView (cacheCleaner.clearWebView)\n 17) Save and Exit\n 18) Exit without saving\n')
+        print('\nSettings Menu:\n  1) View settings\n  2) Edit monitorInterval\n  3) Edit recoveryDelay\n  4) Edit recoveryRetries\n  5) Edit checkTimeout\n  6) Toggle debug\n  7) Edit appAutoExecutePath\n  8) Edit logPath\n  9) Edit clonePackagePrefix\n 10) Edit freezeTimeout\n 11) Edit gracePeriod\n 12) Toggle anrCheckEnabled\n 13) Edit launch wait settings\n 14) Edit logLevel\n 15) Save and Exit\n 16) Exit without saving\n')
         local choice = prompt("Choose: ") or ""
         choice = choice:match("^%s*(.-)%s*$")
         if choice == "1" then
@@ -132,12 +125,6 @@ function CLI.run()
                 end
             end
         elseif choice == "15" then
-            conf.cacheCleaner.enabled = not (conf.cacheCleaner.enabled and true or false)
-            print("cacheCleaner.enabled (auto clear cache) = " .. tostring(conf.cacheCleaner.enabled and true or false))
-        elseif choice == "16" then
-            conf.cacheCleaner.clearWebView = not (conf.cacheCleaner.clearWebView and true or false)
-            print("cacheCleaner.clearWebView = " .. tostring(conf.cacheCleaner.clearWebView and true or false))
-        elseif choice == "17" then
             local ok, err = Config.save(conf)
             if ok then
                 print("Settings saved")
@@ -149,7 +136,7 @@ function CLI.run()
                 print("Failed to save: " .. tostring(err))
             end
             break
-        elseif choice == "18" then
+        elseif choice == "16" then
             print("Aborting without saving")
             break
         else

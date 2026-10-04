@@ -45,7 +45,6 @@ local startMonitorFlag = false
 local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
-local clearCacheFlag = false
 local doctorFlag = false
 for i = 1, #args do
     local a = args[i]
@@ -54,7 +53,6 @@ for i = 1, #args do
     if a == "--start-monitor" then startMonitorFlag = true end
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
-    if a == "--clear-cache" then clearCacheFlag = true end
     if a == "--doctor" then doctorFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
@@ -113,15 +111,6 @@ if doctorFlag then
     os.exit(0)
 end
 
--- One-shot: clear cache only for stopped clones. Running floating sessions stay up.
-if clearCacheFlag then
-    local CacheCleaner = require("managers.cache_cleaner")
-    local cleared, skipped, failed = CacheCleaner.applyAll({ manual = true })
-    print(string.format("Cache: %d dibersihkan, %d masih jalan, %d gagal.", cleared, skipped, failed))
-    Logger.info(string.format("Main: --clear-cache cleared=%d skipped=%d failed=%d", cleared, skipped, failed))
-    os.exit(failed > 0 and 1 or 0)
-end
-
 -- Headless mode: optionally start monitor immediately
 if headless and startMonitorFlag then
     Logger.info("Headless mode: starting monitor")
@@ -147,7 +136,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n 10) Cache Manager\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -194,9 +183,6 @@ while true do
     elseif choice == "9" then
         print("Exiting main")
         break
-    elseif choice == "10" then
-        local CacheCLI = require("core.cache_cli")
-        CacheCLI.run()
     else
         print("Unknown choice")
     end

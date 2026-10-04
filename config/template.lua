@@ -45,20 +45,6 @@ return {
         ionice = 3,    -- I/O class: 0=none,1=realtime,2=best-effort,3=idle.
     },
 
-    -- Clear each clone's cache right after a cold start / relaunch (after force-stop,
-    -- before launch) so it boots with less cached storage. This does not directly
-    -- reduce RAM used by a clone that is still running. Wipes the cache dirs
-    -- the same way Settings' "Clear cache" button does (manual rm -rf of cache,
-    -- code_cache + external cache). clearWebView additionally wipes the WebView cache
-    -- dirs (HTTP/service-worker/V8/GPU caches - the heaviest clutter on Roblox clones).
-    -- NEVER touches the Cookies DB (.ROBLOSECURITY), Local Storage, shared_prefs or
-    -- databases, so logins survive. Requires root (useRoot = true). Probe via
-    -- `lua main.lua --clear-cache` (clear all clones without launching).
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
-    },
-
     -- Folder tujuan AutoExecute (Script Manager). Scripts dikelola LANGSUNG di sini
     -- sebagai <name>.lua (Add/Edit/Delete). Path ini shared untuk semua instance.
     -- Delta mod: /sdcard/Delta/Autoexecute (internal storage, tidak perlu root).
