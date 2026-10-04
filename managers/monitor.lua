@@ -93,9 +93,8 @@ local function runSequentialLaunch(conf)
             local loggedIn = Auth.isLoggedIn(inst)
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
             if launched and loggedIn == false then
-                -- Login screen never reaches minRss: don't hold up the next clone.
+                -- Login screen never reaches minRss: start the next clone right away.
                 Logger.info(string.format("Monitor: %s not logged in; not waiting for it", name))
-                Timer.sleepInterruptible(poll, stopped)
                 launched = false
             end
 
