@@ -95,7 +95,7 @@ end
 -- One-shot: clear cache for all configured clones (apps must be closed first), exit.
 if clearCacheFlag then
     local CacheCleaner = require("managers.cache_cleaner")
-    local n = CacheCleaner.applyAll()
+    local n = CacheCleaner.applyAll(true)
     print(string.format("Cleared cache for %d instance(s). Apps harus dalam keadaan berhenti (force-stop).", n))
     Logger.info(string.format("Main: --clear-cache applied to %d instance(s)", n))
     os.exit(0)

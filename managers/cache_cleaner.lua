@@ -25,12 +25,13 @@ local function safeConfig()
     return conf or {}
 end
 
--- Current cache-cleaner config: { enabled, clearWebView }.
+-- Current cache-cleaner config: { enabled, clearWebView }. Auto-clear defaults to OFF
+-- (enabled must be exactly true); manual --clear-cache passes force=true and bypasses it.
 function CacheCleaner.getConfig()
     local cc = safeConfig().cacheCleaner
     if type(cc) ~= "table" then cc = {} end
     return {
-        enabled = cc.enabled ~= false,
+        enabled = cc.enabled == true,
         clearWebView = cc.clearWebView ~= false,
     }
 end
@@ -75,9 +76,10 @@ end
 
 -- Clear one clone's cache with a single su shell call and log measured bytes
 -- before/after (proof the wipe actually worked). Best-effort: never throws.
-function CacheCleaner.applyForInstance(instance)
+-- force=true ignores the auto-enable switch (manual --clear-cache request).
+function CacheCleaner.applyForInstance(instance, force)
     local cfg = CacheCleaner.getConfig()
-    if not cfg.enabled then return false end
+    if not force and not cfg.enabled then return false end
     local pkg = instance and instance.package
     if not pkg or pkg == "" then return false end
 
@@ -102,15 +104,16 @@ function CacheCleaner.applyForInstance(instance)
     return true
 end
 
--- Clear cache for all configured instances.
-function CacheCleaner.applyAll()
+-- Clear cache for all configured instances. force=true bypasses the auto-enable switch
+-- (used by `lua main.lua --clear-cache`).
+function CacheCleaner.applyAll(force)
     local ok, conf = pcall(function() return Config.get() end)
     if not ok or not conf or type(conf.instances) ~= "table" then return 0 end
-    if not CacheCleaner.getConfig().enabled then return 0 end
+    if not force and not CacheCleaner.getConfig().enabled then return 0 end
 
     local applied = 0
     for _, inst in ipairs(conf.instances) do
-        if CacheCleaner.applyForInstance(inst) then applied = applied + 1 end
+        if CacheCleaner.applyForInstance(inst, force) then applied = applied + 1 end
     end
     return applied
 end

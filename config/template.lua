@@ -54,7 +54,7 @@ return {
     -- databases, so logins survive. Requires root (useRoot = true). Probe via
     -- `lua main.lua --clear-cache` (clear all clones without launching).
     cacheCleaner = {
-        enabled = true,
+        enabled = false,
         clearWebView = true,
     },
 

@@ -39,7 +39,7 @@ return {
     -- (.ROBLOSECURITY), Local Storage, shared_prefs, atau databases -> login aman.
     -- clearWebView=true juga wipe cache WebView (bloat terbesar di clone Roblox).
     cacheCleaner = {
-        enabled = true,
+        enabled = false,
         clearWebView = true,
     },
     -- Folder tujuan Deploy (Script Manager / AutoExecute). Scripts di-deploy ke sini
