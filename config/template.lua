@@ -59,6 +59,13 @@ return {
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchSettleDelay = 20,
+    -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
+    -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as
+    -- logged out, so the clone shows NoLogin and is never force-stopped/relaunched.
+    -- loginVerifyInterval: seconds between checks per clone (a changed token is
+    -- re-checked right away). Needs `pkg install curl`.
+    loginVerifyRemote = true,
+    loginVerifyInterval = 600,
     -- Run shell commands as root (su -c). Required on a rooted device Android 11+ so that
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.

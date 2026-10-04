@@ -20,6 +20,7 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Username display** — dashboard monitoring menampilkan **username Roblox** di tiap baris instance (mis. `com.apengjers.v3 (apengjers)`). Di-resolve otomatis dari token `.ROBLOSECURITY` via API Roblox (`users.roblox.com`). Hasil di-cache per instance (600 detik). Bisa di-override per-instance lewat `usernamePath` (path file yang baris pertamanya berisi username). Bukti scan tersimpan di `data/username_scan.log`.
 - **Auto relaunch freeze** — app yang freeze/stuck lebih dari `freezeTimeout` (default 300 detik / 5 menit) otomatis di-force-stop & di-relaunch.
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
+- **Cek login + debug log** — token `.ROBLOSECURITY` dibaca dari Cookies DB lalu diverifikasi ke Roblox pakai curl (`users.roblox.com/v1/users/authenticated`, tiap `loginVerifyInterval` detik). Token ditolak (HTTP 401) = dianggap logout: status `NoLogin` walaupun RAM clone masih tinggi, dan tidak di-force-stop. Semua hasil cek login (`[LOGIN]`) dan tiap perubahan status (`[STATUS]`, lengkap dengan RSS & login) ditulis ke `data/rejoin.log`. Token tidak pernah ditulis ke log.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
 - **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
@@ -157,6 +158,10 @@ return {
     launchSettleDelay = 20,     -- detik jeda setelah clone jalan, sebelum clone berikutnya
     launchWaitTimeout = 60,     -- detik maks nunggu satu clone kebuka
     launchWaitInterval = 3,     -- detik interval cek selama nunggu
+
+    -- Cek login: token diverifikasi ke Roblox pakai curl (butuh `pkg install curl`).
+    loginVerifyRemote = true,   -- false = matikan verifikasi curl
+    loginVerifyInterval = 600,  -- detik antar verifikasi per clone
 
     -- Turunkan prioritas CPU/I/O semua clone.
     optimizer = {

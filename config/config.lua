@@ -25,6 +25,11 @@ return {
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchSettleDelay = 20,
+    -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
+    -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.
+    -- loginVerifyInterval: jeda (detik) antar verifikasi per clone.
+    loginVerifyRemote = true,
+    loginVerifyInterval = 600,
     -- Automatic per-cycle diagnostics: written to this file whenever the app is
     -- launched via Menu 1 (Launch + Monitor). Shows running/isActive/RSS per clone.
     launchLogPath = "launch.log",
