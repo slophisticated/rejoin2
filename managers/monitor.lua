@@ -62,8 +62,8 @@ end
 --   launchWaitTimeout  - max seconds to wait for the clone to become active
 --   launchWaitInterval - seconds between checks while waiting
 --   launchSettleDelay  - seconds to wait after it is active, before the next clone
--- Clones without a logged-in account are skipped: force-stopping and booting them
--- only costs memory and can push the other clones out.
+-- Every clone is launched. One that reads as not logged in only gets a short pause
+-- instead of the full wait, since it will sit on the login screen with low RSS.
 local function runSequentialLaunch(conf)
     local instances = instanceManager.getAll()
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
@@ -79,12 +79,6 @@ local function runSequentialLaunch(conf)
         local name = tostring(inst.name or id)
         local pkg = inst.package
 
-        if Auth.isLoggedIn(inst) == false then
-            Logger.info(string.format("Monitor: skipping launch of %s (%s): not logged in", name, tostring(pkg)))
-            ProbeLog.line(string.format("[%s] EVENT launch_skip_nologin #%d %s (%s)", os.date("%H:%M:%S"), i, name, tostring(pkg)))
-            goto next_instance
-        end
-
         Status.beginStarting(id)
         Status.printSummary(instanceManager.getAll())
         Logger.info(string.format("Monitor: launching #%d %s (%s)", i, name, tostring(pkg)))
@@ -95,6 +89,14 @@ local function runSequentialLaunch(conf)
             local launched = p_ok and l_ok
             if not launched then
                 Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
+            end
+            local loggedIn = Auth.isLoggedIn(inst)
+            Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
+            if launched and loggedIn == false then
+                -- Login screen never reaches minRss: don't hold up the next clone.
+                Logger.info(string.format("Monitor: %s not logged in; not waiting for it", name))
+                Timer.sleepInterruptible(poll, stopped)
+                launched = false
             end
 
             local function isActiveNow()
@@ -141,8 +143,6 @@ local function runSequentialLaunch(conf)
         if running then
             Status.printSummary(instanceManager.getAll())
         end
-
-        ::next_instance::
     end
 end
 

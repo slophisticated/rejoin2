@@ -254,7 +254,7 @@ rejoin/
 ## Menu
 
 ### Main Menu
-- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Clone yang belum login dilewati (tidak di-force-stop).
+- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Semua clone dibuka; clone yang kebaca belum login tidak ditunggu (langsung lanjut ke clone berikutnya).
 - `2) Instances Manager`
 - `3) Settings`
 - `4) View Logs`

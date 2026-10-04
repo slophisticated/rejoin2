@@ -158,7 +158,7 @@ function Auth.isLoggedIn(instance)
         return cached.result
     end
 
-    local result
+    local result, dbResult
     do
         local exists = baseDirExists(base)
         if exists == false then
@@ -169,6 +169,7 @@ function Auth.isLoggedIn(instance)
             result = nil
         else
             result = sessionInCookieDb(base)
+            dbResult = result
         end
         -- Modded/Lite clones may keep the session outside the WebView Cookies DB, so a
         -- "no row" answer is still cross-checked against the rest of the data dir.
@@ -187,6 +188,9 @@ function Auth.isLoggedIn(instance)
         result = cached.result
     end
 
+    if not cached or cached.result ~= result then
+        Logger.info(string.format("Auth: %s login = %s (cookie db = %s)", pkg, tostring(result), tostring(dbResult)))
+    end
     cache[pkg] = { result = result, at = now }
     Logger.debug(string.format("Auth.isLoggedIn(%s): base=%s -> %s", pkg, base, tostring(result)))
     return result

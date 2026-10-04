@@ -21,7 +21,7 @@ return {
     shellTimeout = 10,
     -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
     -- launchWaitTimeout detik), tunggu launchSettleDelay detik biar masuk game,
-    -- baru clone berikutnya. Clone yang belum login dilewati.
+    -- baru clone berikutnya. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchSettleDelay = 20,

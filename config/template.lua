@@ -52,7 +52,7 @@ return {
 
     -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
     -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
-    -- clone 2, and so on. Clones without a logged-in account are skipped.
+    -- clone 2, and so on. A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
     -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
