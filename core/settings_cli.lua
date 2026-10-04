@@ -26,10 +26,8 @@ local function printSettings(conf)
     print("  launchWaitInterval = " .. tostring(conf.launchWaitInterval))
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
+    print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
-    local cc = conf.cacheCleaner or {}
-    print("  cacheCleaner.enabled (auto clear cache) = " .. tostring(cc.enabled == true))
-    print("  cacheCleaner.clearWebView = " .. tostring(cc.clearWebView ~= false))
 end
 
 function CLI.run()
@@ -48,16 +46,13 @@ function CLI.run()
     conf.gracePeriod = conf.gracePeriod or 30
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
-    conf.launchWaitTimeout = conf.launchWaitTimeout or 30
+    conf.launchWaitTimeout = conf.launchWaitTimeout or 60
     conf.launchSettleDelay = conf.launchSettleDelay or 5
+    conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
 
-    conf.cacheCleaner = conf.cacheCleaner or {}
-    conf.cacheCleaner.enabled = conf.cacheCleaner.enabled == true
-    conf.cacheCleaner.clearWebView = conf.cacheCleaner.clearWebView ~= false
-
     while true do
-        print('\nSettings Menu:\n  1) View settings\n  2) Edit monitorInterval\n  3) Edit recoveryDelay\n  4) Edit recoveryRetries\n  5) Edit checkTimeout\n  6) Toggle debug\n  7) Edit appAutoExecutePath\n  8) Edit logPath\n  9) Edit clonePackagePrefix\n 10) Edit freezeTimeout\n 11) Edit gracePeriod\n 12) Toggle anrCheckEnabled\n 13) Edit launch wait settings\n 14) Edit logLevel\n 15) Toggle auto clear cache (cacheCleaner.enabled)\n 16) Toggle clearWebView (cacheCleaner.clearWebView)\n 17) Save and Exit\n 18) Exit without saving\n')
+        print('\nSettings Menu:\n  1) View settings\n  2) Edit monitorInterval\n  3) Edit recoveryDelay\n  4) Edit recoveryRetries\n  5) Edit checkTimeout\n  6) Toggle debug\n  7) Edit appAutoExecutePath\n  8) Edit logPath\n  9) Edit clonePackagePrefix\n 10) Edit freezeTimeout\n 11) Edit gracePeriod\n 12) Toggle anrCheckEnabled\n 13) Edit launch settings (jeda antar clone)\n 14) Edit logLevel\n 15) Save and Exit\n 16) Exit without saving\n')
         local choice = prompt("Choose: ") or ""
         choice = choice:match("^%s*(.-)%s*$")
         if choice == "1" then
@@ -102,16 +97,20 @@ function CLI.run()
             conf.anrCheckEnabled = not (conf.anrCheckEnabled and true or false)
             print("anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
         elseif choice == "13" then
-            local v = prompt("launchWaitInterval (poll, seconds): [" .. tostring(conf.launchWaitInterval) .. "] ")
-            local n = tonumber(v)
-            if n and n > 0 then conf.launchWaitInterval = n else print("Invalid number") end
-            v = prompt("launchWaitTimeout (seconds before giving up): [" .. tostring(conf.launchWaitTimeout) .. "] ")
-            n = tonumber(v)
-            if n and n > 0 then conf.launchWaitTimeout = n else print("Invalid number") end
-            v = prompt("launchSettleDelay (pause after open, seconds): [" .. tostring(conf.launchSettleDelay) .. "] ")
-            n = tonumber(v)
-            if n and n >= 0 then conf.launchSettleDelay = n else print("Invalid number") end
-            v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
+            -- Launch All opens clones one by one: wait until the clone is running, then
+            -- wait launchSettleDelay for it to load the game, then start the next one.
+            print("Launch All membuka clone satu per satu. Kosongkan untuk tetap pakai nilai lama.")
+            local function askNumber(key, label, allowZero)
+                local v = prompt(label .. ": [" .. tostring(conf[key]) .. "] ")
+                if not v or v:match("^%s*$") then return end
+                local n = tonumber(v)
+                if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
+            end
+            askNumber("launchSettleDelay", "Jeda setelah Roblox jalan, sebelum clone berikutnya (detik, waktu masuk game)", true)
+            askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
+            askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
+            askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
+            local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then
                     conf.useRoot = true
@@ -132,12 +131,6 @@ function CLI.run()
                 end
             end
         elseif choice == "15" then
-            conf.cacheCleaner.enabled = not (conf.cacheCleaner.enabled and true or false)
-            print("cacheCleaner.enabled (auto clear cache) = " .. tostring(conf.cacheCleaner.enabled and true or false))
-        elseif choice == "16" then
-            conf.cacheCleaner.clearWebView = not (conf.cacheCleaner.clearWebView and true or false)
-            print("cacheCleaner.clearWebView = " .. tostring(conf.cacheCleaner.clearWebView and true or false))
-        elseif choice == "17" then
             local ok, err = Config.save(conf)
             if ok then
                 print("Settings saved")
@@ -149,7 +142,7 @@ function CLI.run()
                 print("Failed to save: " .. tostring(err))
             end
             break
-        elseif choice == "18" then
+        elseif choice == "16" then
             print("Aborting without saving")
             break
         else

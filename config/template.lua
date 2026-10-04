@@ -45,34 +45,30 @@ return {
         ionice = 3,    -- I/O class: 0=none,1=realtime,2=best-effort,3=idle.
     },
 
-    -- Clear each clone's cache right after a cold start / relaunch (after force-stop,
-    -- before launch) so it boots fresh: less storage/RAM bloat. Wipes the cache dirs
-    -- the same way Settings' "Clear cache" button does (manual rm -rf of cache,
-    -- code_cache + external cache). clearWebView additionally wipes the WebView cache
-    -- dirs (HTTP/service-worker/V8/GPU caches - the heaviest clutter on Roblox clones).
-    -- NEVER touches the Cookies DB (.ROBLOSECURITY), Local Storage, shared_prefs or
-    -- databases, so logins survive. Requires root (useRoot = true). Probe via
-    -- `lua main.lua --clear-cache` (clear all clones without launching).
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
-    },
-
     -- Folder tujuan AutoExecute (Script Manager). Scripts dikelola LANGSUNG di sini
     -- sebagai <name>.lua (Add/Edit/Delete). Path ini shared untuk semua instance.
     -- Delta mod: /sdcard/Delta/Autoexecute (internal storage, tidak perlu root).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
-    -- "Launch All" launches clones ONE AT A TIME, waiting for each to reopen before
-    -- starting the next (so floating-window clones each get a chance to appear).
-    -- launchWaitInterval: how often (s) to poll for the process while waiting.
-    -- launchWaitTimeout:   how long (s) to wait before giving up on one clone and moving on.
-    -- launchSettleDelay:   extra pause (s) after a clone is detected, before launching next.
+    -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
+    -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
+    -- clone 2, and so on. A clone that is not logged in is opened but not waited for.
+    -- launchWaitInterval: how often (s) to check while waiting.
+    -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
+    -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
     launchWaitInterval = 3,
-    -- How long (s) to wait for a clone to become ACTIVE (RSS >= minRss) during the
-    -- Menu 1 sequential launch (Starting -> Running) before moving on to the next one.
     launchWaitTimeout = 60,
-    launchSettleDelay = 5,
+    launchSettleDelay = 20,
+    -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
+    -- can appear before the next clone starts.
+    launchEmptyDelay = 5,
+    -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
+    -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as
+    -- logged out, so the clone shows NoLogin and is never force-stopped/relaunched.
+    -- loginVerifyInterval: seconds between checks per clone (a changed token is
+    -- re-checked right away). Needs `pkg install curl`.
+    loginVerifyRemote = true,
+    loginVerifyInterval = 600,
     -- Run shell commands as root (su -c). Required on a rooted device Android 11+ so that
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.

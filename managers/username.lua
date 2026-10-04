@@ -1,6 +1,7 @@
 local Logger = require("core.logger")
 local File = require("utils.file")
 local Shell = require("utils.shell")
+local Auth = require("managers.auth")
 
 local Username = {}
 
@@ -83,7 +84,14 @@ function Username.get(instance)
     local base = "/data/data/" .. pkg
     local ev = string.format("[%s] pkg=%s", os.date("%H:%M:%S"), pkg)
 
-    local token = extractToken(base)
+    -- Reuse the name from Auth's Roblox check so the token is not sent twice.
+    local fromAuth = Auth.remoteName(pkg)
+    if fromAuth then
+        ev = ev .. " auth=" .. fromAuth
+        username = fromAuth
+    end
+
+    local token = not username and extractToken(base) or nil
     ev = ev .. " token=" .. tostring(token and #token or 0)
     if token then
         local apiUser = resolveViaApi(token)

@@ -123,6 +123,10 @@ local function locateCookieDbs(base)
     return dbs
 end
 
+-- Shared with Auth.isLoggedIn, which reads the live cookie rows instead of grepping.
+CookieInjector.locateCookieDbs = locateCookieDbs
+CookieInjector.resolveSqlite3 = resolveSqlite3
+
 -- Row shape matching the row a real in-app WebView login writes (verified against the
 -- working login row dumped from a logged-in clone: host_key keeps the leading dot,
 -- expires_utc is WebKit-epoch microseconds far in the future, samesite=-1 is

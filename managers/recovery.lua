@@ -5,7 +5,6 @@ local Timer = require("utils.timer")
 local Config = require("core.config")
 local Status = require("managers.status")
 local Auth = require("managers.auth")
-local CacheCleaner = require("managers.cache_cleaner")
 
 local Recovery = {}
 
@@ -98,8 +97,6 @@ function Recovery.launchAndJoin(instance)
         local stopped = APK.forceStop(pkg)
         if not stopped then return false end
         Timer.sleep(1)
-        -- Cold start: clone is fully stopped, safe to drop its caches before booting.
-        pcall(function() return CacheCleaner.applyForInstance(instance) end)
         local opened = openGameLink(instance)
         if not opened then return false end
     else
@@ -209,9 +206,6 @@ function Recovery.relaunch(instance)
 
     Timer.sleep(1)
 
-    -- Clone was force-stopped above, so caches are safe to drop before relaunching.
-    pcall(function() return CacheCleaner.applyForInstance(instance) end)
-
     local ok, err = APK.launch(pkg)
     if not ok then
         Logger.error("Recovery.relaunch: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
@@ -257,9 +251,6 @@ function Recovery.checkAndRecover(instance)
 
         -- small pause to let system settle
         Timer.sleep(1)
-
-        -- Clone is stopped: drop its caches before relaunching (fresh boot each time).
-        pcall(function() return CacheCleaner.applyForInstance(instance) end)
 
         -- A game link must launch a cold app. Launching MAIN first can leave the
         -- subsequent VIEW intent on the game page without joining the server.

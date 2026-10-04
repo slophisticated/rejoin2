@@ -81,7 +81,11 @@ function Shell.exec(cmd)
     local full = runWithRoot(applyTimeout(cmd))
     -- Commands may contain session cookies or SQL values. Never write them to logs.
     Logger.debug("Shell.exec")
-    local f = io.popen(full .. " 2>&1")
+    -- stdin from /dev/null: when Magisk `su` sees a terminal on stdin it switches the
+    -- terminal to raw mode while the command runs, and Ctrl+C then reaches su as a
+    -- plain byte instead of stopping the engine. No command here reads stdin.
+    -- Grouped so the redirects cover every part of a compound command.
+    local f = io.popen("{ " .. full .. "\n} 2>&1 </dev/null")
     if not f then return false, "popen_failed" end
     local out = f:read("*a") or ""
     local ok, _, code = f:close()

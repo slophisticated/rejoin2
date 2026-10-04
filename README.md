@@ -20,9 +20,9 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Username display** — dashboard monitoring menampilkan **username Roblox** di tiap baris instance (mis. `com.apengjers.v3 (apengjers)`). Di-resolve otomatis dari token `.ROBLOSECURITY` via API Roblox (`users.roblox.com`). Hasil di-cache per instance (600 detik). Bisa di-override per-instance lewat `usernamePath` (path file yang baris pertamanya berisi username). Bukti scan tersimpan di `data/username_scan.log`.
 - **Auto relaunch freeze** — app yang freeze/stuck lebih dari `freezeTimeout` (default 300 detik / 5 menit) otomatis di-force-stop & di-relaunch.
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
+- **Cek login + debug log** — token `.ROBLOSECURITY` dibaca dari Cookies DB lalu diverifikasi ke Roblox pakai curl (`users.roblox.com/v1/users/authenticated`, tiap `loginVerifyInterval` detik). Token ditolak (HTTP 401) = dianggap logout: status `NoLogin` walaupun RAM clone masih tinggi, dan tidak di-force-stop. Semua hasil cek login (`[LOGIN]`) dan tiap perubahan status (`[STATUS]`, lengkap dengan RSS & login) ditulis ke `data/rejoin.log`. Token tidak pernah ditulis ke log.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
-- **Optimasi RAM/CPU** — semua clone di-deprioritze (`renice 19` + `ionice idle`) supaya 4 floating window tidak rebutan CPU/RAM. Di-apply ulang tiap launch/recovery (karena pid berubah).
-- **Auto clear cache saat launch** — cache tiap clone dibersihkan otomatis **setiap cold start / relaunch** (setelah force-stop, sebelum launch) lewat `rm -rf` manual terhadap dir cache app — cara kerja yang sama dengan tombol **"Clear cache"** di Settings (tidak ada `pm clear-cache` di Android). Dengan `clearWebView=true` juga wipe cache WebView (HTTP/service-worker/V8/GPU). Log mengukur byte `before/after` sebagai bukti. **Login aman** — `Cookies` (`.ROBLOSECURITY`), Local Storage, `shared_prefs`, `databases`, `files` tidak pernah disentuh. **Default MATI** — aktifkan via menu Settings (item toggle `cacheCleaner.enabled`); dipicu manual kapan saja tanpa launch: `lua main.lua --clear-cache` (tetap jalan walau auto mati). Config: `cacheCleaner`.
+- **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
 - **AutoExecute / Script Manager** — kelola **script `.lua`** langsung di `appAutoExecutePath` (mis. `/sdcard/Delta/Autoexecute`) lewat menu `6) AutoExecute Manager`: di layar langsung tampil isi folder (Add / Edit / Delete). Rejoin adalah pengelola script — **semua logika ditulis user** di dalam file script.
 - **Inject Cookie** — menu `7) Inject Cookie`: inject token **`.ROBLOSECURITY`** ke Cookies DB WebView clone mana pun dari daftar config (auto `am force-stop` dulu, target path sama dengan deteksi login / `cookiePath`, backup DB dulu, verifikasi setelahnya). Butuh `sqlite3` di device (`pkg install sqlite`). Sebelum menulis, token **diverifikasi dulu ke Roblox** (`users.roblox.com/v1/users/authenticated`, pakai curl) — verifikasi **fail-closed**: kalau bukan respons jelas valid (`HTTP 200` + body berisi `"name"`), inject langsung dibatalkan dan body respons Roblox ditampilkan, jadi tidak akan lagi "DB tertulis tapi tidak login". Bisa cek token tanpa inject lewat submenu `3) Cek validitas token`. Baris cookie hasil inject dibuat **identik dengan baris login asli in-app** (host_key `.roblox.com`, samesite `-1`, expires jauh ke depan, `creation/last_access` real), sisa baris lama yang salah dihapus otomatis.
@@ -38,10 +38,10 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 
 ### Agar Ctrl+C bisa menghentikan program
 
-Monitor nyaris sepanjang waktu berada di dalam `os.execute`/`io.popen` (memanggil `ps`, `pidof`, dsb.), dan POSIX **memblokir SIGINT** saat proses ada di dalam `system()`/`popen()` — jadi `lua main.lua` langsung sering menelan Ctrl+C. Solusinya jalankan lewat **`run.sh`**: shell wrapper itu menangkap Ctrl+C sendiri lalu `kill` child Lua, sehingga berhenti andal dalam satu terminal (tanpa install `lua-posix`, yang tidak tersedia di repo Termux).
+Jalankan `lua main.lua` seperti biasa. Entry point ini otomatis mengaktifkan pengawas terminal internal (`run.sh`) yang menangani Ctrl+C saat monitor berada di dalam `os.execute`/`io.popen`, serta memulihkan input dan tampilan menu setelah inject cookie.
 
 ```sh
-sh run.sh            # atau chmod +x run.sh && ./run.sh ...
+lua main.lua
 ```
 
 `lua-posix` (opsional, bila tersedia di device lain) tetap dipakai otomatis oleh `managers/monitor.lua` untuk menghentikan program dari dalam proses.
@@ -58,31 +58,31 @@ sh run.sh            # atau chmod +x run.sh && ./run.sh ...
    chmod +x setup.sh && ./setup.sh
    ```
 
-3. Jalankan tools (pakai `run.sh` supaya Ctrl+C bisa berhenti):
+3. Jalankan tools:
    ```sh
-   sh run.sh
+   lua main.lua
    ```
    - Jika `config/config.lua` belum ada, **Setup Wizard** akan berjalan untuk mendeteksi/menambah instance.
 
-4. Gunakan Main Menu untuk: **Instances**, **Settings**, **View Logs**, **Start Monitor**.
+4. Gunakan Main Menu untuk: **Instances**, **Settings**, **View Logs**, dan **Start Monitor**.
 
 ### Headless / automated run
 
 - Mulai monitor langsung (tanpa menu):
   ```sh
-  sh run.sh --headless --start-monitor
+  lua main.lua --headless --start-monitor
   ```
 - Lewati wizard saat config belum ada:
   ```sh
-  sh run.sh --no-wizard
+  lua main.lua --no-wizard
   ```
 - Simulasi tanpa efek samping shell (dry-run):
   ```sh
-  sh run.sh --dry-run --headless --start-monitor
+  lua main.lua --dry-run --headless --start-monitor
   ```
 - Sama seperti Menu 1 (launch semua clone + optimizer, lalu monitor) secara non-interaktif:
   ```sh
-  sh run.sh --headless --start-monitor --auto-launch
+  lua main.lua --headless --start-monitor --auto-launch
   ```
 
 ### Auto-start saat boot (Termux:Boot)
@@ -97,7 +97,7 @@ Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
    chmod +x ~/.termux/boot/start-rejoin.sh
    ```
 3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot HP.
-4. Setiap boot, Termux menjalankan `sh ~/rejoin/run.sh --headless --start-monitor --auto-launch` (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+4. Setiap boot, Termux menjalankan `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
 
 ### Matikan auto-boot
 
@@ -107,7 +107,7 @@ Gemana cara mematikannya? Tarik script dari folder boot agar Termux:Boot tidak m
 rm ~/.termux/boot/start-rejoin.sh
 ```
 
-Setelah dihapus, Termux tidak akan otomatis membuka & menjalankan engine lagi di boot berikutnya. (Fungsi Manual via `sh run.sh` tetap jalan seperti biasa; boot yang sudah berjalan tetap bisa dihentikan manual.)
+Setelah dihapus, Termux tidak akan otomatis membuka & menjalankan engine lagi di boot berikutnya. (Fungsi manual via `lua main.lua` tetap jalan seperti biasa; boot yang sudah berjalan tetap bisa dihentikan manual.)
 
 ---
 
@@ -154,19 +154,21 @@ return {
     anrCheckEnabled = true,     -- deteksi ANR via logcat (best-effort, lebih andal dgn root)
     minRss = 300,               -- MB ambang proses clone dianggap AKTIF (RSS)
 
-    -- Deprioritze semua clone siram RAM/CPU.
+    -- Launch All (menu 1): clone dibuka satu per satu.
+    launchSettleDelay = 20,     -- detik jeda setelah clone jalan, sebelum clone berikutnya
+    launchEmptyDelay = 5,       -- detik jeda setelah clone KOSONG dibuka (biar jendelanya muncul)
+    launchWaitTimeout = 60,     -- detik maks nunggu satu clone kebuka
+    launchWaitInterval = 3,     -- detik interval cek selama nunggu
+
+    -- Cek login: token diverifikasi ke Roblox pakai curl (butuh `pkg install curl`).
+    loginVerifyRemote = true,   -- false = matikan verifikasi curl
+    loginVerifyInterval = 600,  -- detik antar verifikasi per clone
+
+    -- Turunkan prioritas CPU/I/O semua clone.
     optimizer = {
         enabled = true,
         renice = 19,   -- prioritas CPU (makin besar makin rendah; 19 = terkecil)
         ionice = 3,    -- kelas I/O (3 = idle)
-    },
-
-    -- Auto clear cache tiap clone saat cold start / relaunch (setelah force-stop).
-    -- DEFAULT MATI; aktifkan lewat Settings > 15) Toggle auto clear cache. clearWebView=true
-    -- juga wipe cache WebView (bloat terbesar clone Roblox).
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
     },
 
     instances = {
@@ -239,7 +241,6 @@ rejoin/
 │   ├── monitor.lua             # loop monitor
 │   ├── recovery.lua            # engine recovery
 │   ├── optimizer.lua           # renice/ionice deprioritasi clone
-│   ├── cache_cleaner.lua       # auto clear cache tiap clone saat cold start/relaunch
 │   ├── autoexecute.lua         # AutoExecute: kelola langsung folder app (list/add/edit/delete)
 │   ├── auth.lua                # deteksi login via cookie (.ROBLOSECURITY)
 │   ├── cookie_injector.lua     # inject .ROBLOSECURITY ke Cookies DB clone (sqlite3)
@@ -259,7 +260,7 @@ rejoin/
 ## Menu
 
 ### Main Menu
-- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live)
+- `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Semua clone dibuka; clone yang kebaca belum login hanya ditunggu `launchEmptyDelay` detik (default 5) biar jendelanya sempat muncul.
 - `2) Instances Manager`
 - `3) Settings`
 - `4) View Logs`
@@ -284,6 +285,7 @@ rejoin/
 - `appAutoExecutePath`, `logPath`
 - `clonePackagePrefix`
 - `freezeTimeout` (detik sebelum relaunch app freeze), `gracePeriod`, `anrCheckEnabled`
+- `13) Edit launch settings (jeda antar clone)`: `launchSettleDelay` (jeda setelah Roblox jalan sebelum clone berikutnya — naikkan kalau game butuh waktu lama buat masuk), `launchEmptyDelay` (jeda setelah clone kosong), `launchWaitTimeout`, `launchWaitInterval`. Kosongkan input untuk tetap pakai nilai lama.
 
 ---
 

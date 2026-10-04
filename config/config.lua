@@ -19,9 +19,19 @@ return {
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
-    -- How long (s) to wait for one clone to become active (RSS >= minRss) during the
-    -- Menu 1 sequential launch before moving on to the next instance.
+    -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
+    -- launchWaitTimeout detik), tunggu launchSettleDelay detik biar masuk game,
+    -- baru clone berikutnya. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
+    launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchSettleDelay = 20,
+    -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
+    launchEmptyDelay = 5,
+    -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
+    -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.
+    -- loginVerifyInterval: jeda (detik) antar verifikasi per clone.
+    loginVerifyRemote = true,
+    loginVerifyInterval = 600,
     -- Automatic per-cycle diagnostics: written to this file whenever the app is
     -- launched via Menu 1 (Launch + Monitor). Shows running/isActive/RSS per clone.
     launchLogPath = "launch.log",
@@ -33,14 +43,6 @@ return {
         enabled = true,
         renice = 19,   -- CPU scheduling priority (higher = lower). 19 = lowest.
         ionice = 3,    -- I/O class: 0=none,1=realtime,2=best-effort,3=idle.
-    },
-    -- Bersihkan cache tiap clone saat cold start / relaunch (setelah force-stop, sebelum
-    -- launch) biar tiap boot fresh: storage & RAM lebih ringan. Tidak menyentuh Cookies
-    -- (.ROBLOSECURITY), Local Storage, shared_prefs, atau databases -> login aman.
-    -- clearWebView=true juga wipe cache WebView (bloat terbesar di clone Roblox).
-    cacheCleaner = {
-        enabled = false,
-        clearWebView = true,
     },
     -- Folder tujuan Deploy (Script Manager / AutoExecute). Scripts di-deploy ke sini
     -- sebagai <name>.lua. Path ini shared untuk semua instance (Delta mod: internal storage).

@@ -105,9 +105,25 @@ local function scanAnrPackages()
     return anr
 end
 
+local classify
+
 -- Update the status of a single instance based on its process state and ANR logs.
--- Returns the current status string for convenience.
+-- Returns the current status string for convenience. Every status change is written
+-- to rejoin.log ([STATUS] lines) with the RSS and login state behind it.
 function Status.check(instance)
+    local before = states[instance.id] and states[instance.id].status
+    local status = classify(instance)
+    if status ~= before then
+        local s = states[instance.id] or {}
+        local rssMb = s.rssKb and s.rssKb >= 0 and math.floor(s.rssKb / 1024) or -1
+        Logger.info(string.format("[STATUS] %s (%s): %s -> %s (rss=%dMB, login=%s)",
+            tostring(instance.name or instance.id), tostring(instance.package),
+            tostring(before or "-"), tostring(status), rssMb, tostring(s.lastLogin)))
+    end
+    return status
+end
+
+classify = function(instance)
     local id = instance.id
     local pkg = instance.package
     local now = os.time()
@@ -153,6 +169,7 @@ function Status.check(instance)
         -- freeze/relaunch clock. On a failed detection (nil) we fall back to the normal
         -- freeze handling so existing behavior is preserved.
         local loggedIn = Auth.isLoggedIn(instance)
+        s.lastLogin = loggedIn
         if loggedIn == false then
             s.status = "nologin"
             s.stuckSince = nil
@@ -167,7 +184,19 @@ function Status.check(instance)
         return s.status
     end
 
-    -- Process is genuinely active (real memory).
+    -- Process is genuinely active (real memory). A clone can sit on the login screen
+    -- (logged out / kicked) with enough RSS to pass minRss, so check the login here
+    -- too; otherwise it would keep showing Running.
+    local loggedIn = Auth.isLoggedIn(instance)
+    s.lastLogin = loggedIn
+    if loggedIn == false then
+        s.status = "nologin"
+        s.stuckSince = nil
+        s.healthySince = nil
+        s.forceRunning = nil
+        return s.status
+    end
+
     if s.forceRunning then
         -- Recovery/relaunch just succeeded: go straight to Running.
         s.forceRunning = nil

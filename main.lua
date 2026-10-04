@@ -1,3 +1,24 @@
+-- Keep `lua main.lua` as the single entrypoint. The shell supervisor owns the
+-- terminal while Lua runs, so Ctrl+C works even during os.execute/io.popen.
+-- REJOIN_WRAPPER prevents the supervisor's child from launching another one.
+if os.getenv("REJOIN_WRAPPER") ~= "1" then
+    local function shellQuote(value)
+        return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+    end
+    local scriptDir = (arg and arg[0] and arg[0]:match("^(.*[/\\])")) or ""
+    local command = "sh " .. shellQuote(scriptDir .. "run.sh")
+    for i = 1, #(arg or {}) do
+        command = command .. " " .. shellQuote(arg[i])
+    end
+    local ok, _, code = os.execute(command)
+    if type(ok) == "number" then
+        -- Lua 5.1 returns the wait status as a number; newer Lua returns a
+        -- boolean plus the exit code.
+        os.exit(ok > 255 and math.floor(ok / 256) or ok)
+    end
+    os.exit(ok and 0 or (code or 1))
+end
+
 -- Recover terminal mode left by a previous interrupted cookie paste before any
 -- logs or menu text. A redirected/headless stdin makes stty fail harmlessly.
 local ttyReady = os.execute("stty sane 2>/dev/null")
@@ -24,7 +45,6 @@ local startMonitorFlag = false
 local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
-local clearCacheFlag = false
 local doctorFlag = false
 for i = 1, #args do
     local a = args[i]
@@ -33,7 +53,6 @@ for i = 1, #args do
     if a == "--start-monitor" then startMonitorFlag = true end
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
-    if a == "--clear-cache" then clearCacheFlag = true end
     if a == "--doctor" then doctorFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
@@ -89,15 +108,6 @@ if doctorFlag then
     print("\n===== DOCTOR REPORT (jalankan di KEDUA device, diff outputnya) =====")
     print(report)
     print("====================================================================")
-    os.exit(0)
-end
-
--- One-shot: clear cache for all configured clones (apps must be closed first), exit.
-if clearCacheFlag then
-    local CacheCleaner = require("managers.cache_cleaner")
-    local n = CacheCleaner.applyAll(true)
-    print(string.format("Cleared cache for %d instance(s). Apps harus dalam keadaan berhenti (force-stop).", n))
-    Logger.info(string.format("Main: --clear-cache applied to %d instance(s)", n))
     os.exit(0)
 end
 
