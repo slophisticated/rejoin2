@@ -89,7 +89,7 @@ lua main.lua
 
 Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
 
-1. `pkg install termux-boot` + pasang aplikasi **Termux:Boot** dari F-Droid.
+1. Pasang aplikasi **Termux:Boot** (ini aplikasi Android terpisah, **bukan** paket `pkg`). Ambil dari sumber yang **sama** dengan Termux yang terpasang — Termux dari F-Droid → Termux:Boot dari [F-Droid](https://f-droid.org/packages/com.termux.boot/); Termux dari GitHub → Termux:Boot dari [GitHub releases](https://github.com/termux/termux-boot/releases). Beda sumber = tanda tangan beda, Android menolak/aplikasi tidak jalan.
 2. Siapkan script boot:
    ```sh
    mkdir -p ~/.termux/boot
