@@ -97,7 +97,8 @@ Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
    chmod +x ~/.termux/boot/start-rejoin.sh
    ```
 3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot HP.
-4. Setiap boot, Termux menjalankan `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+4. Setiap boot, Termux:Boot menjalankan script ini **di belakang layar (tidak ada jendela Termux yang terbuka)**: tunggu `BOOT_DELAY` detik (default 30), lalu `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+5. Kalau setelah reboot clone tidak terbuka, cek `cat ~/rejoin/data/boot.log` (atau `~/rejoin-boot.log` kalau folder repo tidak ketemu). Dua-duanya tidak ada = script tidak dijalankan sama sekali (Termux:Boot belum dibuka sekali / beda sumber dengan Termux / dibatasi optimasi baterai). Ada isinya = lihat baris `ERROR`/`WARN` terakhir, lalu `data/rejoin.log`.
 
 ### Matikan auto-boot
 
