@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Boot lebih tahan banting**: `termux-boot.sh` mencatat tiap langkah ke `data/boot.log` (dirotasi > 256 KB), menunggu `BOOT_DELAY` (30 dtk), stdin `/dev/null`, dan menjalankan ulang engine kalau crash (maks `MAX_RESTARTS` = 5, jeda `RESTART_DELAY` = 30 dtk; exit 0/130/143 = berhenti). Monitor sekarang menolak jalan kalau engine lain masih aktif (`data/monitor.pid`), supaya engine boot yang tersembunyi dan engine dari menu tidak saling force-stop clone.
+
 - **Launch All: clone kosong dapat jeda singkat `launchEmptyDelay` (default 5 dtk)**: tanpa jeda sama sekali, clone berikutnya dibuka di detik yang sama dan jendela floating clone kosong kadang tidak muncul. Bisa diatur di Settings `13`.
 
 - **Fix: Ctrl+C kadang tidak bisa stop dashboard monitor (harus exit lewat notif bar)**: perintah root (`su -c ...`) mewarisi terminal sebagai stdin, dan Magisk `su` mengubah terminal ke mode raw selama perintah jalan — Ctrl+C jadi byte biasa, bukan SIGINT. Monitor hampir selalu sedang menjalankan `su`, jadi Ctrl+C sering hilang; kalau `su` terputus, terminal bisa tertinggal raw. Sekarang `Shell.exec` menjalankan semua perintah dengan stdin `/dev/null` (dibungkus `{ ...; }` supaya berlaku untuk perintah gabungan), dan loop monitor memastikan `stty isig` tiap siklus.

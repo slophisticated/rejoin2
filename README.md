@@ -100,6 +100,16 @@ Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
 4. Setiap boot, Termux:Boot menjalankan script ini **di belakang layar (tidak ada jendela Termux yang terbuka)**: tunggu `BOOT_DELAY` detik (default 30), lalu `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
 5. Kalau setelah reboot clone tidak terbuka, cek `cat ~/rejoin/data/boot.log` (atau `~/rejoin-boot.log` kalau folder repo tidak ketemu). Dua-duanya tidak ada = script tidak dijalankan sama sekali (Termux:Boot belum dibuka sekali / beda sumber dengan Termux / dibatasi optimasi baterai). Ada isinya = lihat baris `ERROR`/`WARN` terakhir, lalu `data/rejoin.log`.
 
+### Engine dari boot & menjalankan manual
+
+Engine dari boot jalan **tersembunyi** (tanpa jendela). Hanya satu engine yang boleh jalan: kalau engine boot masih aktif lalu kamu pilih menu `1`/`5`, muncul pesan `engine lain masih jalan (pid ...)` dan monitor tidak dimulai (supaya dua engine tidak saling force-stop clone). Hentikan engine boot dulu:
+
+```sh
+kill $(cat ~/rejoin/data/monitor.pid)
+```
+
+Kalau engine boot crash, script boot menjalankannya ulang (jeda `RESTART_DELAY` 30 detik, maks `MAX_RESTARTS` 5 kali berturut-turut). Dihentikan dengan `kill` = tidak dijalankan ulang. Semua tercatat di `data/boot.log`.
+
 ### Matikan auto-boot
 
 Gemana cara mematikannya? Tarik script dari folder boot agar Termux:Boot tidak menjalankannya lagi saat HP dinyalakan:

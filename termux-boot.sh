@@ -20,11 +20,19 @@
 
 REJOIN_DIR=${REJOIN_DIR:-"$HOME/rejoin"}
 BOOT_DELAY=${BOOT_DELAY:-30}
+# If the engine crashes it is restarted after RESTART_DELAY seconds, at most
+# MAX_RESTARTS times in a row (a clean stop or `kill` is not restarted).
+RESTART_DELAY=${RESTART_DELAY:-30}
+MAX_RESTARTS=${MAX_RESTARTS:-5}
 if [ -f "$REJOIN_DIR/main.lua" ]; then
     mkdir -p "$REJOIN_DIR/data" 2>/dev/null
     BOOT_LOG="$REJOIN_DIR/data/boot.log"
 else
     BOOT_LOG="$HOME/rejoin-boot.log"
+fi
+# Keep the log small: start a fresh one when it passes ~256 KB.
+if [ -f "$BOOT_LOG" ] && [ "$(wc -c < "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+    mv -f "$BOOT_LOG" "$BOOT_LOG.old" 2>/dev/null
 fi
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$BOOT_LOG"; }
 
@@ -43,7 +51,25 @@ command -v lua >/dev/null 2>&1 || { log "ERROR: lua not found (pkg install lua53
 sleep "$BOOT_DELAY"
 if su -c id >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
 
-log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
 # The live dashboard is useless without a window, so stdout is dropped; errors go to
-# boot.log and the engine's own log stays in data/rejoin.log.
-exec lua main.lua --headless --start-monitor --auto-launch >/dev/null 2>>"$BOOT_LOG"
+# boot.log and the engine's own log stays in data/rejoin.log. stdin is /dev/null
+# because Termux:Boot gives the script no terminal.
+restarts=0
+while :; do
+    log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
+    lua main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    code=$?
+    case "$code" in
+        0|130|143)
+            log "engine stopped (exit $code)"
+            exit "$code"
+            ;;
+    esac
+    restarts=$((restarts + 1))
+    if [ "$restarts" -gt "$MAX_RESTARTS" ]; then
+        log "ERROR: engine still crashing after $MAX_RESTARTS restarts (exit $code); giving up"
+        exit "$code"
+    fi
+    log "WARN: engine crashed (exit $code); restart $restarts/$MAX_RESTARTS in ${RESTART_DELAY}s"
+    sleep "$RESTART_DELAY"
+done
