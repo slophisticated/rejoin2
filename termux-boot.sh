@@ -40,7 +40,7 @@ log "boot script started (dir=$REJOIN_DIR, delay=${BOOT_DELAY}s)"
 
 # Keep the CPU awake so Android does not suspend the engine after boot.
 if command -v termux-wake-lock >/dev/null 2>&1; then
-    termux-wake-lock && log "wake lock taken"
+    termux-wake-lock </dev/null && log "wake lock taken"
 fi
 
 [ -f "$REJOIN_DIR/main.lua" ] || { log "ERROR: $REJOIN_DIR/main.lua not found (set REJOIN_DIR)"; exit 1; }
@@ -49,7 +49,7 @@ command -v lua >/dev/null 2>&1 || { log "ERROR: lua not found (pkg install lua53
 [ -f config/config.lua ] || log "WARN: config/config.lua missing"
 
 sleep "$BOOT_DELAY"
-if su -c id >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
+if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
 
 # The live dashboard is useless without a window, so stdout is dropped; errors go to
 # boot.log and the engine's own log stays in data/rejoin.log. stdin is /dev/null
