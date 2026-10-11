@@ -27,6 +27,9 @@ local function printSettings(conf)
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
     print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
+    local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
+    print("  windowLayout.enabled (auto atur jendela) = " .. tostring(wl.enabled == true)
+        .. ", columns = " .. tostring(wl.columns or 0) .. ", gap = " .. tostring(wl.gap or 0))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
@@ -110,6 +113,24 @@ function CLI.run()
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
+            -- Floating window grid (managers/window_layout.lua), applied while a clone
+            -- is stopped right before it is launched.
+            conf.windowLayout = type(conf.windowLayout) == "table" and conf.windowLayout or {}
+            local wl = conf.windowLayout
+            local cur = wl.enabled == true and "y" or "n"
+            local yn = prompt("Auto atur jendela floating jadi grid? (y/n): [" .. cur .. "] ")
+            if yn and yn:match("^%s*[yY]") then wl.enabled = true
+            elseif yn and yn:match("^%s*[nN]") then wl.enabled = false end
+            if wl.enabled then
+                local v = prompt("Jumlah kolom grid (0 = otomatis): [" .. tostring(wl.columns or 0) .. "] ")
+                local n = tonumber(v)
+                if n and n >= 0 then wl.columns = math.floor(n)
+                elseif v and not v:match("^%s*$") then print("Invalid number") end
+                v = prompt("Jarak antar jendela (pixel): [" .. tostring(wl.gap or 0) .. "] ")
+                n = tonumber(v)
+                if n and n >= 0 then wl.gap = math.floor(n)
+                elseif v and not v:match("^%s*$") then print("Invalid number") end
+            end
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

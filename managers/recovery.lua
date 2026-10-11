@@ -5,6 +5,7 @@ local Timer = require("utils.timer")
 local Config = require("core.config")
 local Status = require("managers.status")
 local Auth = require("managers.auth")
+local WindowLayout = require("managers.window_layout")
 
 local Recovery = {}
 
@@ -97,9 +98,14 @@ function Recovery.launchAndJoin(instance)
         local stopped = APK.forceStop(pkg)
         if not stopped then return false end
         Timer.sleep(1)
+        -- Clone is stopped: place its floating window before it opens.
+        WindowLayout.applyForInstance(instance)
         local opened = openGameLink(instance)
         if not opened then return false end
     else
+        if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
+            WindowLayout.applyForInstance(instance)
+        end
         local ok, err = APK.launch(pkg)
         if not ok then
             Logger.error("Recovery.launchAndJoin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
@@ -205,6 +211,7 @@ function Recovery.relaunch(instance)
     end
 
     Timer.sleep(1)
+    WindowLayout.applyForInstance(instance)
 
     local ok, err = APK.launch(pkg)
     if not ok then
@@ -251,6 +258,7 @@ function Recovery.checkAndRecover(instance)
 
         -- small pause to let system settle
         Timer.sleep(1)
+        WindowLayout.applyForInstance(instance)
 
         -- A game link must launch a cold app. Launching MAIN first can leave the
         -- subsequent VIEW intent on the game page without joining the server.

@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Auto atur jendela floating (grid)**: modul baru `managers/window_layout.lua` menulis `app_cloner_current_window_{left,top,right,bottom}` ke `/data/data/<pkg>/shared_prefs/<pkg>_preferences.xml` setiap kali clone di-force-stop sebelum dibuka (Launch All, relaunch, recovery). File ditulis lewat `cat >` supaya inode/owner/izin/SELinux tetap. Default mati (`windowLayout.enabled`), diatur di Settings `13`; ukuran layar dideteksi dari `dumpsys window displays`. Tool `tools/float_probe.sh` untuk melihat key setting jendela.
+
 - **Boot lebih tahan banting**: `termux-boot.sh` mencatat tiap langkah ke `data/boot.log` (dirotasi > 256 KB), menunggu `BOOT_DELAY` (30 dtk), stdin `/dev/null`, dan menjalankan ulang engine kalau crash (maks `MAX_RESTARTS` = 5, jeda `RESTART_DELAY` = 30 dtk; exit 0/130/143 = berhenti). Monitor sekarang menolak jalan kalau engine lain masih aktif (`data/monitor.pid`), supaya engine boot yang tersembunyi dan engine dari menu tidak saling force-stop clone.
 
 - **Launch All: clone kosong dapat jeda singkat `launchEmptyDelay` (default 5 dtk)**: tanpa jeda sama sekali, clone berikutnya dibuka di detik yang sama dan jendela floating clone kosong kadang tidak muncul. Bisa diatur di Settings `13`.
