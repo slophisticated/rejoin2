@@ -122,6 +122,26 @@ if headless and startMonitorFlag then
     os.exit(0)
 end
 
+-- Gate sistem key (opsional; config license.enabled=false => tanpa gate).
+local License = require("managers.license")
+local licenseKind = License.check()
+if licenseKind ~= "disabled" then
+    if licenseKind == "ok" then
+        Logger.info("License: valid (key: " .. tostring((License.getState() or {}).keyFam or "-") .. ")")
+    elseif licenseKind == "offline" then
+        print("\n[WARN] " .. License.statusText("offline"))
+    else
+        print("\n" .. License.statusText(licenseKind))
+        local LicenseCLI = require("core.license_cli")
+        LicenseCLI.run()
+        licenseKind = License.check()
+        if licenseKind ~= "ok" and licenseKind ~= "offline" then
+            print("\nBelum ada lisensi valid — keluar.")
+            os.exit(0)
+        end
+    end
+end
+
 -- Interactive menu loop
 local function prompt(msg)
     io.write(msg)
@@ -136,7 +156,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) License System\n  10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -181,6 +201,9 @@ while true do
         local DumpCookiesCLI = require("core.dump_cookies_cli")
         DumpCookiesCLI.run()
     elseif choice == "9" then
+        local LicenseCLI = require("core.license_cli")
+        LicenseCLI.run()
+    elseif choice == "10" then
         print("Exiting main")
         break
     else

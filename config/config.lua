@@ -15,7 +15,7 @@ return {
     -- Minimum resident memory (MB) for a clone's process to be considered ACTIVE.
     -- A running clone reads ~1 GB while a force-close stub is ~188 MB, so anything
     -- below this is treated as "not really running" and gets relaunched. Tune if needed.
-    minRss = 200,
+    minRss = 400,
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
@@ -55,6 +55,12 @@ return {
     -- Folder tujuan Deploy (Script Manager / AutoExecute). Scripts di-deploy ke sini
     -- sebagai <name>.lua. Path ini shared untuk semua instance (Delta mod: internal storage).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
+    -- Sistem key / lisensi (opsional). enabled=false = mati tanpa gate.
+    -- Backend gratis: server/appscript.gs (Google Apps Script). Isi serverUrl setelah deploy.
+    license = {
+        enabled = false,
+        serverUrl = "",
+    },
     instances = {
         [1] = {
         id = 1,
