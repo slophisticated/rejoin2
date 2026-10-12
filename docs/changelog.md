@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Sistem Key (lisensi) rebuild atas base update temen**: gate menu via key permanen (kuota device per key, revoke admin). Backend **gratis** Google Apps Script — `server/appscript.gs` (deploy + admin function: `server/README-appscript.md`). Aktif lewat `license.enabled=true` + `serverUrl`; device di-bind HWID (md5 `serialno+android_id`), session permanen sampai di-revoke, offline tetap boleh pakai setelah ter-register. Menu baru `9) License System` (Exit pindah ke 10). `managers/license.lua` memakai `curl --max-time 8` (di bawah `shellTimeout=10`). **Default OFF.** `loginVerifyRemote` tetap `true` (bawaan temen).
+
 - **Launch All: clone kosong dapat jeda singkat `launchEmptyDelay` (default 5 dtk)**: tanpa jeda sama sekali, clone berikutnya dibuka di detik yang sama dan jendela floating clone kosong kadang tidak muncul. Bisa diatur di Settings `13`.
 
 - **Fix: Ctrl+C kadang tidak bisa stop dashboard monitor (harus exit lewat notif bar)**: perintah root (`su -c ...`) mewarisi terminal sebagai stdin, dan Magisk `su` mengubah terminal ke mode raw selama perintah jalan — Ctrl+C jadi byte biasa, bukan SIGINT. Monitor hampir selalu sedang menjalankan `su`, jadi Ctrl+C sering hilang; kalau `su` terputus, terminal bisa tertinggal raw. Sekarang `Shell.exec` menjalankan semua perintah dengan stdin `/dev/null` (dibungkus `{ ...; }` supaya berlaku untuk perintah gabungan), dan loop monitor memastikan `stty isig` tiap siklus.
