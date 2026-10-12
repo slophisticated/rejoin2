@@ -43,6 +43,50 @@ local function installSignalHandler()
     return true
 end
 
+-- Only one engine may drive the clones: the boot engine runs hidden in the
+-- background, and a second one started from the menu would force-stop and relaunch
+-- the same clones. The running engine's pid is kept in data/monitor.pid.
+local PID_FILE = "data/monitor.pid"
+
+local function selfPid()
+    -- The shell spawned by popen is our child, so its $PPID is this Lua process.
+    local f = io.popen("echo $PPID")
+    if not f then return nil end
+    local pid = tonumber(f:read("*l") or "")
+    f:close()
+    return pid
+end
+
+-- pid of another live engine, or nil.
+local function otherEngine(myPid)
+    local f = io.open(PID_FILE, "r")
+    if not f then return nil end
+    local pid = tonumber(f:read("*l") or "")
+    f:close()
+    if not pid or pid == myPid then return nil end
+    local c = io.open("/proc/" .. pid .. "/cmdline", "r")
+    if not c then return nil end
+    local cmdline = c:read("*a") or ""
+    c:close()
+    if cmdline:find("main.lua", 1, true) then return pid end
+    return nil
+end
+
+local function writePid(pid)
+    if not pid then return end
+    os.execute("mkdir -p data 2>/dev/null")
+    local f = io.open(PID_FILE, "w")
+    if f then f:write(tostring(pid), "\n"); f:close() end
+end
+
+local function clearPid(pid)
+    local f = io.open(PID_FILE, "r")
+    if not f then return end
+    local stored = tonumber(f:read("*l") or "")
+    f:close()
+    if stored == pid then os.remove(PID_FILE) end
+end
+
 -- track instances currently undergoing recovery to avoid duplicate recoveries
 local recovering = {}
 
@@ -164,6 +208,15 @@ function Monitor.start(conf, opts)
         Logger.warn("Monitor already running")
         return false
     end
+
+    local myPid = selfPid()
+    local other = otherEngine(myPid)
+    if other then
+        Logger.error(string.format("Monitor: engine lain masih jalan (pid %d, mis. dari boot). "
+            .. "Stop dulu: kill %d", other, other))
+        return false
+    end
+    writePid(myPid)
 
     running = true
     interrupted = false
@@ -305,6 +358,7 @@ function Monitor.start(conf, opts)
         Timer.sleepInterruptible(interval, function() return not running end)
     end
 
+    clearPid(myPid)
     -- Monitor stopped: restore console output and cursor, then leave a clean line.
     Logger.setConsoleVisible(true)
     io.write("\27[?25h\r\n")

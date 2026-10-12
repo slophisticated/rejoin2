@@ -21,6 +21,7 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Auto relaunch freeze** — app yang freeze/stuck lebih dari `freezeTimeout` (default 300 detik / 5 menit) otomatis di-force-stop & di-relaunch.
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
 - **Cek login + debug log** — token `.ROBLOSECURITY` dibaca dari Cookies DB lalu diverifikasi ke Roblox pakai curl (`users.roblox.com/v1/users/authenticated`, tiap `loginVerifyInterval` detik). Token ditolak (HTTP 401) = dianggap logout: status `NoLogin` walaupun RAM clone masih tinggi, dan tidak di-force-stop. Semua hasil cek login (`[LOGIN]`) dan tiap perubahan status (`[STATUS]`, lengkap dengan RSS & login) ditulis ke `data/rejoin.log`. Token tidak pernah ditulis ke log.
+- **Auto atur jendela floating** — (opsional, default mati) jendela floating tiap clone disusun jadi grid (4 clone → 2×2 di layar 1280×720). Posisi ditulis ke setting clone (`app_cloner_current_window_*` di `<pkg>_preferences.xml`) **saat clone sedang mati**, tepat sebelum dibuka, jadi tidak mengganggu clone yang jalan. Nyalakan di Settings `13`. Per clone bisa diatur manual lewat `window = { left=, top=, right=, bottom= }`. Clone yang belum pernah dibuka dilewati (file setting belum ada).
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
 - **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
@@ -89,7 +90,7 @@ lua main.lua
 
 Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
 
-1. `pkg install termux-boot` + pasang aplikasi **Termux:Boot** dari F-Droid.
+1. Pasang aplikasi **Termux:Boot** (ini aplikasi Android terpisah, **bukan** paket `pkg`). Ambil dari sumber yang **sama** dengan Termux yang terpasang — Termux dari F-Droid → Termux:Boot dari [F-Droid](https://f-droid.org/packages/com.termux.boot/); Termux dari GitHub → Termux:Boot dari [GitHub releases](https://github.com/termux/termux-boot/releases). Beda sumber = tanda tangan beda, Android menolak/aplikasi tidak jalan.
 2. Siapkan script boot:
    ```sh
    mkdir -p ~/.termux/boot
@@ -97,7 +98,18 @@ Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
    chmod +x ~/.termux/boot/start-rejoin.sh
    ```
 3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot HP.
-4. Setiap boot, Termux menjalankan `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+4. Setiap boot, Termux:Boot menjalankan script ini **di belakang layar (tidak ada jendela Termux yang terbuka)**: tunggu `BOOT_DELAY` detik (default 30), lalu `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+5. Kalau setelah reboot clone tidak terbuka, cek `cat ~/rejoin/data/boot.log` (atau `~/rejoin-boot.log` kalau folder repo tidak ketemu). Dua-duanya tidak ada = script tidak dijalankan sama sekali (Termux:Boot belum dibuka sekali / beda sumber dengan Termux / dibatasi optimasi baterai). Ada isinya = lihat baris `ERROR`/`WARN` terakhir, lalu `data/rejoin.log`.
+
+### Engine dari boot & menjalankan manual
+
+Engine dari boot jalan **tersembunyi** (tanpa jendela). Hanya satu engine yang boleh jalan: kalau engine boot masih aktif lalu kamu pilih menu `1`/`5`, muncul pesan `engine lain masih jalan (pid ...)` dan monitor tidak dimulai (supaya dua engine tidak saling force-stop clone). Hentikan engine boot dulu:
+
+```sh
+kill $(cat ~/rejoin/data/monitor.pid)
+```
+
+Kalau engine boot crash, script boot menjalankannya ulang (jeda `RESTART_DELAY` 30 detik, maks `MAX_RESTARTS` 5 kali berturut-turut). Dihentikan dengan `kill` = tidak dijalankan ulang. Semua tercatat di `data/boot.log`.
 
 ### Matikan auto-boot
 

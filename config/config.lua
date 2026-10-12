@@ -27,6 +27,14 @@ return {
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,
+    -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
+    -- sebelum dibuka). Default MATI; nyalakan lewat Settings > 13.
+    windowLayout = {
+        enabled = false,
+        columns = 0,   -- 0 = otomatis (4 clone -> 2x2)
+        gap = 0,       -- jarak antar jendela (pixel)
+        offsetTop = 0, -- ruang kosong di atas layar (pixel)
+    },
     -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
     -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.
     -- loginVerifyInterval: jeda (detik) antar verifikasi per clone.
