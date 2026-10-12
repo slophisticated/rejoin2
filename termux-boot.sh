@@ -15,11 +15,11 @@
 #
 # Everything this script does is logged to <repo>/data/boot.log (or ~/rejoin-boot.log
 # when the repo folder is missing), so a boot that "does nothing" can be diagnosed.
-# BOOT_DELAY (seconds, default 30) gives Android, root and the network time to come
+# BOOT_DELAY (seconds, default 10) gives Android, root and the network time to come
 # up before the clones are launched.
 
 REJOIN_DIR=${REJOIN_DIR:-"$HOME/rejoin"}
-BOOT_DELAY=${BOOT_DELAY:-30}
+BOOT_DELAY=${BOOT_DELAY:-10}
 # If the engine crashes it is restarted after RESTART_DELAY seconds, at most
 # MAX_RESTARTS times in a row (a clean stop or `kill` is not restarted).
 RESTART_DELAY=${RESTART_DELAY:-30}

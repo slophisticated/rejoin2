@@ -86,6 +86,23 @@ lua main.lua
   lua main.lua --headless --start-monitor --auto-launch
   ```
 
+### ⚡ Install / update satu perintah (disarankan)
+
+Di Termux (cloud phone baru maupun yang sudah ada rejoin):
+
+```sh
+curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh
+```
+
+Installer mengerjakan semuanya: paket (`lua53 sqlite curl git`, lewat `apt` supaya aman dari curl yang rusak), `lua`, cek root, download rejoin ke `~/rejoin` (config & log lama **tetap dipakai**), cek clone di config terpasang, pasang script boot, dan mengaktifkan Termux:Boot. Tiap langkah ditandai `[OK]` / `[!!]`. Aman dijalankan ulang kapan saja.
+
+Setelah itu **tidak perlu `git pull` lagi**: setiap boot, script boot menjalankan `update.sh` dulu (ambil versi terbaru dari GitHub, `config/config.lua` & `data/rejoin.log` tetap), baru menyalakan engine. Kalau GitHub tidak bisa dihubungi, versi yang ada tetap jalan.
+
+- Update manual tanpa reboot: `sh ~/rejoin/update.sh`
+- Matikan auto-update: `touch ~/rejoin/data/no-auto-update` (nyalakan lagi: `rm ~/rejoin/data/no-auto-update`)
+- Kalau `curl` sendiri error (`CANNOT LINK EXECUTABLE`): `apt update && apt full-upgrade -y`, lalu ulangi.
+- Termux:Boot tetap harus dipasang manual (APK, sumber sama dengan Termux) — installer yang mengaktifkannya.
+
 ### Auto-start saat boot (Termux:Boot)
 
 Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
