@@ -23,61 +23,68 @@ termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install -y lua53 
 `termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install -y lua53 tsu python figlet android-tools sqlite && pip install pyfiglet rich`
 *Grant storage permission when prompted and type “y” if asked.*
 
-## 📥 Step 4: Install Script **(Latest Version)**
+## 📥 Step 4: Install Loader (Latest Version)
+
+Loader Rejoin sekarang **satu file** (`yanamin.lua`) — engine, supervisor terminal,
+template config, dan sistem key sudah jadi satu. Cukup satu baris curl, tanpa
+unduh repo.
+
 **Android 10:**
 💻 Desktop Copy:
 ```bash
-curl -L -o /sdcard/download/kaeru.lua https://raw.githubusercontent.com/pgen0x/kaeru/refs/heads/main/kaeru.lua
+curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
 ```
 📱 Mobile Copy:
-`curl -L -o /sdcard/download/kaeru.lua https://raw.githubusercontent.com/pgen0x/kaeru/refs/heads/main/kaeru.lua`
+`curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua`
 
 **Android 12+:**
 💻 Desktop Copy:
 ```bash
-curl -L -o /sdcard/Download/kaeru.lua https://raw.githubusercontent.com/pgen0x/kaeru/refs/heads/main/kaeru.lua
+curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
 ```
 📱 Mobile Copy:
-`curl -L -o /sdcard/Download/kaeru.lua https://raw.githubusercontent.com/pgen0x/kaeru/refs/heads/main/kaeru.lua`
+`curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua`
 
 ## 🚀 Step 5: Run & Setup
 1. Execute
 **Android 10:**
 💻 Desktop Copy:
 ```bash
-lua /sdcard/download/kaeru.lua
+lua /sdcard/download/yanamin.lua
 ```
 📱 Mobile Copy:
-`lua /sdcard/download/kaeru.lua`
+`lua /sdcard/download/yanamin.lua`
 
 **Android 12+:**
 💻 Desktop Copy:
 ```bash
-lua /sdcard/Download/kaeru.lua
+lua /sdcard/Download/yanamin.lua
 ```
 📱 Mobile Copy:
-`lua /sdcard/Download/kaeru.lua`
+`lua /sdcard/Download/yanamin.lua`
 
 2. Setup
-**License Key:** Enter your key when prompted (get key <#1441082362766036992>).
+**License Key:** kalau sistem key aktif (`config license.enabled = true`), masukkan key lewat menu `9) License System` → `2) Login`. Sesudah terpasang, lisensi permanen sampai dicabut admin; server tak terjangkau tetap boleh pakai.
 **Select Packages:** Press **Enter** to auto-detect Roblox. (*If it is not detected, type manual. To find the Roblox package name:* <#1442135281569628241> )
 **Final Settings:** Configure delay and Private Server URL.
+*Note: Grant Root permissions when prompted.*
+
 ——————
-**To reset the config settings, you can use this command.**
+*To reset the config settings, delete the generated config and run again — the loader recreates it from its built-in template.*
 **Android 10:**
 💻 Desktop Copy:
 ```bash
-lua /sdcard/download/kaeru.lua --reset
+rm -f /sdcard/download/config/config.lua
 ```
 📱 Mobile Copy:
-`lua /sdcard/download/kaeru.lua --reset`
+`rm -f /sdcard/download/config/config.lua`
 
 **Android 12+:**
 💻 Desktop Copy:
 ```bash
-lua /sdcard/Download/kaeru.lua --reset
+rm -f /sdcard/Download/config/config.lua
 ```
 📱 Mobile Copy:
-`lua /sdcard/Download/kaeru.lua --reset`
+`rm -f /sdcard/Download/config/config.lua`
 
 *Note: Grant Root permissions when prompted.*

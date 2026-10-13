@@ -1,1 +1,1 @@
-curl -L -o /sdcard/download/kaeru.lua https://raw.githubusercontent.com/pgen0x/kaeru/refs/tags/v3.5.3/kaeru.lua
+curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
