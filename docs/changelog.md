@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Laporan Discord webhook**: `managers/webhook.lua` — status (device, RAM `/proc/meminfo`, CPU dari selisih `/proc/stat`, suhu thermal zone, online/offline, per clone uptime + CPU dari `/proc/<pid>/stat`, memori heartbeat/RSS, screenshot `screencap`) dikirim tiap `webhook.interval` (300 dtk). Pesan pertama `POST ?wait=true`, id disimpan di `data/webhook_msg.txt`, berikutnya `PATCH /messages/<id>` (404 → pesan baru). Event terpisah (engine mulai, kick, recovery gagal, clone belum login gagal dibuka) dibatasi 1/menit per kejadian. curl jalan sebagai user Termux; URL tidak pernah masuk log. Diatur di Settings `13`; `url` kosong = tidak ada yang dijalankan.
+
 - **Fix: clone belum login yang FC tidak pernah dibuka lagi**: monitor dulu selalu diam untuk clone tanpa akun. Sekarang kalau clone itu tertutup — proses mati, atau proses tersisa tanpa jendela (`APKManager.hasWindow` dari `dumpsys window windows`; tidak terbaca = tidak menebak) — `Recovery.reopenNoLogin` membukanya lagi lewat launcher biasa, **tanpa force-stop** dan tanpa link game, maks sekali per `noLoginCooldown` (120 dtk). Clone yang masih di layar login tetap dibiarkan. Config: `relaunchNoLogin`, `noLoginCooldown`.
 
 - **Dashboard lebih rapi untuk banyak instance**: baris System / Memory / Storage pindah ke atas daftar clone; baris System menampilkan progres `Launching [i/N]` saat Launch All dan `Checking [i/N]` saat monitor mengecek tiap clone (`Monitoring` saat diam); nama `package (username)` dipendekkan di bagian username (`Martlock_..`) supaya package tetap terbaca; baris kosong dihapus supaya 14+ clone muat.

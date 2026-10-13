@@ -31,6 +31,15 @@ return {
     -- proses mati / jendela hilang) dibuka lagi pelan-pelan (tanpa force-stop),
     -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
     relaunchNoLogin = true,
+    -- Laporan status ke Discord webhook (1 pesan yang terus di-update + notif kejadian).
+    -- url kosong = mati. Isi lewat Settings > 13.
+    webhook = {
+        url = "",
+        interval = 300,    -- detik antar laporan
+        screenshot = true, -- sertakan screenshot layar
+        events = true,     -- pesan terpisah saat engine mulai / ke-kick / recovery gagal
+        hideNames = true,  -- nama akun disembunyikan (spoiler)
+    },
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Settings > 13.

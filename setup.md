@@ -48,6 +48,7 @@ cd ~/rejoin && lua main.lua
    - **Auto atur jendela floating** jadi grid (y/n) — sudah **nyala** otomatis dari installer
    - **Heartbeat Delta** (status dari dalam game, langsung rejoin kalau ke-kick) (y/n)
    - **Mode hemat** (render 3D mati, FPS dibatasi, grafik rendah) (y/n)
+   - **Discord webhook** (opsional): paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL). Status di-update tiap 5 menit + screenshot.
    - Simpan: `15) Save and Exit`
 3. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
 *Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai masuk game.*

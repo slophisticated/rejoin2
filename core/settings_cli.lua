@@ -30,6 +30,9 @@ local function printSettings(conf)
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
     print("  windowLayout.enabled (auto atur jendela) = " .. tostring(wl.enabled == true)
         .. ", columns = " .. tostring(wl.columns or 0) .. ", gap = " .. tostring(wl.gap or 0))
+    local wh = type(conf.webhook) == "table" and conf.webhook or {}
+    print("  webhook = " .. ((type(wh.url) == "string" and wh.url ~= "") and "diset" or "kosong")
+        .. ", interval = " .. tostring(wh.interval or 300) .. ", screenshot = " .. tostring(wh.screenshot ~= false))
     local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
     local sv = type(hb.saver) == "table" and hb.saver or {}
     print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
@@ -162,6 +165,28 @@ function CLI.run()
                 end
             end
             print("(script heartbeat dipasang ulang ke Autoexecute saat monitor dijalankan)")
+            -- Discord webhook status reports (managers/webhook.lua).
+            conf.webhook = type(conf.webhook) == "table" and conf.webhook or {}
+            local wh = conf.webhook
+            local has = type(wh.url) == "string" and wh.url ~= ""
+            local v = prompt("Discord webhook URL (kosong = tetap, '-' = hapus): [" .. (has and "diset" or "kosong") .. "] ")
+            if v and v:match("^%s*%-%s*$") then
+                wh.url = ""
+            elseif v and not v:match("^%s*$") then
+                v = v:gsub("%s+", "")
+                if v:match("^https://[%w%.%-]+/api/webhooks/") then wh.url = v
+                else print("URL webhook tidak valid (harus https://discord.com/api/webhooks/...)") end
+            end
+            if type(wh.url) == "string" and wh.url ~= "" then
+                v = prompt("Interval laporan (detik, min 60): [" .. tostring(wh.interval or 300) .. "] ")
+                local n = tonumber(v)
+                if n and n >= 60 then wh.interval = math.floor(n)
+                elseif v and not v:match("^%s*$") then print("Invalid number") end
+                cur = wh.screenshot ~= false and "y" or "n"
+                yn = prompt("Kirim screenshot di laporan? (y/n): [" .. cur .. "] ")
+                if yn and yn:match("^%s*[yY]") then wh.screenshot = true
+                elseif yn and yn:match("^%s*[nN]") then wh.screenshot = false end
+            end
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

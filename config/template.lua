@@ -66,6 +66,15 @@ return {
     -- (force close: process gone or no window left) it is opened again, gently (no
     -- force-stop) and at most once per noLoginCooldown seconds.
     relaunchNoLogin = true,
+    -- Status reports to a Discord webhook (one message kept up to date + event
+    -- messages). Empty url = off. Set it in Settings > 13.
+    webhook = {
+        url = "",
+        interval = 300,
+        screenshot = true,
+        events = true,
+        hideNames = true,
+    },
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,

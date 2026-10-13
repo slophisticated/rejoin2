@@ -3,3 +3,4 @@ data/boot.log
 data/boot.log.old
 data/no-auto-update
 data/.migrated-*
+data/webhook_msg.txt

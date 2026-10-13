@@ -6,6 +6,7 @@ local Username = require("managers.username")
 local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
+local Webhook = require("managers.webhook")
 
 local Monitor = {}
 local running = false
@@ -151,6 +152,7 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
         pcall(function() return Optimizer.applyForInstance(inst) end)
     else
         Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
+        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
     end
     return true
 end
@@ -270,6 +272,7 @@ end
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
     monitorConf = type(conf) == "table" and conf or {}
+    Webhook.configure(monitorConf)
     noLoginLast = {}
     instanceManager = require("managers.instance")
     recoveryManager = require("managers.recovery")
@@ -303,6 +306,7 @@ function Monitor.start(conf, opts)
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
     installSignalHandler()
+    Webhook.event("start", "▶️ Rejoin engine mulai", tostring(#instanceManager.getAll()) .. " clone dipantau", 5763719)
     local hbOk, hbMsg = Heartbeat.install()
     if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
@@ -389,6 +393,9 @@ function Monitor.start(conf, opts)
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
+                    if why and why:find("^kicked") then
+                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
+                    end
                 end
             end
 
@@ -424,6 +431,7 @@ function Monitor.start(conf, opts)
                         pcall(function() return Optimizer.applyForInstance(inst) end)
                     else
                         Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                        Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
                         ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
                     end
                     Status.endRecovery(id)
@@ -442,6 +450,7 @@ function Monitor.start(conf, opts)
         -- Print the per-instance status table for the user to see.
         Status.setProgress(nil)
         Status.printSummary(instances)
+        Webhook.tick(instances)
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.

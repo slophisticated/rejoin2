@@ -28,6 +28,11 @@ function Status.configure(conf)
     anrEnabled = conf.anrCheckEnabled ~= false -- default true
 end
 
+-- Current status string of an instance (for reports), or nil.
+function Status.statusOf(id)
+    return states[id] and states[id].status or nil
+end
+
 function Status.reset()
     states = {}
 end
