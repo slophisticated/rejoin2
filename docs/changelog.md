@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Migrasi sekali-jalan di `update.sh`**: config lama yang dipertahankan saat update tidak ikut default baru, jadi grid jendela tetap mati setelah reboot. `update.sh` kini menjalankan migrasi (sekarang: `--enable-window-layout`) satu kali per device di setiap jalur keluar (sudah terbaru / offline / habis update); penanda `data/.migrated-<nama>` hanya dibuat kalau hasilnya `OK`, jadi pengaturan yang diubah user setelahnya tidak ditimpa.
+
 - **Auto atur jendela default nyala**: `windowLayout.enabled = true` di `config/config.lua` & template; installer menjalankan `lua main.lua --enable-window-layout` (flag baru) supaya config lama yang dipertahankan saat install ulang juga ikut nyala. Bisa dimatikan di Settings `13`.
 
 - **Auto atur jendela: lebih andal + divalidasi terus**: ukuran layar tidak lagi di-cache selamanya (dibaca ulang tiap 30 dtk; layar yang terbaca portrait setelah boot tetap jadi grid landscape kecuali `orientation = "auto"`), tunggu proses clone benar-benar mati sebelum menulis (force-stop ulang kalau perlu; masih hidup = tidak ditulis), file `<pkg>_preferences.xml.bak` ikut diedit (Android memuat .bak kalau ada), nilai dibaca balik setelah ditulis. `WindowLayout.verify` membandingkan posisi jendela di prefs clone yang jalan dengan slot grid (toleransi 10 px): dicek setelah tiap launch di Launch All dan tiap ±60 dtk; meleset = log `[WINDOW]` saat berubah + penanda `[win]` di dashboard, dibetulkan pada launch berikutnya.

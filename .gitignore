@@ -2,3 +2,4 @@ data/monitor.pid
 data/boot.log
 data/boot.log.old
 data/no-auto-update
+data/.migrated-*

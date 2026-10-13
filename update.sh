@@ -21,6 +21,23 @@ say() {
     fi
 }
 
+# One-time config changes for new defaults. Each runs once per device (marker in
+# data/, which updates keep), so a setting changed by the user afterwards is never
+# overridden. Runs on every exit path: also when already up to date or offline.
+migrate() {
+    marker="data/.migrated-$1"; shift
+    [ -f "$marker" ] && return 0
+    command -v lua >/dev/null 2>&1 || return 0
+    out=$(REJOIN_WRAPPER=1 lua main.lua "$@" </dev/null 2>/dev/null | tail -1)
+    case "$out" in
+        OK:*) : > "$marker"; say "migrasi: ${out#OK: }" ;;
+        *)    say "migrasi $1 belum berhasil (${out:-tidak ada output}); dicoba lagi lain kali" ;;
+    esac
+}
+run_migrations() {
+    migrate window-layout-on --enable-window-layout
+}
+
 cd "$DIR" || exit 0
 mkdir -p data 2>/dev/null
 if ! command -v git >/dev/null 2>&1; then
@@ -42,6 +59,7 @@ while :; do
     fi
     if [ "$tries" -ge 3 ]; then
         say "GitHub tidak bisa dihubungi; tetap pakai versi $before"
+        run_migrations
         exit 0
     fi
     tries=$((tries + 1))
@@ -51,6 +69,7 @@ done
 after=$(git rev-parse --short FETCH_HEAD 2>/dev/null)
 if [ -z "$after" ] || [ "$before" = "$after" ]; then
     say "sudah versi terbaru ($before)"
+    run_migrations
     exit 0
 fi
 
@@ -67,4 +86,6 @@ if git reset -q --hard FETCH_HEAD </dev/null >/dev/null 2>&1; then
 else
     say "update gagal (git reset); tetap pakai versi $before"
 fi
+
+run_migrations
 exit 0
