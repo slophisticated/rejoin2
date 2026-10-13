@@ -148,6 +148,7 @@ local function runSequentialLaunch(conf)
 
     for i, inst in ipairs(instances) do
         if not running then break end
+        Status.setProgress(i, #instances, "Launching")
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
@@ -274,6 +275,7 @@ function Monitor.start(conf, opts)
     -- dashboard (Starting -> Running) before the monitoring loop takes over.
     if opts.autoLaunch then
         runSequentialLaunch(conf)
+        Status.setProgress(nil)
         -- one full refresh so the "starting" override is cleared and statuses settle
         if running then Status.printSummary(instanceManager.getAll()) end
     end
@@ -285,6 +287,8 @@ function Monitor.start(conf, opts)
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
+            Status.setProgress(i, #instances, "Checking")
+            if i > 1 then Status.printSummary(instances) end
             local id = inst.id or i
             local name = tostring(inst.name or id)
             local pkg = inst.package
@@ -392,6 +396,7 @@ function Monitor.start(conf, opts)
         end
 
         -- Print the per-instance status table for the user to see.
+        Status.setProgress(nil)
         Status.printSummary(instances)
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command

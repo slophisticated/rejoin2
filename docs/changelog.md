@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Dashboard lebih rapi untuk banyak instance**: baris System / Memory / Storage pindah ke atas daftar clone; baris System menampilkan progres `Launching [i/N]` saat Launch All dan `Checking [i/N]` saat monitor mengecek tiap clone (`Monitoring` saat diam); nama `package (username)` dipendekkan di bagian username (`Martlock_..`) supaya package tetap terbaca; baris kosong dihapus supaya 14+ clone muat.
+
 - **`update.sh` langsung pakai versi barunya**: setelah update berhasil, skrip `exec` dirinya yang baru (`--after-update`) supaya migrasi yang dibawa update itu jalan di boot yang sama (sebelumnya baru di boot berikutnya).
 
 - **Migrasi sekali-jalan di `update.sh`**: config lama yang dipertahankan saat update tidak ikut default baru, jadi grid jendela tetap mati setelah reboot. `update.sh` kini menjalankan migrasi (sekarang: `--enable-window-layout`) satu kali per device di setiap jalur keluar (sudah terbaru / offline / habis update); penanda `data/.migrated-<nama>` hanya dibuat kalau hasilnya `OK`, jadi pengaturan yang diubah user setelahnya tidak ditimpa.

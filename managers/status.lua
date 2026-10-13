@@ -379,6 +379,38 @@ local function blankCell(width)
     return string.rep(" ", width)
 end
 
+-- What the monitor is doing right now, shown in the "System" row:
+-- nil = idle (monitoring), or { verb = "Checking" | "Launching", i, n }.
+local progress = nil
+
+function Status.setProgress(i, n, verb)
+    if i and n then
+        progress = { verb = verb or "Checking", i = i, n = n }
+    else
+        progress = nil
+    end
+end
+
+-- "package (username)" squeezed into `width` columns: the username is shortened
+-- with ".." first so the package (what identifies the clone) stays readable.
+local function instanceLabel(pkg, uname, width, prefix)
+    prefix = prefix or ""
+    local room = width - 2 - #prefix
+    if not uname or uname == "" then
+        if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+        return prefix .. pkg
+    end
+    if #pkg + 3 + #uname <= room then
+        return prefix .. pkg .. " (" .. uname .. ")"
+    end
+    local keep = room - #pkg - 5 -- " (" + ".." + ")"
+    if keep >= 2 then
+        return prefix .. pkg .. " (" .. uname:sub(1, keep) .. "..)"
+    end
+    if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+    return prefix .. pkg
+end
+
 function Status.printSummary(instances)
     local LCOL = 33   -- width of the left (Instance) column
     local RCOL = 23   -- width of the right (Status/Value) column
@@ -406,14 +438,21 @@ function Status.printSummary(instances)
 
     local sb = {}
     table.insert(sb, top)
-    table.insert(sb, blankRow())
     table.insert(sb, bodyRow("Instance", "Status"))
-    table.insert(sb, blankRow())
+    table.insert(sb, mid)
+
+    -- System rows first, like a status header for the whole device.
+    if progress then
+        table.insert(sb, bodyRow("System", string.format("%s [%d/%d]", progress.verb, progress.i, progress.n), C.yellow))
+    else
+        table.insert(sb, bodyRow("System", "Monitoring", C.green))
+    end
+    table.insert(sb, bodyRow("Memory", memoryLine() or "--"))
+    table.insert(sb, bodyRow("Storage", storageLine() or "--"))
     table.insert(sb, mid)
 
     if not instances or #instances == 0 then
         table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
-        table.insert(sb, mid)
     else
         for _, inst in ipairs(instances) do
             local id = inst.id or inst.name or "?"
@@ -428,17 +467,13 @@ function Status.printSummary(instances)
             end
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
-            local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg
             local okW, WindowLayout = pcall(require, "managers.window_layout")
             local wv = okW and WindowLayout.lastVerify(inst.package) or nil
-            if wv and wv.ok == false then rowText = "[win] " .. rowText end
+            local prefix = (wv and wv.ok == false) and "[win] " or ""
+            local rowText = instanceLabel(pkg, uname and tostring(uname) or nil, LCOL, prefix)
             table.insert(sb, bodyRow(rowText, label, ui[2]))
         end
-        table.insert(sb, mid)
     end
-
-    table.insert(sb, bodyRow("Memory Usage", memoryLine() or "--"))
-    table.insert(sb, bodyRow("Storage Available", storageLine() or "--"))
     table.insert(sb, bot)
 
     -- Footer hint below the table.
