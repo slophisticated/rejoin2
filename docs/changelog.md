@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Auto atur jendela default nyala**: `windowLayout.enabled = true` di `config/config.lua` & template; installer menjalankan `lua main.lua --enable-window-layout` (flag baru) supaya config lama yang dipertahankan saat install ulang juga ikut nyala. Bisa dimatikan di Settings `13`.
+
 - **Auto atur jendela: lebih andal + divalidasi terus**: ukuran layar tidak lagi di-cache selamanya (dibaca ulang tiap 30 dtk; layar yang terbaca portrait setelah boot tetap jadi grid landscape kecuali `orientation = "auto"`), tunggu proses clone benar-benar mati sebelum menulis (force-stop ulang kalau perlu; masih hidup = tidak ditulis), file `<pkg>_preferences.xml.bak` ikut diedit (Android memuat .bak kalau ada), nilai dibaca balik setelah ditulis. `WindowLayout.verify` membandingkan posisi jendela di prefs clone yang jalan dengan slot grid (toleransi 10 px): dicek setelah tiap launch di Launch All dan tiap ±60 dtk; meleset = log `[WINDOW]` saat berubah + penanda `[win]` di dashboard, dibetulkan pada launch berikutnya.
 
 - **Setting device otomatis (`device_setup.sh`)**: lewat root `settings put global` — `window_animation_scale`/`transition_animation_scale`/`animator_duration_scale` = 0, `development_settings_enabled`, `force_allow_on_external`, `force_resizable_activities`, `enable_freeform_support`, `enable_non_resizable_multi_window` = 1 — dan Smallest width 600dp (`wm density = min(w,h)*160/600`, ikut override `wm size`). Idempotent, nilai dibaca balik, `--undo` mengembalikan bawaan, tanpa root = dilewati. Jadi langkah 5/8 di `install.sh`.

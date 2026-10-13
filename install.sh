@@ -133,6 +133,13 @@ else
     done
 fi
 
+# Floating window grid on by default (a kept config from an older install may have it off).
+WL=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --enable-window-layout </dev/null 2>/dev/null | tail -1)
+case "$WL" in
+    OK:*) ok "${WL#OK: } (matikan: Settings > 13)" ;;
+    *)    warn "auto atur jendela belum bisa dinyalakan (${WL:-tidak ada output})" ;;
+esac
+
 # Heartbeat script into the Delta autoexecute folder (status from inside the game).
 HB=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --install-heartbeat </dev/null 2>/dev/null | tail -1)
 case "$HB" in

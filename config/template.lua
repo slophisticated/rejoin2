@@ -64,10 +64,10 @@ return {
     launchEmptyDelay = 5,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
-    -- right before launch. Off by default. columns = 0 picks automatically.
+    -- right before launch. On by default. columns = 0 picks automatically.
     -- A clone can override its spot with window = { left=, top=, right=, bottom= }.
     windowLayout = {
-        enabled = false,
+        enabled = true,
         columns = 0,
         gap = 0,
         offsetTop = 0,

@@ -26,7 +26,7 @@ Tunggu sampai muncul **SELESAI**. Installer mengerjakan 8 langkah dan menandai t
 2. Perintah `lua`
 3. Cek root
 4. Download Rejoin ke `~/rejoin` (config lama tetap dipakai kalau install ulang)
-5. **Setting device otomatis**: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 600dp — plus script heartbeat ke folder Autoexecute Delta
+5. **Setting device otomatis** + auto atur jendela floating (grid) dinyalakan: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 600dp — plus script heartbeat ke folder Autoexecute Delta
 6. Cek clone di config terpasang di device
 7. Script auto-start + auto-update saat boot
 8. Aktifkan Termux:Boot (layar Termux:Boot bisa terbuka sendiri — kembali saja ke Termux)
@@ -45,7 +45,7 @@ cd ~/rejoin && lua main.lua
 1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + link game / Private Server tiap clone.
 2. **Settings** — menu `3` → `13`:
    - Jeda launch (`launchSettleDelay`, default 20 dtk: waktu masuk game sebelum clone berikutnya)
-   - **Auto atur jendela floating** jadi grid (y/n)
+   - **Auto atur jendela floating** jadi grid (y/n) — sudah **nyala** otomatis dari installer
    - **Heartbeat Delta** (status dari dalam game, langsung rejoin kalau ke-kick) (y/n)
    - **Mode hemat** (render 3D mati, FPS dibatasi, grafik rendah) (y/n)
    - Simpan: `15) Save and Exit`

@@ -12,7 +12,7 @@ local Config = require("core.config")
 --
 -- Config (all optional):
 --   windowLayout = {
---       enabled = false,   -- off by default
+--       enabled = true,    -- on in the shipped config; installer turns it on
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
 --       offsetTop = 0,     -- pixels kept free at the top of the screen
