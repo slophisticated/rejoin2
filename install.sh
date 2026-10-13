@@ -9,9 +9,11 @@
 #   2. makes `lua` available
 #   3. checks root
 #   4. downloads rejoin to ~/rejoin (fresh copy, settings kept)
-#   5. checks that the clones in config/config.lua are installed
-#   6. installs the boot script (auto-update + start on every boot)
-#   7. checks/activates the Termux:Boot app
+#   5. device tweaks via device_setup.sh (animations off, freeform/resizable,
+#      smallest width 600dp)
+#   6. checks that the clones in config/config.lua are installed
+#   7. installs the boot script (auto-update + start on every boot)
+#   8. checks/activates the Termux:Boot app
 #
 # When piped into sh, stdin is this script itself, so every command below reads
 # from /dev/null instead.
@@ -33,7 +35,7 @@ if [ -z "$PREFIX" ] || [ ! -d "$PREFIX" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-step "1/7 Paket Termux"
+step "1/8 Paket Termux"
 export DEBIAN_FRONTEND=noninteractive
 APT_OPTS="-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
 # apt instead of pkg: pkg itself needs a working curl, which a half-upgraded
@@ -54,7 +56,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "2/7 Lua"
+step "2/8 Lua"
 if ! command -v lua >/dev/null 2>&1 && [ -x "$PREFIX/bin/lua5.3" ]; then
     ln -sf "$PREFIX/bin/lua5.3" "$PREFIX/bin/lua"
 fi
@@ -65,7 +67,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "3/7 Root"
+step "3/8 Root"
 if su -c id </dev/null 2>/dev/null | grep -q 'uid=0'; then
     ok "root aktif"
 else
@@ -73,7 +75,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "4/7 Download rejoin ke $DIR"
+step "4/8 Download rejoin ke $DIR"
 mkdir -p "$BACKUP"
 OLD=""
 if [ -e "$DIR" ]; then
@@ -101,7 +103,16 @@ fi
 chmod +x "$DIR"/*.sh 2>/dev/null
 
 # ---------------------------------------------------------------------------
-step "5/7 Cek clone di config"
+step "5/8 Setting device"
+# Animations off, Developer options (freeform / resizable / external), sw600dp.
+DEV_OUT=$(sh "$DIR/device_setup.sh" </dev/null 2>&1)
+printf '%s\n' "$DEV_OUT"
+DEV_WARN=$(printf '%s\n' "$DEV_OUT" | grep -c '\[!!\]')
+PROBLEMS=$((PROBLEMS + DEV_WARN))
+NEED_REBOOT=1
+
+# ---------------------------------------------------------------------------
+step "6/8 Cek clone di config"
 PKGS=$(cd "$DIR" && lua -e '
     local ok, c = pcall(dofile, "config/config.lua")
     if ok and type(c) == "table" then
@@ -130,7 +141,7 @@ case "$HB" in
 esac
 
 # ---------------------------------------------------------------------------
-step "6/7 Script boot"
+step "7/8 Script boot"
 mkdir -p "$HOME/.termux/boot"
 BOOT_SCRIPT="$HOME/.termux/boot/start-rejoin.sh"
 cat > "$BOOT_SCRIPT" <<EOF
@@ -149,7 +160,7 @@ chmod +x "$BOOT_SCRIPT"
 ok "terpasang: $BOOT_SCRIPT (auto-update tiap boot)"
 
 # ---------------------------------------------------------------------------
-step "7/7 Termux:Boot"
+step "8/8 Termux:Boot"
 if printf '%s\n' "$INSTALLED" | grep -qx "package:com.termux.boot"; then
     state=$(su -c "dumpsys package com.termux.boot" </dev/null 2>/dev/null | grep -o 'stopped=[a-z]*' | head -1)
     if [ "$state" = "stopped=true" ]; then
@@ -173,4 +184,5 @@ if [ "$PROBLEMS" -eq 0 ]; then
 else
     echo "SELESAI dengan $PROBLEMS peringatan [!!] di atas. Beresin dulu, lalu jalankan ulang installer."
 fi
+[ -n "$NEED_REBOOT" ] && echo "Reboot sekali supaya freeform / resizable aktif."
 echo "Jalankan manual: cd ~/rejoin && lua main.lua   |   Update manual: sh ~/rejoin/update.sh"
