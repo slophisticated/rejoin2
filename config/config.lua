@@ -55,12 +55,6 @@ return {
     -- Folder tujuan Deploy (Script Manager / AutoExecute). Scripts di-deploy ke sini
     -- sebagai <name>.lua. Path ini shared untuk semua instance (Delta mod: internal storage).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
-    -- Sistem key / lisensi (opsional). enabled=false = mati tanpa gate.
-    -- Backend gratis: server/appscript.gs (Google Apps Script). Isi serverUrl setelah deploy.
-    license = {
-        enabled = false,
-        serverUrl = "",
-    },
     instances = {
         [1] = {
         id = 1,

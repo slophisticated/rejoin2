@@ -27,8 +27,7 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
 - **AutoExecute / Script Manager** — kelola **script `.lua`** langsung di `appAutoExecutePath` (mis. `/sdcard/Delta/Autoexecute`) lewat menu `6) AutoExecute Manager`: di layar langsung tampil isi folder (Add / Edit / Delete). Rejoin adalah pengelola script — **semua logika ditulis user** di dalam file script.
 - **Inject Cookie** — menu `7) Inject Cookie`: inject token **`.ROBLOSECURITY`** ke Cookies DB WebView clone mana pun dari daftar config (auto `am force-stop` dulu, target path sama dengan deteksi login / `cookiePath`, backup DB dulu, verifikasi setelahnya). Butuh `sqlite3` di device (`pkg install sqlite`). Sebelum menulis, token **diverifikasi dulu ke Roblox** (`users.roblox.com/v1/users/authenticated`, pakai curl) — verifikasi **fail-closed**: kalau bukan respons jelas valid (`HTTP 200` + body berisi `"name"`), inject langsung dibatalkan dan body respons Roblox ditampilkan, jadi tidak akan lagi "DB tertulis tapi tidak login". Bisa cek token tanpa inject lewat submenu `3) Cek validitas token`. Baris cookie hasil inject dibuat **identik dengan baris login asli in-app** (host_key `.roblox.com`, samesite `-1`, expires jauh ke depan, `creation/last_access` real), sisa baris lama yang salah dihapus otomatis.
-- **Loader 1 file** — seluruh engine dibundel jadi satu file `yanamin.lua` (dibangkitkan `node tools/bundle_loader.js`). Distribusi cukup satu baris `curl`, lalu `lua yanamin.lua`. Supervisor terminal, template config, dan sistem key ikut tertanam di dalam file itu, jadi tidak perlu unduh repo. Patch bundel hanya diterapkan ke artifact hasil build — file sumber di repo tidak berubah.
-- **Sistem key / lisensi (opsional, default OFF)** — menu di-gate di belakang kode key: `license.enabled` + `serverUrl` (backend gratis Google Apps Script, lihat `server/README-appscript.md`). Device ter-bind ke key lewat HWID (md5 `serialno + android_id`), session permanen sampai dicabut admin, kuota device per key, dan server tak terjangkau tetap boleh dipakai setelah terdaftar. Menu `9) License System` (Status / Login / Logout).
+- **Loader 1 file** — seluruh engine dibundel jadi satu file `yanamin.lua` (dibangkitkan `node tools/bundle_loader.js`). Distribusi cukup satu baris `curl`, lalu `lua yanamin.lua`. Supervisor terminal dan template config ikut tertanam di dalam file itu, jadi tidak perlu unduh repo. Patch bundel hanya diterapkan ke artifact hasil build — file sumber di repo tidak berubah.
 
 ---
 
@@ -68,7 +67,7 @@ curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengj
 lua /sdcard/Download/yanamin.lua
 ```
 
-Langsung masuk gate lisensi (bila `license.enabled = true`) lalu Main Menu. Panduan lengkap: [`setup.md`](setup.md). File `yanamin.lua` dibangkitkan dari source repo ini dengan `node tools/bundle_loader.js` — jangan diedit manual.
+Langsung masuk Main Menu. Panduan lengkap: [`setup.md`](setup.md). File `yanamin.lua` dibangkitkan dari source repo ini dengan `node tools/bundle_loader.js` — jangan diedit manual.
 
 ### Dari source repository
 
@@ -248,7 +247,7 @@ Catatan link:
 
 ```
 rejoin/
-├── yanamin.lua                  # loader 1 file (hasil build: seluruh engine + key system)
+├── yanamin.lua                  # loader 1 file (hasil build: seluruh engine jadi satu file)
 ├── main.lua                    # entry point + main menu
 ├── setup.sh                    # setup skrip Termux
 ├── termux-boot.sh              # template auto-start saat boot (Termux:Boot)

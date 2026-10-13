@@ -83,12 +83,6 @@ return {
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.
     useRoot = true,
-    -- Sistem key / lisensi (opsional). enabled=false = mati tanpa gate.
-    -- Backend gratis: server/appscript.gs (Google Apps Script). Isi serverUrl setelah deploy.
-    license = {
-        enabled = false,
-        serverUrl = "", -- contoh: "https://script.google.com/macros/s/<ID>/exec"
-    },
     instances = {
         -- Example instance. Private Server accepts either a public game link
         --   https://www.roblox.com/games/<placeId>/...

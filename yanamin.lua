@@ -7,7 +7,7 @@
       node tools/bundle_loader.js
 
   Source:  https://github.com/apengjers/rejoin
-  Bundled: 32 modules, entry main.lua
+  Bundled: 30 modules, entry main.lua
 
   Install (one line) and run:
 
@@ -16,9 +16,8 @@
 
   Android 12+ devices use /sdcard/Download instead of /sdcard/download.
 
-  Everything lives in this file: engine, terminal supervisor, config
-  template and the key system gate (config license.enabled + menu 9).
-  config/ and data/ are still read/written relative to the working
+  Everything lives in this file: engine, terminal supervisor and config
+  template. config/ and data/ are still read/written relative to the working
   directory, exactly like the multi-file engine.
 --]]
 
@@ -110,12 +109,6 @@ return {
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.
     useRoot = true,
-    -- Sistem key / lisensi (opsional). enabled=false = mati tanpa gate.
-    -- Backend gratis: server/appscript.gs (Google Apps Script). Isi serverUrl setelah deploy.
-    license = {
-        enabled = false,
-        serverUrl = "", -- contoh: "https://script.google.com/macros/s/<ID>/exec"
-    },
     instances = {
         -- Example instance. Private Server accepts either a public game link
         --   https://www.roblox.com/games/<placeId>/...
@@ -709,67 +702,6 @@ end
 
 return CLI
 ]]
-__ya_sources["core.license_cli"] = [[
-local License = require("managers.license")
-
-local CLI = {}
-
-local function prompt(msg)
-    io.write(msg)
-    io.flush()
-    return io.read()
-end
-
-function CLI.run()
-    while true do
-        print("\nLicense System:")
-        print("  1) Status lisensi")
-        print("  2) Login (masukkan key)")
-        print("  3) Logout (hapus lisensi lokal)")
-        print("  4) Kembali")
-        local choice = (prompt("Choose: ") or ""):match("^%s*(.-)%s*$")
-
-        if choice == "1" then
-            local kind = License.check()
-            print("\n" .. License.statusText(kind))
-            local st = License.getState()
-            if st then
-                print("  deviceId : " .. tostring(st.deviceId or ""))
-                print("  key      : " .. tostring(st.keyFam or ""))
-                print("  disimpan : " .. tostring(st.saved or ""))
-            end
-            print("\n[Selesai] Tekan Enter untuk kembali ke menu utama")
-            io.read()
-            break
-        elseif choice == "2" then
-            print("Masukkan key (kode dari admin):")
-            local key = prompt("Key: ") or ""
-            key = key:match("^%s*(.-)%s*$")
-            local ok, info = License.register(key)
-            if ok then
-                print("\nLOGIN BERHASIL — lisensi permanen terpasang (key: " .. tostring(info or "") .. ").")
-            else
-                print("\nLOGIN GAGAL: " .. tostring(info or "unknown"))
-                print("Cek: key benar? device belum terpakai maks device? server URL terisi?")
-            end
-            print("\n[Selesai] Tekan Enter untuk kembali ke menu utama")
-            io.read()
-            break
-        elseif choice == "3" then
-            License.clear()
-            print("\nLisensi lokal dihapus.")
-            print("\n[Selesai] Tekan Enter untuk kembali ke menu utama")
-            io.read()
-            break
-        elseif choice == "4" then
-            break
-        else
-            print("Unknown choice")
-        end
-    end
-end
-
-return CLI]]
 __ya_sources["core.logger"] = [[
 local Logger = {}
 
@@ -2921,207 +2853,6 @@ function InstanceManager.remove(id)
 end
 
 return InstanceManager]]
-__ya_sources["managers.license"] = [[
-local Logger = require("core.logger")
-local Shell = require("utils.shell")
-local File = require("utils.file")
-local Config = require("core.config")
-
--- License / key system client (prive, gratis, Apps Script backend).
---   - deviceId  : hash stabil per perangkat (serialno + android_id).
---   - register  : bind device ke sebuah kode key via POST /exec.
---   - session   : permanen (tidak kedaluwarsa), dicabut hanya oleh admin.
---   - gate      : "ok" / "offline" = lanjut; "no_license"/"revoked" = blok menu.
--- Offline dianggap aman (skala prive): kalau server tak terjangkau dan device
--- sudah ter-register, tetap boleh dipakai (session permanen + warning).
-
-local License = {}
-
-local STATE_PATH = "data/license.json"
-local TIMEOUT = 8
-
--- ---------- helpers ----------
-
-local function quote(s)
-    s = s or ""
-    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
-end
-
-local function cfg()
-    local ok, c = pcall(function() return Config.get() end)
-    if not ok or type(c) ~= "table" then return {} end
-    return c
-end
-
-local function serverUrl()
-    local l = cfg().license
-    if type(l) ~= "table" then return nil end
-    local u = l.serverUrl
-    if u and u ~= "" then return u end
-    return nil
-end
-
-local function licenseEnabled()
-    local l = cfg().license
-    return type(l) == "table" and l.enabled == true
-end
-
-function License.getState()
-    if not File.exists(STATE_PATH) then return nil end
-    local content = File.read(STATE_PATH)
-    if not content or content == "" then return nil end
-    -- JSON sederhana: {"deviceId":"..","sess":"..","keyFam":"..","saved":".."}
-    local st = {}
-    st.deviceId = content:match('"deviceId"%s*:%s*"([^"]*)"')
-    st.sess = content:match('"sess"%s*:%s*"([^"]*)"')
-    st.keyFam = content:match('"keyFam"%s*:%s*"([^"]*)"')
-    st.saved = content:match('"saved"%s*:%s*"([^"]*)"')
-    if not st.deviceId or not st.sess then return nil end
-    return st
-end
-
-local function saveState(st)
-    local body = string.format(
-        '{"deviceId":"%s","sess":"%s","keyFam":"%s","saved":"%s"}',
-        st.deviceId, st.sess, st.keyFam or "", st.saved or ""
-    )
-    local ok, err = File.write(STATE_PATH, body)
-    if not ok then
-        Logger.error("License: gagal simpan state: " .. tostring(err))
-        return false
-    end
-    Logger.info("License: state disimpan ke " .. STATE_PATH)
-    return true
-end
-
-function License.clear()
-    local ok, err = File.write(STATE_PATH, "")
-    if ok then Logger.info("License: state lokal dihapus") end
-    return ok or (err == nil)
-end
-
--- ---------- deviceId ----------
-
-local function shellGet(cmd)
-    local _, out = Shell.exec(cmd)
-    if not out then return "" end
-    return (out:gsub("%s+", ""):gsub("^.-:", "")) -- strip leading "xxx:" jika ada
-end
-
-local function deviceFingerprint()
-    local serial = shellGet("getprop ro.serialno")
-    if serial == "" then serial = shellGet("getprop ro.boot.serialno") end
-    local androidId = shellGet("settings get secure android_id")
-    if androidId == "" then androidId = shellGet("su -c 'settings get secure android_id'") end
-    local base = (serial ~= "" and serial or "noserial") .. "|" .. (androidId ~= "" and androidId or "noid") .. "|rejoin"
-    return base
-end
-
-function License.getDeviceId()
-    local _, out = Shell.exec(
-        "printf '%s' " .. quote(deviceFingerprint()) .. " | md5sum | awk '{print $1}'"
-    )
-    local h = out and out:match("%x+") or ""
-    if h == "" then
-        -- fallback: md5sum tidak tersedia (Android/termux jarang), pakai sha1sum
-        _, out = Shell.exec("printf '%s' " .. quote(deviceFingerprint()) .. " | sha1sum | awk '{print $1}'")
-        h = out and out:match("%x+") or "na"
-    end
-    Logger.info("License: deviceId=" .. h)
-    return h
-end
-
--- ---------- HTTP (Apps Script) ----------
-
-local function findStr(body, key)
-    local v = body:match('"%s*' .. key .. '%s*":%s*"([^"]*)"')
-    return v or ""
-end
-
-local function postJSON(action, extra)
-    local url = serverUrl()
-    if not url then return nil end
-    local parts = { '"action":"' .. action .. '"' }
-    if extra then
-        for k, v in pairs(extra) do
-            parts[#parts + 1] = string.format('"%s":"%s"', k, tostring(v):gsub('["\\]', "\\%1"))
-        end
-    end
-    local body = "{" .. table.concat(parts, ",") .. "}"
-    local cmd = "curl -sL --max-time " .. tostring(TIMEOUT) ..
-        " -X POST -H 'Content-Type: application/json' -d " .. quote(body) ..
-        " -w '\\n%{http_code}' " .. quote(url)
-    local ok, out = Shell.exec(cmd)
-    if not ok or not out or out == "" then return nil end
-    local code = out:match("(%d+)%s*$") or "0"
-    local json = out:gsub(code .. "%s*$", "")
-    return {
-        http = tonumber(code) or 0,
-        ok = findStr(json, "ok") == "true",
-        sess = findStr(json, "sess"),
-        keyFam = findStr(json, "keyFam"),
-        reason = findStr(json, "reason"),
-    }
-end
-
--- ---------- register / validate / gate ----------
-
-function License.register(key)
-    key = tostring(key or ""):match("^%s*(.-)%s*$")
-    if key == "" then return false, "key kosong" end
-    local dev = License.getDeviceId()
-    local res = postJSON("register", { key = key, deviceId = dev })
-    if not res then return false, "server tidak terjangkau (offline?)" end
-    if not res.ok then return false, (res.reason ~= "" and res.reason or "server menolak") end
-    if res.sess == "" then return false, "response tanpa sess" end
-    saveState({ deviceId = dev, sess = res.sess, keyFam = res.keyFam, saved = os.date("!%Y-%m-%dT%H:%M:%SZ") })
-    return true, res.keyFam
-end
-
--- check(): panggil saat startup. Kembali: "ok" | "offline" | "no_license" |
---          "revoked" | "disabled" (config license.enabled=false).
-function License.check()
-    if not licenseEnabled() then return "disabled" end
-    local st = License.getState()
-    if not st then return "no_license" end
-    local dev = License.getDeviceId()
-    if st.deviceId ~= dev then
-        Logger.warn("License: deviceId berubah (" .. dev .. ") -> perlu re-register")
-        License.clear()
-        return "no_license"
-    end
-    local res = postJSON("validate", { deviceId = st.deviceId, sess = st.sess })
-    if not res then
-        -- offline: session permanen, tetap boleh pakai (skala prive)
-        return "offline"
-    end
-    if res.ok then return "ok" end
-    if res.reason == "key_revoked" or res.reason == "not_bound" or res.reason == "bad_session" then
-        License.clear()
-        return "revoked"
-    end
-    return "offline"
-end
-
-function License.statusText(kind)
-    local st = License.getState()
-    if kind == "disabled" then
-        return "Sistem key NONAKTIF (config license.enabled=false)."
-    elseif kind == "no_license" then
-        return "BELUM LISENSI — masukkan key (menu License > Login)."
-    elseif kind == "revoked" then
-        return "LISENSI DICABUT admin. Hubungi pemilik tool untuk key baru."
-    elseif kind == "offline" then
-        local extra = st and ("key: " .. tostring(st.keyFam or "-")) or ""
-        return "Server tidak terjangkau — pakai lisensi tersimpan. (" .. extra .. ")"
-    elseif kind == "ok" then
-        local extra = st and ("key: " .. tostring(st.keyFam or "-")) or ""
-        return "LISENSI VALID. (" .. extra .. ")"
-    end
-    return "Status lisensi tidak dikenal."
-end
-
-return License]]
 __ya_sources["managers.monitor"] = [[
 local Logger = require("core.logger")
 local Timer = require("utils.timer")
@@ -5116,6 +4847,10 @@ local __YA_SUPERVISOR = [[
 
 TARGET='__TARGET__'
 
+# Interpreter may be named lua, lua5.3, lua5.4 or luajit depending on which
+# package the device installed, so never assume the bare name "lua".
+LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
+
 exec 3<&0
 TTY_STATE=
 if [ -t 3 ]; then
@@ -5145,7 +4880,7 @@ trap 'stop_child 143' TERM
 while :; do
     # Explicit stdin redirection keeps the background Lua off /dev/null;
     # fd 3 holds the original terminal even without /dev/tty.
-    REJOIN_WRAPPER=1 lua "$TARGET" "$@" <&3 &
+    REJOIN_WRAPPER=1 "$LUA_BIN" "$TARGET" "$@" <&3 &
     PID=$!
     wait "$PID"
     STATUS=$?
@@ -5337,26 +5072,6 @@ if headless and startMonitorFlag then
     os.exit(0)
 end
 
--- Gate sistem key (opsional; config license.enabled=false => tanpa gate).
-local License = require("managers.license")
-local licenseKind = License.check()
-if licenseKind ~= "disabled" then
-    if licenseKind == "ok" then
-        Logger.info("License: valid (key: " .. tostring((License.getState() or {}).keyFam or "-") .. ")")
-    elseif licenseKind == "offline" then
-        print("\n[WARN] " .. License.statusText("offline"))
-    else
-        print("\n" .. License.statusText(licenseKind))
-        local LicenseCLI = require("core.license_cli")
-        LicenseCLI.run()
-        licenseKind = License.check()
-        if licenseKind ~= "ok" and licenseKind ~= "offline" then
-            print("\nBelum ada lisensi valid — keluar.")
-            os.exit(0)
-        end
-    end
-end
-
 -- Interactive menu loop
 local function prompt(msg)
     io.write(msg)
@@ -5371,7 +5086,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) License System\n  10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -5416,9 +5131,6 @@ while true do
         local DumpCookiesCLI = require("core.dump_cookies_cli")
         DumpCookiesCLI.run()
     elseif choice == "9" then
-        local LicenseCLI = require("core.license_cli")
-        LicenseCLI.run()
-    elseif choice == "10" then
         print("Exiting main")
         break
     else

@@ -64,7 +64,6 @@ lua /sdcard/Download/yanamin.lua
 `lua /sdcard/Download/yanamin.lua`
 
 2. Setup
-**License Key:** kalau sistem key aktif (`config license.enabled = true`), masukkan key lewat menu `9) License System` → `2) Login`. Sesudah terpasang, lisensi permanen sampai dicabut admin; server tak terjangkau tetap boleh pakai.
 **Select Packages:** Press **Enter** to auto-detect Roblox. (*If it is not detected, type manual. To find the Roblox package name:* <#1442135281569628241> )
 **Final Settings:** Configure delay and Private Server URL.
 *Note: Grant Root permissions when prompted.*

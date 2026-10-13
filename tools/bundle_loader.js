@@ -4,8 +4,8 @@
  * Rejoin single-file loader bundler.
  * ---------------------------------------------------------------
  * Generates `yanamin.lua`: the whole engine (main.lua + core/ + managers/ +
- * utils/ + the key system gate) collapsed into ONE self-contained Lua 5.3
- * script that a device can fetch with a single curl line:
+ * utils/) collapsed into ONE self-contained Lua 5.3 script that a device can
+ * fetch with a single curl line:
  *
  *   curl -L -o /sdcard/download/yanamin.lua \
  *     https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
@@ -169,6 +169,10 @@ const SUPERVISOR_SH = String.raw`#!/data/data/com.termux/files/usr/bin/sh
 
 TARGET='__TARGET__'
 
+# Interpreter may be named lua, lua5.3, lua5.4 or luajit depending on which
+# package the device installed, so never assume the bare name "lua".
+LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
+
 exec 3<&0
 TTY_STATE=
 if [ -t 3 ]; then
@@ -198,7 +202,7 @@ trap 'stop_child 143' TERM
 while :; do
     # Explicit stdin redirection keeps the background Lua off /dev/null;
     # fd 3 holds the original terminal even without /dev/tty.
-    REJOIN_WRAPPER=1 lua "$TARGET" "$@" <&3 &
+    REJOIN_WRAPPER=1 "$LUA_BIN" "$TARGET" "$@" <&3 &
     PID=$!
     wait "$PID"
     STATUS=$?
@@ -274,9 +278,8 @@ const bundle = `--[[
 
   Android 12+ devices use /sdcard/Download instead of /sdcard/download.
 
-  Everything lives in this file: engine, terminal supervisor, config
-  template and the key system gate (config license.enabled + menu 9).
-  config/ and data/ are still read/written relative to the working
+  Everything lives in this file: engine, terminal supervisor and config
+  template. config/ and data/ are still read/written relative to the working
   directory, exactly like the multi-file engine.
 --]]
 
