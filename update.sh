@@ -11,7 +11,13 @@
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 0
 BRANCH=${REJOIN_BRANCH:-main}
 BOOT=0
-[ "$1" = "--boot" ] && BOOT=1
+AFTER=0
+for arg in "$@"; do
+    case "$arg" in
+        --boot) BOOT=1 ;;
+        --after-update) AFTER=1 ;;
+    esac
+done
 
 say() {
     if [ "$BOOT" = 1 ]; then
@@ -40,6 +46,14 @@ run_migrations() {
 
 cd "$DIR" || exit 0
 mkdir -p data 2>/dev/null
+
+# Second pass started by the update below: the files are already new, so this runs
+# the migrations of the NEW version (a migration added in an update applies on the
+# same boot instead of the next one).
+if [ "$AFTER" = 1 ]; then
+    run_migrations
+    exit 0
+fi
 if ! command -v git >/dev/null 2>&1; then
     say "git tidak ada (pkg install git); update dilewati"
     exit 0
@@ -83,6 +97,11 @@ if git reset -q --hard FETCH_HEAD </dev/null >/dev/null 2>&1; then
     [ -f "$BACKUP/config.lua" ] && cp -f "$BACKUP/config.lua" config/config.lua
     [ -f "$BACKUP/rejoin.log" ] && cp -f "$BACKUP/rejoin.log" data/rejoin.log
     say "update $before -> $after (config tetap)"
+    # This shell is still running the old copy of this script: hand over to the new one.
+    if [ "$BOOT" = 1 ]; then
+        exec sh "$DIR/update.sh" --after-update --boot
+    fi
+    exec sh "$DIR/update.sh" --after-update
 else
     say "update gagal (git reset); tetap pakai versi $before"
 fi

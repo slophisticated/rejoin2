@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **`update.sh` langsung pakai versi barunya**: setelah update berhasil, skrip `exec` dirinya yang baru (`--after-update`) supaya migrasi yang dibawa update itu jalan di boot yang sama (sebelumnya baru di boot berikutnya).
+
 - **Migrasi sekali-jalan di `update.sh`**: config lama yang dipertahankan saat update tidak ikut default baru, jadi grid jendela tetap mati setelah reboot. `update.sh` kini menjalankan migrasi (sekarang: `--enable-window-layout`) satu kali per device di setiap jalur keluar (sudah terbaru / offline / habis update); penanda `data/.migrated-<nama>` hanya dibuat kalau hasilnya `OK`, jadi pengaturan yang diubah user setelahnya tidak ditimpa.
 
 - **Auto atur jendela default nyala**: `windowLayout.enabled = true` di `config/config.lua` & template; installer menjalankan `lua main.lua --enable-window-layout` (flag baru) supaya config lama yang dipertahankan saat install ulang juga ikut nyala. Bisa dimatikan di Settings `13`.
