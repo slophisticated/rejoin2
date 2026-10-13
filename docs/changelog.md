@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix: clone belum login yang FC tidak pernah dibuka lagi**: monitor dulu selalu diam untuk clone tanpa akun. Sekarang kalau clone itu tertutup — proses mati, atau proses tersisa tanpa jendela (`APKManager.hasWindow` dari `dumpsys window windows`; tidak terbaca = tidak menebak) — `Recovery.reopenNoLogin` membukanya lagi lewat launcher biasa, **tanpa force-stop** dan tanpa link game, maks sekali per `noLoginCooldown` (120 dtk). Clone yang masih di layar login tetap dibiarkan. Config: `relaunchNoLogin`, `noLoginCooldown`.
+
 - **Dashboard lebih rapi untuk banyak instance**: baris System / Memory / Storage pindah ke atas daftar clone; baris System menampilkan progres `Launching [i/N]` saat Launch All dan `Checking [i/N]` saat monitor mengecek tiap clone (`Monitoring` saat diam); nama `package (username)` dipendekkan di bagian username (`Martlock_..`) supaya package tetap terbaca; baris kosong dihapus supaya 14+ clone muat.
 
 - **`update.sh` langsung pakai versi barunya**: setelah update berhasil, skrip `exec` dirinya yang baru (`--after-update`) supaya migrasi yang dibawa update itu jalan di boot yang sama (sebelumnya baru di boot berikutnya).

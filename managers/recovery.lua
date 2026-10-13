@@ -227,6 +227,26 @@ function Recovery.relaunch(instance)
     return true
 end
 
+-- Re-open a clone that has NO logged-in account after it closed (force close / crash).
+-- Gentle on purpose: never force-stops (that loop is what used to push other clones
+-- out of memory), no game link (there is no account to join with), no retries; the
+-- monitor rate-limits calls. A dead process gets its window slot first.
+function Recovery.reopenNoLogin(instance)
+    local pkg = instance and instance.package
+    if not pkg then return false end
+    local okR, alive = pcall(function() return APK.isRunning(pkg) end)
+    if okR and not alive then
+        WindowLayout.applyForInstance(instance)
+    end
+    Heartbeat.markLaunched(instance)
+    local ok, err = APK.launch(pkg)
+    if not ok then
+        Logger.warn("Recovery.reopenNoLogin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
+        return false
+    end
+    return true
+end
+
 -- Perform recovery for a single instance table (expects fields: package, privateServer)
 -- Includes retries and simple health checks
 function Recovery.checkAndRecover(instance)

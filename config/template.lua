@@ -62,6 +62,11 @@ return {
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.
     launchEmptyDelay = 5,
+    -- A clone without an account is left alone on its login screen, but if it CLOSED
+    -- (force close: process gone or no window left) it is opened again, gently (no
+    -- force-stop) and at most once per noLoginCooldown seconds.
+    relaunchNoLogin = true,
+    noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
     -- right before launch. On by default. columns = 0 picks automatically.

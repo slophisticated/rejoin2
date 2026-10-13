@@ -27,6 +27,11 @@ return {
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,
+    -- Clone yang belum login dibiarkan di layar login, tapi kalau TERTUTUP (FC /
+    -- proses mati / jendela hilang) dibuka lagi pelan-pelan (tanpa force-stop),
+    -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
+    relaunchNoLogin = true,
+    noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Settings > 13.
     windowLayout = {

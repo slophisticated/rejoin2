@@ -115,6 +115,45 @@ end
 -- its grid slot. Only reported (log on change + dashboard mark); the position is
 -- rewritten on the clone's next launch, never by restarting a running game.
 local windowState = {} -- pkg -> true (in place) / false (off grid)
+local monitorConf = {}
+
+-- A clone without a logged-in account is left alone while it sits on the login
+-- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
+-- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
+-- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
+local noLoginLast = {} -- pkg -> os.time() of the last reopen
+
+local function reopenNoLoginIfClosed(inst, id, name, pkg)
+    if monitorConf.relaunchNoLogin == false or not pkg then return false end
+    local okR, alive = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR then return false end
+    local why
+    if not alive then
+        why = "proses mati"
+    else
+        local okW, has = pcall(function() return apkManager.hasWindow(pkg) end)
+        if okW and has == false then why = "tanpa jendela" end
+    end
+    if not why then return false end
+    local cooldown = tonumber(monitorConf.noLoginCooldown) or 120
+    local now = os.time()
+    if noLoginLast[pkg] and now - noLoginLast[pkg] < cooldown then return false end
+    if isRecovering(id) then return false end
+    noLoginLast[pkg] = now
+
+    Logger.info(string.format("[NOLOGIN] %s tertutup (%s); dibuka lagi", name, why))
+    setRecovering(id, true)
+    Status.beginRecovery(id)
+    local okL, launched = pcall(function() return recoveryManager.reopenNoLogin(inst) end)
+    Status.endRecovery(id)
+    setRecovering(id, false)
+    if okL and launched then
+        pcall(function() return Optimizer.applyForInstance(inst) end)
+    else
+        Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
+    end
+    return true
+end
 
 local function checkWindow(inst)
     if not WindowLayout.isEnabled() then return end
@@ -230,6 +269,8 @@ end
 
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
+    monitorConf = type(conf) == "table" and conf or {}
+    noLoginLast = {}
     instanceManager = require("managers.instance")
     recoveryManager = require("managers.recovery")
     apkManager = require("managers.apk")
@@ -359,7 +400,10 @@ function Monitor.start(conf, opts)
                 -- expected while it sits on the login screen). Never force-recover it,
                 -- regardless of the transient status shown.
                 if status == "nologin" or Auth.isLoggedIn(inst) == false then
-                    Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    -- On the login screen: leave it. Closed: reopen gently (see above).
+                    if not reopenNoLoginIfClosed(inst, id, name, pkg) then
+                        Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    end
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
