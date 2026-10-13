@@ -90,6 +90,8 @@ lua main.lua
 
 ### ⚡ Install / update satu perintah (disarankan)
 
+> Panduan lengkap langkah demi langkah (siap di-share): **[setup.md](setup.md)**.
+
 Di Termux (cloud phone baru maupun yang sudah ada rejoin):
 
 ```sh
