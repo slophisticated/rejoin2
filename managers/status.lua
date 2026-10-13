@@ -429,6 +429,9 @@ function Status.printSummary(instances)
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
             local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg
+            local okW, WindowLayout = pcall(require, "managers.window_layout")
+            local wv = okW and WindowLayout.lastVerify(inst.package) or nil
+            if wv and wv.ok == false then rowText = "[win] " .. rowText end
             table.insert(sb, bodyRow(rowText, label, ui[2]))
         end
         table.insert(sb, mid)

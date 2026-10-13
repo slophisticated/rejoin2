@@ -5,6 +5,7 @@ local Auth = require("managers.auth")
 local Username = require("managers.username")
 local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
+local WindowLayout = require("managers.window_layout")
 
 local Monitor = {}
 local running = false
@@ -110,6 +111,30 @@ end
 --   launchEmptyDelay   - seconds to wait after a clone with no account, before the next
 -- Every clone is launched. One that reads as not logged in only gets a short pause
 -- instead of the full wait, since it will sit on the login screen with low RSS.
+-- Floating window check (window grid on): compare each running clone's window with
+-- its grid slot. Only reported (log on change + dashboard mark); the position is
+-- rewritten on the clone's next launch, never by restarting a running game.
+local windowState = {} -- pkg -> true (in place) / false (off grid)
+
+local function checkWindow(inst)
+    if not WindowLayout.isEnabled() then return end
+    local pkg = inst and inst.package
+    if not pkg then return end
+    local okR, runningNow = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR or not runningNow then return end
+    local okV, res, actual, target = pcall(WindowLayout.verify, inst)
+    if not okV or res == nil then return end
+    if windowState[pkg] == res then return end
+    windowState[pkg] = res
+    local name = tostring(inst.name or pkg)
+    if res then
+        Logger.info(string.format("[WINDOW] %s posisi OK", name))
+    else
+        Logger.warn(string.format("[WINDOW] %s meleset (sekarang %s; target %s) -> dibetulkan saat relaunch berikutnya",
+            name, WindowLayout.formatBounds(actual), WindowLayout.formatBounds(target)))
+    end
+end
+
 local function runSequentialLaunch(conf)
     local instances = instanceManager.getAll()
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
@@ -190,6 +215,7 @@ local function runSequentialLaunch(conf)
             end
 
             Status.endStarting(id)
+            if launched then checkWindow(inst) end
             -- New process got a new pid during this launch: deprioritize it now.
             pcall(function() return Optimizer.applyForInstance(inst) end)
             ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds settled=%ds",
@@ -252,7 +278,10 @@ function Monitor.start(conf, opts)
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
+    local cycle = 0
+    local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
+        cycle = cycle + 1
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
@@ -368,6 +397,10 @@ function Monitor.start(conf, opts)
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.
         os.execute("stty isig 2>/dev/null")
+
+        if running and cycle % windowEvery == 0 then
+            for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+        end
 
         Timer.sleepInterruptible(interval, function() return not running end)
     end
