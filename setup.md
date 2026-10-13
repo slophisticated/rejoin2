@@ -4,8 +4,7 @@
 1. **Root** harus aktif (**Magisk** / **KernelSU**). Buka **Superuser** → pastikan **Termux** diizinkan.
 2. Install **[Termux](https://f-droid.org/packages/com.termux/)** dan **[Termux:Boot](https://f-droid.org/packages/com.termux.boot/)** dari **sumber yang sama** (dua-duanya F-Droid, atau dua-duanya GitHub).
    *Termux:Boot itu aplikasi (APK), bukan paket — `pkg install termux-boot` memang selalu gagal.*
-3. **Tap ikon Termux:Boot sekali** sampai muncul halaman teks, lalu kembali ke Termux.
-4. Di Termux, izinkan akses storage (dibutuhkan untuk folder Delta):
+3. Buka **Termux**, lalu izinkan akses storage (dibutuhkan untuk folder Delta):
 💻 Desktop Copy:
 ```bash
 termux-setup-storage
@@ -30,9 +29,9 @@ Tunggu sampai muncul **SELESAI**. Installer mengerjakan 8 langkah dan menandai t
 5. **Setting device otomatis**: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 600dp — plus script heartbeat ke folder Autoexecute Delta
 6. Cek clone di config terpasang di device
 7. Script auto-start + auto-update saat boot
-8. Aktifkan Termux:Boot
+8. Aktifkan Termux:Boot (layar Termux:Boot bisa terbuka sendiri — kembali saja ke Termux)
 
-*Ada `[!!]`? Ikuti petunjuk di baris itu, lalu jalankan perintah install lagi (aman diulang).*
+*Ada `[!!]`? Ikuti petunjuk di baris itu, lalu jalankan perintah install lagi (aman diulang). Kalau `[!!]` di langkah 8: tap ikon Termux:Boot sekali, lalu install lagi.*
 *Setelah selesai, **reboot sekali** supaya freeform/resizable aktif.*
 
 ## 🚀 Step 3: Run & Setup
