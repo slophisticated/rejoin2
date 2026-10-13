@@ -122,6 +122,13 @@ else
     done
 fi
 
+# Heartbeat script into the Delta autoexecute folder (status from inside the game).
+HB=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --install-heartbeat </dev/null 2>/dev/null | tail -1)
+case "$HB" in
+    OK:*) ok "script heartbeat Delta: ${HB#OK: }" ;;
+    *)    warn "script heartbeat Delta belum terpasang (${HB:-tidak ada output}). Cek appAutoExecutePath / izin storage (termux-setup-storage)." ;;
+esac
+
 # ---------------------------------------------------------------------------
 step "6/7 Script boot"
 mkdir -p "$HOME/.termux/boot"

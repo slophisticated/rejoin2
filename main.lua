@@ -46,6 +46,7 @@ local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
 local doctorFlag = false
+local installHeartbeatFlag = false
 for i = 1, #args do
     local a = args[i]
     if a == "--headless" or a == "--no-interactive" then headless = true end
@@ -54,6 +55,7 @@ for i = 1, #args do
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
     if a == "--doctor" then doctorFlag = true end
+    if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then
@@ -109,6 +111,14 @@ if doctorFlag then
     print(report)
     print("====================================================================")
     os.exit(0)
+end
+
+-- One-shot: (re)install the in-game heartbeat script into the Delta autoexecute folder.
+if installHeartbeatFlag then
+    local Heartbeat = require("managers.heartbeat")
+    local hbOk, hbMsg = Heartbeat.install()
+    print((hbOk and "OK: " or "GAGAL: ") .. tostring(hbMsg))
+    os.exit(hbOk and 0 or 1)
 end
 
 -- Headless mode: optionally start monitor immediately

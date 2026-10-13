@@ -35,6 +35,22 @@ return {
         gap = 0,       -- jarak antar jendela (pixel)
         offsetTop = 0, -- ruang kosong di atas layar (pixel)
     },
+    -- Heartbeat Delta: rejoin memasang script ke folder Autoexecute Delta. Dari dalam
+    -- game script lapor status (in-game / ke-kick, fps, memori); ke-kick = langsung
+    -- rejoin. saver = mode hemat (render 3D mati, FPS dibatasi, grafik rendah, mute).
+    heartbeat = {
+        enabled = true,
+        interval = 10,
+        staleAfter = 90,
+        workspacePath = "", -- "" = otomatis (folder Workspace di sebelah Autoexecute)
+        saver = {
+            enabled = false,
+            disable3d = true,
+            fpsCap = 15,
+            lowGraphics = true,
+            mute = true,
+        },
+    },
     -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
     -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.
     -- loginVerifyInterval: jeda (detik) antar verifikasi per clone.

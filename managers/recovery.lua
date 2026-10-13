@@ -6,6 +6,7 @@ local Config = require("core.config")
 local Status = require("managers.status")
 local Auth = require("managers.auth")
 local WindowLayout = require("managers.window_layout")
+local Heartbeat = require("managers.heartbeat")
 
 local Recovery = {}
 
@@ -19,9 +20,9 @@ local function isHealthy(instance)
     local pkg = instance and instance.package
     if not pkg then return false end
     -- A force-close leaves a low-RSS stub process alive, so process existence can't prove
-    -- the app actually came back up. Health = RSS above the active threshold (isActive),
-    -- so recovery only completes once the clone is genuinely running with real memory.
-    local ok, res = pcall(function() return APK.isActive(pkg) end)
+    -- the app actually came back up. Health = an in-game heartbeat from this session,
+    -- else RSS above the active threshold (isActive) as before.
+    local ok, res = pcall(function() return Heartbeat.isUp(instance, APK) end)
     return ok and res
 end
 
@@ -100,12 +101,14 @@ function Recovery.launchAndJoin(instance)
         Timer.sleep(1)
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
+        Heartbeat.markLaunched(instance)
         local opened = openGameLink(instance)
         if not opened then return false end
     else
         if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
             WindowLayout.applyForInstance(instance)
         end
+        Heartbeat.markLaunched(instance)
         local ok, err = APK.launch(pkg)
         if not ok then
             Logger.error("Recovery.launchAndJoin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
@@ -212,6 +215,7 @@ function Recovery.relaunch(instance)
 
     Timer.sleep(1)
     WindowLayout.applyForInstance(instance)
+    Heartbeat.markLaunched(instance)
 
     local ok, err = APK.launch(pkg)
     if not ok then
@@ -259,6 +263,7 @@ function Recovery.checkAndRecover(instance)
         -- small pause to let system settle
         Timer.sleep(1)
         WindowLayout.applyForInstance(instance)
+        Heartbeat.markLaunched(instance)
 
         -- A game link must launch a cold app. Launching MAIN first can leave the
         -- subsequent VIEW intent on the game page without joining the server.

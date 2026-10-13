@@ -3,6 +3,7 @@ local APK = require("managers.apk")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local Shell = require("utils.shell")
+local Heartbeat = require("managers.heartbeat")
 
 local Status = {}
 
@@ -144,7 +145,7 @@ classify = function(instance)
         -- that exists but stays below the threshold means its UI is gone.
         local okP, resP = pcall(function() return APK.isRunning(pkg) end)
         procExists = okP and resP
-        local okA, resA = pcall(function() return APK.isActive(pkg) end)
+        local okA, resA = pcall(function() return Heartbeat.isUp(instance, APK) end)
         active = okA and resA
     end
     local rssKb = pkg and APK.getRSSinKB(pkg) or -1
@@ -158,6 +159,18 @@ classify = function(instance)
         s.anrSeen = nil
         s.forceRunning = nil
         return s.status
+    end
+
+    -- The in-game script reported a kick/disconnect: show it plainly (the monitor
+    -- recovers the clone right away).
+    if not active and procExists then
+        local alive, why = Heartbeat.alive(instance)
+        if alive == false and why and why:find("^kicked") then
+            s.status = "kicked"
+            s.stuckSince = nil
+            s.healthySince = nil
+            return s.status
+        end
     end
 
     if not active then
@@ -268,6 +281,7 @@ local STATUS_UI = {
     starting = { "Starting", C.blue },
     offline  = { "Offline",  C.dim },
     nologin  = { "NoLogin",  C.dim },
+    kicked   = { "Kicked",   C.red },
 }
 
 -- Best-effort memory + storage readout, cached to avoid shell cost every cycle.
@@ -408,6 +422,10 @@ function Status.printSummary(instances)
             local status = s and s.status or "offline"
             local ui = STATUS_UI[status] or { status, C.dim }
             local label = ui[1] or "Unknown"
+            if status == "ingame" then
+                local extra = Heartbeat.summary(inst)
+                if extra then label = label .. " " .. extra end
+            end
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
             local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg

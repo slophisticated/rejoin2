@@ -4,6 +4,7 @@ local Status = require("managers.status")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local ProbeLog = require("utils.probe_log")
+local Heartbeat = require("managers.heartbeat")
 
 local Monitor = {}
 local running = false
@@ -150,7 +151,7 @@ local function runSequentialLaunch(conf)
 
             local function isActiveNow()
                 if not pkg then return false end
-                local okA, resA = pcall(function() return apkManager.isActive(pkg) end)
+                local okA, resA = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 return okA and resA
             end
 
@@ -179,6 +180,11 @@ local function runSequentialLaunch(conf)
                 if running then Status.printSummary(instanceManager.getAll()) end
                 if not isActiveNow() then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
+                    break
+                end
+                -- The in-game heartbeat proves it already joined: no need to wait longer.
+                if Heartbeat.alive(inst) == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
                     break
                 end
             end
@@ -229,6 +235,8 @@ function Monitor.start(conf, opts)
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
     installSignalHandler()
+    local hbOk, hbMsg = Heartbeat.install()
+    if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
     -- the dashboard around (log lines still go to the log file).
     Logger.setConsoleVisible(false)
@@ -300,8 +308,14 @@ function Monitor.start(conf, opts)
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has
                 -- ~1 GB while a force-close stub is only ~188 MB.
-                local ok, res = pcall(function() return apkManager.isActive(pkg) end)
+                -- An in-game heartbeat (when the Delta script runs) decides first: a kick or
+                -- a stopped heartbeat is unhealthy even with plenty of RSS.
+                local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                if not healthy then
+                    local _, why = Heartbeat.alive(inst)
+                    if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
+                end
             end
 
             if healthy then

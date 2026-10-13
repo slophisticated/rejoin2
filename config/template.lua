@@ -72,6 +72,23 @@ return {
         gap = 0,
         offsetTop = 0,
     },
+    -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
+    -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
+    -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
+    -- low graphics, mute). Without a heartbeat the old RSS checks are used.
+    heartbeat = {
+        enabled = true,
+        interval = 10,
+        staleAfter = 90,
+        workspacePath = "",
+        saver = {
+            enabled = false,
+            disable3d = true,
+            fpsCap = 15,
+            lowGraphics = true,
+            mute = true,
+        },
+    },
     -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
     -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as
     -- logged out, so the clone shows NoLogin and is never force-stopped/relaunched.

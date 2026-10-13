@@ -30,6 +30,11 @@ local function printSettings(conf)
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
     print("  windowLayout.enabled (auto atur jendela) = " .. tostring(wl.enabled == true)
         .. ", columns = " .. tostring(wl.columns or 0) .. ", gap = " .. tostring(wl.gap or 0))
+    local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
+    local sv = type(hb.saver) == "table" and hb.saver or {}
+    print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
+        .. ", mode hemat = " .. tostring(sv.enabled == true)
+        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati = " .. tostring(sv.disable3d ~= false))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
@@ -131,6 +136,32 @@ function CLI.run()
                 if n and n >= 0 then wl.gap = math.floor(n)
                 elseif v and not v:match("^%s*$") then print("Invalid number") end
             end
+            -- In-game heartbeat script (managers/heartbeat.lua), installed into the
+            -- Delta autoexecute folder when the monitor starts.
+            conf.heartbeat = type(conf.heartbeat) == "table" and conf.heartbeat or {}
+            local hb = conf.heartbeat
+            hb.saver = type(hb.saver) == "table" and hb.saver or {}
+            cur = hb.enabled ~= false and "y" or "n"
+            yn = prompt("Heartbeat Delta (status dari dalam game, rejoin saat kick)? (y/n): [" .. cur .. "] ")
+            if yn and yn:match("^%s*[yY]") then hb.enabled = true
+            elseif yn and yn:match("^%s*[nN]") then hb.enabled = false end
+            if hb.enabled ~= false then
+                cur = hb.saver.enabled == true and "y" or "n"
+                yn = prompt("Mode hemat (render 3D mati, FPS dibatasi, grafik rendah, suara mati)? (y/n): [" .. cur .. "] ")
+                if yn and yn:match("^%s*[yY]") then hb.saver.enabled = true
+                elseif yn and yn:match("^%s*[nN]") then hb.saver.enabled = false end
+                if hb.saver.enabled then
+                    local v = prompt("Batas FPS (0 = tanpa batas): [" .. tostring(hb.saver.fpsCap or 15) .. "] ")
+                    local n = tonumber(v)
+                    if n and n >= 0 then hb.saver.fpsCap = math.floor(n)
+                    elseif v and not v:match("^%s*$") then print("Invalid number") end
+                    cur = hb.saver.disable3d ~= false and "y" or "n"
+                    yn = prompt("Matikan render 3D (layar game hitam, paling hemat)? (y/n): [" .. cur .. "] ")
+                    if yn and yn:match("^%s*[yY]") then hb.saver.disable3d = true
+                    elseif yn and yn:match("^%s*[nN]") then hb.saver.disable3d = false end
+                end
+            end
+            print("(script heartbeat dipasang ulang ke Autoexecute saat monitor dijalankan)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then
