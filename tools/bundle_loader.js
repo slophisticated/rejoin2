@@ -138,9 +138,9 @@ const WRAPPER_ANCHOR = `    local scriptDir = (arg and arg[0] and arg[0]:match("
     local command = "sh " .. shellQuote(scriptDir .. "run.sh")`;
 
 const WRAPPER_PATCH = `    -- yanamin bundle: no run.sh next to this file. Write the supervisor once
-    -- into data/ and hand the terminal over to it.
-    local supervisor = "data/yanamin_wrapper.sh"
-    os.execute("mkdir -p data 2>/dev/null")
+    -- into the shared data root and hand the terminal over to it.
+    local Paths = require("core.paths")
+    local supervisor = Paths.data("yanamin_wrapper.sh")
     local supervisorFile = io.open(supervisor, "w")
     if supervisorFile then
         local target = (arg and arg[0]) or "yanamin.lua"

@@ -9,17 +9,18 @@
 
 local APK = require("managers.apk")
 local Shell = require("utils.shell")
+local Paths = require("core.paths")
 
 local ProbeLog = {}
 
-local path = "launch.log"
+local path = Paths.resolve("launch.log")
 local enabled = true
 
 function ProbeLog.configure(conf)
     conf = conf or {}
     enabled = conf.launchLogEnabled ~= false
     if conf.launchLogPath and conf.launchLogPath ~= "" then
-        path = conf.launchLogPath
+        path = Paths.resolve(conf.launchLogPath)
     end
 end
 

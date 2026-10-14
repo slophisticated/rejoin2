@@ -1,6 +1,7 @@
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
 local File = require("utils.file")
+local Paths = require("core.paths")
 
 -- Auto-boot (Termux:Boot) installer.
 --
@@ -8,10 +9,11 @@ local File = require("utils.file")
 -- no Termux window: headless Launch All + Monitor, a crash-restart loop and a
 -- rotating data/boot.log.
 --
--- The loader installs itself: REJOIN_DIR / REJOIN_ENTRY are baked from the file
--- that is running right now, so the boot script keeps working as long as that
--- file stays in that folder. Works for the single-file loader (yanamin.lua) and
--- for the multi-file engine (main.lua) alike.
+-- The loader installs itself: REJOIN_HOME (the shared data root) and
+-- REJOIN_ENTRY (this engine file) are baked into the generated script, so it
+-- keeps working even if the engine is started from a different folder. Works
+-- for the single-file loader (yanamin.lua) and the multi-file engine
+-- (main.lua) alike.
 
 local Boot = {}
 
@@ -55,10 +57,9 @@ function Boot.selfPath()
     return self
 end
 
--- data/ lives next to the engine, so the boot log is easy to find.
+-- data/ lives in the shared data root, so the boot log is easy to find.
 function Boot.logPath()
-    local dir = select(1, splitPath(Boot.selfPath() or "")) or Boot.home()
-    return dir .. "/data/boot.log"
+    return Paths.data("boot.log")
 end
 
 function Boot.script(entryAbsPath)
@@ -72,12 +73,13 @@ function Boot.script(entryAbsPath)
 #
 # Runs the engine headless in the background — equivalent to menu
 # 1) Launch All + Monitor, but without a Termux window. Every step is logged
-# to $REJOIN_DIR/data/boot.log (rotated past ~256 KB).
+# to $REJOIN_HOME/data/boot.log (rotated past ~256 KB).
 #
-# REJOIN_DIR/REJOIN_ENTRY point at the engine file that installed this script.
-# BOOT_DELAY / RESTART_DELAY / MAX_RESTARTS can be overridden from the env.
+# REJOIN_HOME is the data root (config + data); REJOIN_ENTRY is the engine file
+# that installed this script. BOOT_DELAY / RESTART_DELAY / MAX_RESTARTS can be
+# overridden from the env.
 
-REJOIN_DIR="%s"
+REJOIN_HOME="%s"
 REJOIN_ENTRY="%s"
 BOOT_DELAY=${BOOT_DELAY:-30}
 RESTART_DELAY=${RESTART_DELAY:-30}
@@ -87,22 +89,22 @@ MAX_RESTARTS=${MAX_RESTARTS:-5}
 # assume the bare name "lua" exists.
 LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
 
-BOOT_LOG="$REJOIN_DIR/data/boot.log"
-mkdir -p "$REJOIN_DIR/data" 2>/dev/null
+BOOT_LOG="$REJOIN_HOME/data/boot.log"
+mkdir -p "$REJOIN_HOME/data" 2>/dev/null
 if [ -f "$BOOT_LOG" ] && [ "$(wc -c < "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
     mv -f "$BOOT_LOG" "$BOOT_LOG.old" 2>/dev/null
 fi
 log() { echo "[$(date '+%%Y-%%m-%%d %%H:%%M:%%S')] $*" >> "$BOOT_LOG"; }
 
-log "boot script started (dir=$REJOIN_DIR entry=$REJOIN_ENTRY delay=${BOOT_DELAY}s)"
+log "boot script started (home=$REJOIN_HOME entry=$REJOIN_ENTRY delay=${BOOT_DELAY}s)"
 
 # Keep the CPU awake so Android does not suspend the engine after boot.
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock </dev/null && log "wake lock taken"
 fi
 
-[ -f "$REJOIN_DIR/$REJOIN_ENTRY" ] || { log "ERROR: $REJOIN_DIR/$REJOIN_ENTRY not found"; exit 1; }
-cd "$REJOIN_DIR" || { log "ERROR: cannot cd to $REJOIN_DIR"; exit 1; }
+[ -f "$REJOIN_ENTRY" ] || { log "ERROR: $REJOIN_ENTRY not found"; exit 1; }
+cd "$REJOIN_HOME" || { log "ERROR: cannot cd to $REJOIN_HOME"; exit 1; }
 [ -f config/config.lua ] || log "WARN: config/config.lua missing"
 
 sleep "$BOOT_DELAY"
@@ -129,7 +131,7 @@ while :; do
     log "WARN: engine crashed (exit $code); restart $restarts/$MAX_RESTARTS in ${RESTART_DELAY}s"
     sleep "$RESTART_DELAY"
 done
-]], dir, entry)
+]], Paths.base(), entryAbsPath)
 end
 
 -- Write (or overwrite) the boot script. Returns ok, info-or-error.

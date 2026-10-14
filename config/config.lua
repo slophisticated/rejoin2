@@ -5,6 +5,7 @@ return {
     recoveryRetries = 3,
     checkTimeout = 15,
     debug = true,
+    -- Path relatif dihitung dari data root (/sdcard/yanamin).
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",

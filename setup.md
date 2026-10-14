@@ -71,10 +71,24 @@ lua /sdcard/Download/yanamin.lua
 ## 🔁 Step 6 (opsional): Auto-start saat boot
 
 1. Pasang aplikasi **Termux:Boot** dari sumber yang **sama** dengan Termux kamu (F-Droid ↔ F-Droid, GitHub ↔ GitHub).
-2. Jalankan loader, pilih **menu `9) Auto-boot (Termux:Boot)`** → `1) Install / update script boot`.
+2. Jalankan loader, pilih **menu `6) Auto-boot (Termux:Boot)`** → `1) Install / update script boot`.
 3. **Buka aplikasi Termux:Boot sekali**, lalu reboot. Engine jalan otomatis tanpa jendela Termux.
 
 *Note: cek `3) Lihat 10 baris terakhir boot.log` kalau clone tidak terbuka setelah reboot.*
+
+——————
+## 📁 Semua data disimpan di `/sdcard/yanamin`
+
+Konfigurasi dan seluruh log disimpan di satu folder supaya gampang dibaca & dihapus:
+
+```
+/sdcard/yanamin/config/config.lua     konfigurasi (instance, setting)
+/sdcard/yanamin/data/rejoin.log       log utama
+/sdcard/yanamin/data/boot.log         log Termux:Boot
+```
+
+*Butuh izin storage — kalau belum, jalankan `termux-setup-storage` lalu ulangi. Tanpa itu loader berhenti dengan pesan, bukan diam-diam menaruh data di tempat lain.*
+*Hapus semua (auto-boot + config + data + file loader) dari menu `7) Uninstall yanamin`.*
 
 ——————
 *To reset the config settings, delete the generated config and run again — the loader recreates it from its built-in template.*

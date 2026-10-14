@@ -7,7 +7,7 @@
       node tools/bundle_loader.js
 
   Source:  https://github.com/apengjers/rejoin
-  Bundled: 32 modules, entry main.lua
+  Bundled: 33 modules, entry main.lua
 
   Install (one line) and run:
 
@@ -37,6 +37,9 @@ return {
     -- Console log verbosity. Hidden below this level: "DEBUG" shows everything,
     -- "INFO" is the default (hides the monitor's per-probe/su debug spam).
     logLevel = "INFO",
+    -- Log utama. Path relatif dihitung dari data root (/sdcard/yanamin), jadi
+    -- "data/rejoin.log" -> /sdcard/yanamin/data/rejoin.log. Path absolut dipakai
+    -- apa adanya kalau mau log ditaruh di tempat lain.
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",
@@ -366,10 +369,11 @@ return CLI]]
 __ya_sources["core.config"] = [[
 local File = require("utils.file")
 local Logger = require("core.logger")
+local Paths = require("core.paths")
 
 local Config = {}
-local configPath = "config/config.lua"
-local templatePath = "config/template.lua"
+local configPath = Paths.config()
+local templatePath = Paths.template()
 local data = nil
 
 -- yanamin bundle: a device may have no config/ folder at all, so the
@@ -465,49 +469,6 @@ function Config.resetToTemplate()
 end
 
 return Config]]
-__ya_sources["core.dump_cookies_cli"] = [[
-local InstanceManager = require("managers.instance")
-local CookieInjector = require("managers.cookie_injector")
-
-local CLI = {}
-
-function CLI.run()
-    print("\nDump Cookies (debug) - menampilkan baris cookie clone, value hanya panjangnya\n")
-    local list = InstanceManager.getAll()
-    if #list == 0 then
-        print("(no instances configured)")
-        return
-    end
-    print("Instances:")
-    for _, inst in ipairs(list) do
-        print(string.format("  id=%s name=%s package=%s", tostring(inst.id), tostring(inst.name or ""), tostring(inst.package or "")))
-    end
-    io.write("Instance id (atau kosong untuk batal): ")
-    io.flush()
-    local raw = io.read()
-    local id = raw and tonumber((raw:gsub("^%s+", ""):gsub("%s+$", ""))) or nil
-    if not id then
-        print("Dibatalkan.")
-        return
-    end
-    local inst = InstanceManager.findById(id)
-    if not inst then
-        print("Instance not found")
-        return
-    end
-    print(string.format("Target: %s (%s)", tostring(inst.name or ""), tostring(inst.package or "")))
-
-    local ok, msg = CookieInjector.dump(inst)
-    if ok then
-        print("\n----- cookies dump -----")
-        print(msg)
-        print("----- end dump -----")
-    else
-        print("[GAGAL] " .. tostring(msg))
-    end
-end
-
-return CLI]]
 __ya_sources["core.inject_cookie_cli"] = [[
 local InstanceManager = require("managers.instance")
 local CookieInjector = require("managers.cookie_injector")
@@ -796,18 +757,19 @@ local function getTime()
 end
 
 local FileUtil = require("utils.file")
+local Paths = require("core.paths")
 
-local defaultLogPath = "data/rejoin.log"
+local defaultLogPath = Paths.data("rejoin.log")
 local logFilePath = defaultLogPath
 
 -- Try to read log path from config file without requiring core.config to avoid circular dependency.
 -- This reads config/config.lua if present and extracts logPath field.
 local function loadLogPathFromConfig()
-    local confPath = "config/config.lua"
+    local confPath = Paths.config()
     if FileUtil.exists(confPath) then
         local ok, conf = pcall(dofile, confPath)
         if ok and type(conf) == "table" and conf.logPath then
-            return tostring(conf.logPath)
+            return Paths.resolve(tostring(conf.logPath))
         end
     end
     return nil
@@ -818,7 +780,7 @@ end
 -- probe lines every cycle). Read directly from the config file to avoid a circular
 -- dependency on core.config.
 local function loadLogLevelFromConfig()
-    local confPath = "config/config.lua"
+    local confPath = Paths.config()
     if FileUtil.exists(confPath) then
         local ok, conf = pcall(dofile, confPath)
         if ok and type(conf) == "table" and conf.logLevel then
@@ -944,46 +906,185 @@ function Logger.setConsoleVisible(visible)
 end
 
 return Logger]]
-__ya_sources["core.logs_cli"] = [[
-local Logger = require("core.logger")
+__ya_sources["core.paths"] = [[
 local File = require("utils.file")
 
-local CLI = {}
+-- Single source of truth for where the engine keeps its state.
+--
+-- Everything the tool owns lives under one root so a user can back it up, read
+-- it or wipe it from one folder:
+--
+--   /sdcard/yanamin/config/config.lua      configuration
+--   /sdcard/yanamin/data/rejoin.log        engine log
+--   /sdcard/yanamin/data/launch.log        per-cycle launch/monitor diagnostics
+--   /sdcard/yanamin/data/monitor.pid       monitor lock
+--   /sdcard/yanamin/data/username_scan.log username resolution log
+--   /sdcard/yanamin/data/boot.log          Termux:Boot log
+--   /sdcard/yanamin/data/yanamin_wrapper.sh  embedded terminal supervisor
+--
+-- Nothing outside this root is ever written (clone app data, AutoExecute
+-- scripts and the Termux:Boot script live elsewhere on purpose).
+--
+-- Override the root with the YANAMIN_HOME environment variable (debugging).
+--
+-- IMPORTANT: directories are created with a plain `mkdir -p` (os.execute), NOT
+-- through utils.shell — that one runs commands as root via `su -c`, which would
+-- leave root-owned files that Termux can no longer write.
 
-local function prompt(msg)
-    io.write(msg)
-    io.flush()
-    return io.read()
+local Paths = {}
+
+local DEFAULT_ROOT = "/sdcard/yanamin"
+local STORAGE_HINT = "Jalankan:  termux-setup-storage  (beri izin storage), lalu ulangi."
+
+local root = nil
+local migrated = false
+
+local function shellQuote(s)
+    return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'"
 end
 
-function CLI.run()
-    local logPath = Logger.getLogPath()
-    if not File.exists(logPath) then
-        print("Log file not found: " .. tostring(logPath))
-        return
+local function mkdirp(path)
+    if not path or path == "" then return end
+    pcall(function() os.execute("mkdir -p " .. shellQuote(path)) end)
+end
+
+-- Can we actually create files here? Used to hard-stop early with a clear
+-- message instead of failing later in a dozen places.
+local function writable(path)
+    local probe = path .. "/.yanamin_write_test"
+    local f = io.open(probe, "w")
+    if not f then return false end
+    f:write("ok")
+    f:close()
+    os.remove(probe)
+    return true
+end
+
+local function stripTrailingSlash(p)
+    local out = tostring(p or ""):gsub("/+$", "")
+    if out == "" then return "/" end
+    return out
+end
+
+local function hardStop(candidate)
+    io.stdout:write("\n[yanamin] Folder data " .. candidate .. " tidak bisa ditulis.\n")
+    io.stdout:write("[yanamin] " .. STORAGE_HINT .. "\n\n")
+    io.stdout:flush()
+    os.exit(1)
+end
+
+-- Move anything the engine owned in the old working directory (before the data
+-- root existed) into the new root, so upgrading does not look like a wipe.
+local function migrateLegacy(cwd)
+    if migrated then return false end
+    migrated = true
+
+    if not cwd or cwd == "" or cwd == root then return false end
+    -- Skip when the two paths are related (cwd is the root, sits inside it, or
+    -- contains it) — those config/data folders are not ours to move.
+    if cwd:sub(1, #root + 1) == root .. "/" or root:sub(1, #cwd + 1) == cwd .. "/" then
+        return false
     end
 
-    local defaultLines = 200
-    local input = prompt("How many lines to show (default " .. tostring(defaultLines) .. "): ") or ""
-    local n = tonumber(input) or defaultLines
-
-    local content, err = File.read(logPath)
-    if not content then
-        print("Failed to read log: " .. tostring(err))
-        return
+    local moved = {}
+    local function mv(src, dst)
+        os.execute("mv -f " .. shellQuote(src) .. " " .. shellQuote(dst) .. " 2>/dev/null")
+        if not File.exists(src) then
+            table.insert(moved, src .. " -> " .. dst)
+        end
     end
 
-    local lines = {}
-    for l in content:gmatch("[^\r\n]+") do table.insert(lines, l) end
-    local start = #lines - n + 1
-    if start < 1 then start = 1 end
-    for i = start, #lines do
-        print(lines[i])
+    local configPath = root .. "/config/config.lua"
+    local templatePath = root .. "/config/template.lua"
+    local dataDir = root .. "/data"
+
+    if not File.exists(configPath) then
+        local legacyConf = cwd .. "/config/config.lua"
+        local legacyTpl = cwd .. "/config/template.lua"
+        if File.exists(legacyConf) then mv(legacyConf, configPath) end
+        if File.exists(legacyTpl) then mv(legacyTpl, templatePath) end
+    end
+
+    local legacyData = cwd .. "/data"
+    local names = File.listDir(legacyData)
+    if names then
+        for _, name in ipairs(names) do
+            local dst = dataDir .. "/" .. name
+            if not File.exists(dst) then mv(legacyData .. "/" .. name, dst) end
+        end
+    end
+
+    if #moved > 0 then
+        print("[yanamin] Data lama dipindahkan ke " .. root .. ":")
+        for _, line in ipairs(moved) do print("           " .. line) end
+    end
+    return #moved > 0
+end
+
+-- Resolved root, created on first use. Hard-stops when it is not writable.
+function Paths.base()
+    if root then return root end
+    local candidate = os.getenv("YANAMIN_HOME")
+    if not candidate or candidate == "" then candidate = DEFAULT_ROOT end
+    candidate = stripTrailingSlash(candidate)
+
+    mkdirp(candidate .. "/config")
+    mkdirp(candidate .. "/data")
+    if not writable(candidate) then hardStop(candidate) end
+
+    root = candidate
+    migrateLegacy(os.getenv("PWD") or ".")
+    return root
+end
+
+function Paths.config()
+    return Paths.base() .. "/config/config.lua"
+end
+
+function Paths.template()
+    return Paths.base() .. "/config/template.lua"
+end
+
+function Paths.dataDir()
+    return Paths.base() .. "/data"
+end
+
+function Paths.data(name)
+    return Paths.dataDir() .. "/" .. tostring(name)
+end
+
+-- Relative paths (the ones stored in config) belong to the data root; absolute
+-- paths are respected as-is so users can point logs somewhere else.
+function Paths.resolve(path)
+    path = tostring(path or "")
+    if path == "" then return Paths.data("rejoin.log") end
+    if path:match("^/") then return path end
+    return Paths.base() .. "/" .. path
+end
+
+-- Make sure both subfolders exist (cheap, idempotent).
+function Paths.ensure()
+    local base = Paths.base()
+    mkdirp(base .. "/config")
+    mkdirp(base .. "/data")
+    return base
+end
+
+local announced = false
+
+-- One-line "where does my stuff live" hint, shown once at startup.
+function Paths.announce()
+    if announced then return end
+    announced = true
+    local base = Paths.base()
+    local custom = (os.getenv("YANAMIN_HOME") or "") ~= ""
+    print("[yanamin] Data root: " .. base .. (custom and "  (YANAMIN_HOME)" or ""))
+    if not custom and base ~= DEFAULT_ROOT then
+        print("[yanamin] Bukan " .. DEFAULT_ROOT .. " — cek YANAMIN_HOME.")
     end
 end
 
-return CLI
-]]
+return Paths]]
 __ya_sources["core.runtime"] = [[
 local Runtime = {}
 Runtime.dryRun = false
@@ -1177,10 +1278,11 @@ return CLI]]
 __ya_sources["core.setup"] = [[
 local File = require("utils.file")
 local Logger = require("core.logger")
+local Paths = require("core.paths")
 
 local Setup = {}
-local configPath = "config/config.lua"
-local templatePath = "config/template.lua"
+local configPath = Paths.config()
+local templatePath = Paths.template()
 
 -- Ensure a usable config exists. If config/config.lua is missing, copy template to config/config.lua
 -- Optionally, pass a sourcePath to copy from instead of the packaged template
@@ -1353,7 +1455,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Instances imported and saved to config/config.lua")
+        print("Setup complete. Instances imported and saved to " .. require("core.paths").config())
         return true
 
     else
@@ -1383,7 +1485,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Configuration saved to config/config.lua")
+        print("Setup complete. Configuration saved to " .. require("core.paths").config())
         return true
     end
 end
@@ -1414,6 +1516,69 @@ function State.is(state)
 end
 
 return State]]
+__ya_sources["core.uninstall_cli"] = [[
+local Uninstall = require("managers.uninstall")
+local Paths = require("core.paths")
+
+-- Submenu "Uninstall yanamin": one button that removes the auto-boot script,
+-- the whole data root and (when it is the single-file loader) the loader file.
+-- Everything is listed first and only happens after typing HAPUS.
+
+local CLI = {}
+
+local function prompt(msg)
+    io.write(msg)
+    io.flush()
+    return io.read()
+end
+
+function CLI.run()
+    local targets = Uninstall.targets()
+
+    print("\nUninstall yanamin")
+    print("  Data root : " .. Paths.base())
+    print("")
+    print("  Yang akan DIHAPUS:")
+    if #targets == 0 then
+        print("    (tidak ada — belum ada data root, script boot, atau file loader)")
+    else
+        for _, t in ipairs(targets) do
+            if t.path then
+                print("    - " .. t.what)
+                print("      " .. t.path)
+            else
+                print("    - " .. t.what)
+            end
+        end
+    end
+    print("")
+    print("  TIDAK disentuh: data app/clone, script AutoExecute, file lain di HP.")
+
+    print("\n  1) Hapus semua (butuh ketik HAPUS)")
+    print("  2) Batal")
+
+    local choice = (prompt("Choose: ") or ""):match("^%s*(.-)%s*$")
+    if choice ~= "1" then
+        print("\nDibatalkan.")
+        return
+    end
+
+    local typed = (prompt("Ketik HAPUS untuk konfirmasi: ") or ""):match("^%s*(.-)%s*$")
+    if typed ~= "HAPUS" then
+        print("\nDibatalkan (konfirmasi tidak cocok).")
+        return
+    end
+
+    print("\nMenghapus...")
+    local results = Uninstall.runAll()
+    for _, line in ipairs(results) do print("  " .. line) end
+    print("\nSelesai. Keluar...")
+    print("Kalau file loader ikut terhapus, unduh ulang untuk dipakai lagi.")
+    io.stdout:flush()
+    os.exit(0)
+end
+
+return CLI]]
 __ya_sources["managers.apk"] = [[
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
@@ -2088,6 +2253,7 @@ __ya_sources["managers.boot"] = [=[
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
 local File = require("utils.file")
+local Paths = require("core.paths")
 
 -- Auto-boot (Termux:Boot) installer.
 --
@@ -2095,10 +2261,11 @@ local File = require("utils.file")
 -- no Termux window: headless Launch All + Monitor, a crash-restart loop and a
 -- rotating data/boot.log.
 --
--- The loader installs itself: REJOIN_DIR / REJOIN_ENTRY are baked from the file
--- that is running right now, so the boot script keeps working as long as that
--- file stays in that folder. Works for the single-file loader (yanamin.lua) and
--- for the multi-file engine (main.lua) alike.
+-- The loader installs itself: REJOIN_HOME (the shared data root) and
+-- REJOIN_ENTRY (this engine file) are baked into the generated script, so it
+-- keeps working even if the engine is started from a different folder. Works
+-- for the single-file loader (yanamin.lua) and the multi-file engine
+-- (main.lua) alike.
 
 local Boot = {}
 
@@ -2142,10 +2309,9 @@ function Boot.selfPath()
     return self
 end
 
--- data/ lives next to the engine, so the boot log is easy to find.
+-- data/ lives in the shared data root, so the boot log is easy to find.
 function Boot.logPath()
-    local dir = select(1, splitPath(Boot.selfPath() or "")) or Boot.home()
-    return dir .. "/data/boot.log"
+    return Paths.data("boot.log")
 end
 
 function Boot.script(entryAbsPath)
@@ -2159,12 +2325,13 @@ function Boot.script(entryAbsPath)
 #
 # Runs the engine headless in the background — equivalent to menu
 # 1) Launch All + Monitor, but without a Termux window. Every step is logged
-# to $REJOIN_DIR/data/boot.log (rotated past ~256 KB).
+# to $REJOIN_HOME/data/boot.log (rotated past ~256 KB).
 #
-# REJOIN_DIR/REJOIN_ENTRY point at the engine file that installed this script.
-# BOOT_DELAY / RESTART_DELAY / MAX_RESTARTS can be overridden from the env.
+# REJOIN_HOME is the data root (config + data); REJOIN_ENTRY is the engine file
+# that installed this script. BOOT_DELAY / RESTART_DELAY / MAX_RESTARTS can be
+# overridden from the env.
 
-REJOIN_DIR="%s"
+REJOIN_HOME="%s"
 REJOIN_ENTRY="%s"
 BOOT_DELAY=${BOOT_DELAY:-30}
 RESTART_DELAY=${RESTART_DELAY:-30}
@@ -2174,22 +2341,22 @@ MAX_RESTARTS=${MAX_RESTARTS:-5}
 # assume the bare name "lua" exists.
 LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
 
-BOOT_LOG="$REJOIN_DIR/data/boot.log"
-mkdir -p "$REJOIN_DIR/data" 2>/dev/null
+BOOT_LOG="$REJOIN_HOME/data/boot.log"
+mkdir -p "$REJOIN_HOME/data" 2>/dev/null
 if [ -f "$BOOT_LOG" ] && [ "$(wc -c < "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
     mv -f "$BOOT_LOG" "$BOOT_LOG.old" 2>/dev/null
 fi
 log() { echo "[$(date '+%%Y-%%m-%%d %%H:%%M:%%S')] $*" >> "$BOOT_LOG"; }
 
-log "boot script started (dir=$REJOIN_DIR entry=$REJOIN_ENTRY delay=${BOOT_DELAY}s)"
+log "boot script started (home=$REJOIN_HOME entry=$REJOIN_ENTRY delay=${BOOT_DELAY}s)"
 
 # Keep the CPU awake so Android does not suspend the engine after boot.
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock </dev/null && log "wake lock taken"
 fi
 
-[ -f "$REJOIN_DIR/$REJOIN_ENTRY" ] || { log "ERROR: $REJOIN_DIR/$REJOIN_ENTRY not found"; exit 1; }
-cd "$REJOIN_DIR" || { log "ERROR: cannot cd to $REJOIN_DIR"; exit 1; }
+[ -f "$REJOIN_ENTRY" ] || { log "ERROR: $REJOIN_ENTRY not found"; exit 1; }
+cd "$REJOIN_HOME" || { log "ERROR: cannot cd to $REJOIN_HOME"; exit 1; }
 [ -f config/config.lua ] || log "WARN: config/config.lua missing"
 
 sleep "$BOOT_DELAY"
@@ -2216,7 +2383,7 @@ while :; do
     log "WARN: engine crashed (exit $code); restart $restarts/$MAX_RESTARTS in ${RESTART_DELAY}s"
     sleep "$RESTART_DELAY"
 done
-]], dir, entry)
+]], Paths.base(), entryAbsPath)
 end
 
 -- Write (or overwrite) the boot script. Returns ok, info-or-error.
@@ -3174,8 +3341,8 @@ end
 
 -- Only one engine may drive the clones: the boot engine runs hidden in the
 -- background, and a second one started from the menu would force-stop and relaunch
--- the same clones. The running engine's pid is kept in data/monitor.pid.
-local PID_FILE = "data/monitor.pid"
+-- the same clones. The running engine's pid is kept in the data root.
+local PID_FILE = require("core.paths").data("monitor.pid")
 
 local function selfPid()
     -- The shell spawned by popen is our child, so its $PPID is this Lua process.
@@ -4359,18 +4526,120 @@ end
 
 return Status
 ]]
+__ya_sources["managers.uninstall"] = [[
+local File = require("utils.file")
+local Logger = require("core.logger")
+local Paths = require("core.paths")
+local Boot = require("managers.boot")
+
+-- Full uninstall for the single-file loader.
+--
+-- Removes everything the tool owns, and nothing else:
+--   1. the Termux:Boot script (~/.termux/boot/start-rejoin.sh)
+--   2. the whole data root (/sdcard/yanamin: config + data + all logs)
+--   3. the engine/loader file itself — but only when it is the single-file
+--      loader. When the running entry is main.lua (the repo checkout) the file
+--      is left alone on purpose: deleting it would wreck the source tree.
+--
+-- Clone app data, AutoExecute scripts and anything else on the device are never
+-- touched.
+
+local Uninstall = {}
+
+local function shellQuote(s)
+    return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'"
+end
+
+-- The file this process is running from, if it is safe to delete.
+function Uninstall.selfRemovable()
+    local self = Boot.selfPath()
+    if not self then return nil, "tidak tahu file yang sedang jalan" end
+    local name = self:match("([^/\\]+)$")
+    if name == "main.lua" then
+        return nil, "file engine main.lua tidak dihapus (hapus manual bila perlu)"
+    end
+    if not File.exists(self) then
+        return nil, "file " .. self .. " tidak ditemukan"
+    end
+    return self, name
+end
+
+-- Everything that would be deleted, for the confirmation screen.
+function Uninstall.targets()
+    local list = {}
+
+    local bootScript = Boot.scriptPath()
+    if File.exists(bootScript) then
+        table.insert(list, { path = bootScript, what = "auto-boot (Termux:Boot)" })
+    end
+
+    local base = Paths.base()
+    if File.exists(base .. "/config/config.lua") or File.exists(base .. "/data") then
+        table.insert(list, { path = base, what = "data root (config + data + log)" })
+    end
+
+    local self, why = Uninstall.selfRemovable()
+    if self then
+        table.insert(list, { path = self, what = "file loader" })
+    else
+        table.insert(list, { path = nil, what = "file loader: TIDAK dihapus (" .. tostring(why) .. ")" })
+    end
+
+    return list
+end
+
+-- Do the actual removal. Returns a list of human-readable results.
+function Uninstall.runAll()
+    local results = {}
+
+    -- 1) Termux:Boot script
+    local okBoot, infoBoot = Boot.uninstall()
+    if okBoot then
+        table.insert(results, "Auto-boot dihapus: " .. tostring(infoBoot))
+    else
+        table.insert(results, "Auto-boot: " .. tostring(infoBoot))
+    end
+
+    -- 2) data root (config + data + logs)
+    local base = Paths.base()
+    os.execute("rm -rf " .. shellQuote(base))
+    if File.exists(base) then
+        table.insert(results, "GAGAL hapus data root: " .. base)
+    else
+        table.insert(results, "Data root dihapus: " .. base)
+    end
+
+    -- 3) the loader file itself
+    local self = Uninstall.selfRemovable()
+    if self then
+        local removed = os.remove(self)
+        if removed then
+            table.insert(results, "File loader dihapus: " .. self)
+        else
+            table.insert(results, "GAGAL hapus file loader: " .. self)
+        end
+    else
+        table.insert(results, "File loader tidak dihapus (hapus manual bila perlu)")
+    end
+
+    Logger.info("Uninstall: " .. table.concat(results, " | "))
+    return results
+end
+
+return Uninstall]]
 __ya_sources["managers.username"] = [=[
 local Logger = require("core.logger")
 local File = require("utils.file")
 local Shell = require("utils.shell")
 local Auth = require("managers.auth")
+local Paths = require("core.paths")
 
 local Username = {}
 
 local cache = {}
 local TTL_OK   = 600  -- seconds before re-resolving a successful result
 local TTL_FAIL = 60   -- seconds before retrying after a failure / nil
-local LOG_PATH = "data/username_scan.log"
+local LOG_PATH = Paths.data("username_scan.log")
 
 local function trim(s)  return (s or ""):match("^%s*(.-)%s*$") end
 
@@ -4871,17 +5140,18 @@ __ya_sources["utils.probe_log"] = [[
 
 local APK = require("managers.apk")
 local Shell = require("utils.shell")
+local Paths = require("core.paths")
 
 local ProbeLog = {}
 
-local path = "launch.log"
+local path = Paths.resolve("launch.log")
 local enabled = true
 
 function ProbeLog.configure(conf)
     conf = conf or {}
     enabled = conf.launchLogEnabled ~= false
     if conf.launchLogPath and conf.launchLogPath ~= "" then
-        path = conf.launchLogPath
+        path = Paths.resolve(conf.launchLogPath)
     end
 end
 
@@ -5215,9 +5485,9 @@ if os.getenv("REJOIN_WRAPPER") ~= "1" then
         return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
     end
     -- yanamin bundle: no run.sh next to this file. Write the supervisor once
-    -- into data/ and hand the terminal over to it.
-    local supervisor = "data/yanamin_wrapper.sh"
-    os.execute("mkdir -p data 2>/dev/null")
+    -- into the shared data root and hand the terminal over to it.
+    local Paths = require("core.paths")
+    local supervisor = Paths.data("yanamin_wrapper.sh")
     local supervisorFile = io.open(supervisor, "w")
     if supervisorFile then
         local target = (arg and arg[0]) or "yanamin.lua"
@@ -5292,6 +5562,9 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Everything the tool owns lives in one folder; tell the user where it is.
+require("core.paths").announce()
+
 -- Ensure configuration exists (setup will copy template -> config if needed)
 local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
@@ -5359,7 +5632,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Auto-boot (Termux:Boot)\n  10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -5384,29 +5657,18 @@ while true do
         local SettingsCLI = require("core.settings_cli")
         SettingsCLI.run()
     elseif choice == "4" then
-        local LogsCLI = require("core.logs_cli")
-        LogsCLI.run()
-    elseif choice == "5" then
-        local Monitor = require("managers.monitor")
-        print("(tekan Ctrl+C untuk berhenti monitor)")
-        Monitor.start(Config.get())
-        if Monitor.interrupted() then
-            print("Monitor stopped by Ctrl+C; exiting.")
-            os.exit(0)
-        end
-    elseif choice == "6" then
         local AutoExecuteCLI = require("core.autoexecute_cli")
         AutoExecuteCLI.run()
-    elseif choice == "7" then
+    elseif choice == "5" then
         local InjectCookieCLI = require("core.inject_cookie_cli")
         InjectCookieCLI.run()
-    elseif choice == "8" then
-        local DumpCookiesCLI = require("core.dump_cookies_cli")
-        DumpCookiesCLI.run()
-    elseif choice == "9" then
+    elseif choice == "6" then
         local BootCLI = require("core.boot_cli")
         BootCLI.run()
-    elseif choice == "10" then
+    elseif choice == "7" then
+        local UninstallCLI = require("core.uninstall_cli")
+        UninstallCLI.run()
+    elseif choice == "8" then
         print("Exiting main")
         break
     else

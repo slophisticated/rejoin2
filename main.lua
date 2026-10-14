@@ -69,6 +69,9 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Everything the tool owns lives in one folder; tell the user where it is.
+require("core.paths").announce()
+
 -- Ensure configuration exists (setup will copy template -> config if needed)
 local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
@@ -136,7 +139,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Auto-boot (Termux:Boot)\n  10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -161,29 +164,18 @@ while true do
         local SettingsCLI = require("core.settings_cli")
         SettingsCLI.run()
     elseif choice == "4" then
-        local LogsCLI = require("core.logs_cli")
-        LogsCLI.run()
-    elseif choice == "5" then
-        local Monitor = require("managers.monitor")
-        print("(tekan Ctrl+C untuk berhenti monitor)")
-        Monitor.start(Config.get())
-        if Monitor.interrupted() then
-            print("Monitor stopped by Ctrl+C; exiting.")
-            os.exit(0)
-        end
-    elseif choice == "6" then
         local AutoExecuteCLI = require("core.autoexecute_cli")
         AutoExecuteCLI.run()
-    elseif choice == "7" then
+    elseif choice == "5" then
         local InjectCookieCLI = require("core.inject_cookie_cli")
         InjectCookieCLI.run()
-    elseif choice == "8" then
-        local DumpCookiesCLI = require("core.dump_cookies_cli")
-        DumpCookiesCLI.run()
-    elseif choice == "9" then
+    elseif choice == "6" then
         local BootCLI = require("core.boot_cli")
         BootCLI.run()
-    elseif choice == "10" then
+    elseif choice == "7" then
+        local UninstallCLI = require("core.uninstall_cli")
+        UninstallCLI.run()
+    elseif choice == "8" then
         print("Exiting main")
         break
     else

@@ -133,7 +133,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Instances imported and saved to config/config.lua")
+        print("Setup complete. Instances imported and saved to " .. require("core.paths").config())
         return true
 
     else
@@ -163,7 +163,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Configuration saved to config/config.lua")
+        print("Setup complete. Configuration saved to " .. require("core.paths").config())
         return true
     end
 end

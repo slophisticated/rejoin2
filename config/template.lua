@@ -11,6 +11,9 @@ return {
     -- Console log verbosity. Hidden below this level: "DEBUG" shows everything,
     -- "INFO" is the default (hides the monitor's per-probe/su debug spam).
     logLevel = "INFO",
+    -- Log utama. Path relatif dihitung dari data root (/sdcard/yanamin), jadi
+    -- "data/rejoin.log" -> /sdcard/yanamin/data/rejoin.log. Path absolut dipakai
+    -- apa adanya kalau mau log ditaruh di tempat lain.
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",

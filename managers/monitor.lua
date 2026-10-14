@@ -45,8 +45,8 @@ end
 
 -- Only one engine may drive the clones: the boot engine runs hidden in the
 -- background, and a second one started from the menu would force-stop and relaunch
--- the same clones. The running engine's pid is kept in data/monitor.pid.
-local PID_FILE = "data/monitor.pid"
+-- the same clones. The running engine's pid is kept in the data root.
+local PID_FILE = require("core.paths").data("monitor.pid")
 
 local function selfPid()
     -- The shell spawned by popen is our child, so its $PPID is this Lua process.
