@@ -10,7 +10,7 @@
 #   3. checks root
 #   4. downloads rejoin to ~/rejoin (fresh copy, settings kept)
 #   5. device tweaks via device_setup.sh (animations off, freeform/resizable,
-#      smallest width 600dp)
+#      smallest width 900dp)
 #   6. checks that the clones in config/config.lua are installed
 #   7. installs the boot script (auto-update + start on every boot)
 #   8. checks/activates the Termux:Boot app
@@ -104,7 +104,7 @@ chmod +x "$DIR"/*.sh 2>/dev/null
 
 # ---------------------------------------------------------------------------
 step "5/8 Setting device"
-# Animations off, Developer options (freeform / resizable / external), sw600dp.
+# Animations off, Developer options (freeform / resizable / external), sw900dp.
 DEV_OUT=$(sh "$DIR/device_setup.sh" </dev/null 2>&1)
 printf '%s\n' "$DEV_OUT"
 DEV_WARN=$(printf '%s\n' "$DEV_OUT" | grep -c '\[!!\]')

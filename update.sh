@@ -40,8 +40,21 @@ migrate() {
         *)    say "migrasi $1 belum berhasil (${out:-tidak ada output}); dicoba lagi lain kali" ;;
     esac
 }
+# Same idea for device tweaks done by device_setup.sh (safe to repeat).
+migrate_device() {
+    marker="data/.migrated-$1"
+    [ -f "$marker" ] && return 0
+    [ -f device_setup.sh ] || return 0
+    out=$(sh device_setup.sh </dev/null 2>&1 | grep 'Smallest width')
+    case "$out" in
+        *'[OK]'*) : > "$marker"; say "migrasi: ${out#*\[OK\] }" ;;
+        *)        say "migrasi $1 belum berhasil (${out:-tidak ada output}); dicoba lagi lain kali" ;;
+    esac
+}
 run_migrations() {
     migrate window-layout-on --enable-window-layout
+    # Smallest width 600 -> 900dp: the whole Roblox UI fits a 2x2 grid window.
+    migrate_device sw900
 }
 
 cd "$DIR" || exit 0

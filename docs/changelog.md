@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Smallest width default 900dp** (dulu 600): di grid 2x2 tiap jendela cuma ±340 px tinggi, dengan density 192 sidebar Roblox kepotong sebelum *More*. Density 128 (720p) bikin semua menu muat. `SMALLEST_WIDTH=...` sekarang diingat di `data/smallest_width` (install ulang tidak mengembalikan), `--undo` menghapusnya. Device lama ikut lewat migrasi `update.sh` (`data/.migrated-sw900`) saat boot berikutnya.
+
 - **Fix: pesan status webhook tidak ter-update + CPU "-"**: id pesan dari respons Discord dulu cuma terbaca kalau `"id"` berada tepat di sebelah `"channel_id"`; urutan key Discord beda, jadi id tidak tersimpan dan tiap laporan tidak bisa meng-edit pesan (runtime kelihatan beku). Sekarang id diambil dari key `"id"` tingkat atas JSON (bukan id author/attachment). CPU butuh dua sampel: laporan pertama sekarang mengambil sampel awal + jeda 2 dtk, jadi CPU sistem & per clone langsung tampil.
 
 - **Fix: grid jendela tidak jalan di device baru**: clone yang belum pernah dibuka belum punya `<pkg>_preferences.xml`, jadi posisinya dilewati sampai clone dibuka sekali. `WindowLayout.apply` sekarang membuat file itu (dan folder `shared_prefs`) dengan owner, izin (771/660) dan label SELinux yang sama dengan folder data app, lalu menulis posisi grid — jadi Launch All pertama di device baru sudah langsung rapi.
