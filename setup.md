@@ -52,6 +52,21 @@ cd ~/rejoin && lua main.lua
 5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
 *Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai masuk game.*
 
+## 📄 Cara lain: 1 file loader (kayak Kaeru)
+Download sekali ke folder Download:
+```bash
+curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/rejoin.lua -o /sdcard/Download/rejoin.lua
+```
+Lalu tiap mau buka rejoin:
+```bash
+lua /sdcard/Download/rejoin.lua
+```
+📱 Mobile Copy:
+`lua /sdcard/Download/rejoin.lua`
+
+Belum terpasang → install otomatis (sama dengan Step 2). Sudah terpasang → cek update dari GitHub (config tetap) lalu buka menu. Lewati update: `lua /sdcard/Download/rejoin.lua --no-update`.
+*Butuh `lua` (`pkg install lua53`) dan izin storage (`termux-setup-storage`).*
+
 ## 🔁 Auto Start & Update
 Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan sendiri (±10 detik setelah boot, tanpa jendela Termux). Config kamu tidak tertimpa.
 
