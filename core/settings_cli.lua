@@ -121,72 +121,7 @@ function CLI.run()
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            -- Floating window grid (managers/window_layout.lua), applied while a clone
-            -- is stopped right before it is launched.
-            conf.windowLayout = type(conf.windowLayout) == "table" and conf.windowLayout or {}
-            local wl = conf.windowLayout
-            local cur = wl.enabled == true and "y" or "n"
-            local yn = prompt("Auto atur jendela floating jadi grid? (y/n): [" .. cur .. "] ")
-            if yn and yn:match("^%s*[yY]") then wl.enabled = true
-            elseif yn and yn:match("^%s*[nN]") then wl.enabled = false end
-            if wl.enabled then
-                local v = prompt("Jumlah kolom grid (0 = otomatis): [" .. tostring(wl.columns or 0) .. "] ")
-                local n = tonumber(v)
-                if n and n >= 0 then wl.columns = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-                v = prompt("Jarak antar jendela (pixel): [" .. tostring(wl.gap or 0) .. "] ")
-                n = tonumber(v)
-                if n and n >= 0 then wl.gap = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-            end
-            -- In-game heartbeat script (managers/heartbeat.lua), installed into the
-            -- Delta autoexecute folder when the monitor starts.
-            conf.heartbeat = type(conf.heartbeat) == "table" and conf.heartbeat or {}
-            local hb = conf.heartbeat
-            hb.saver = type(hb.saver) == "table" and hb.saver or {}
-            cur = hb.enabled ~= false and "y" or "n"
-            yn = prompt("Heartbeat Delta (status dari dalam game, rejoin saat kick)? (y/n): [" .. cur .. "] ")
-            if yn and yn:match("^%s*[yY]") then hb.enabled = true
-            elseif yn and yn:match("^%s*[nN]") then hb.enabled = false end
-            if hb.enabled ~= false then
-                cur = hb.saver.enabled == true and "y" or "n"
-                yn = prompt("Mode hemat (render 3D mati, FPS dibatasi, grafik rendah, suara mati)? (y/n): [" .. cur .. "] ")
-                if yn and yn:match("^%s*[yY]") then hb.saver.enabled = true
-                elseif yn and yn:match("^%s*[nN]") then hb.saver.enabled = false end
-                if hb.saver.enabled then
-                    local v = prompt("Batas FPS (0 = tanpa batas): [" .. tostring(hb.saver.fpsCap or 15) .. "] ")
-                    local n = tonumber(v)
-                    if n and n >= 0 then hb.saver.fpsCap = math.floor(n)
-                    elseif v and not v:match("^%s*$") then print("Invalid number") end
-                    cur = hb.saver.disable3d ~= false and "y" or "n"
-                    yn = prompt("Matikan render 3D (layar game hitam, paling hemat)? (y/n): [" .. cur .. "] ")
-                    if yn and yn:match("^%s*[yY]") then hb.saver.disable3d = true
-                    elseif yn and yn:match("^%s*[nN]") then hb.saver.disable3d = false end
-                end
-            end
-            print("(script heartbeat dipasang ulang ke Autoexecute saat monitor dijalankan)")
-            -- Discord webhook status reports (managers/webhook.lua).
-            conf.webhook = type(conf.webhook) == "table" and conf.webhook or {}
-            local wh = conf.webhook
-            local has = type(wh.url) == "string" and wh.url ~= ""
-            local v = prompt("Discord webhook URL (kosong = tetap, '-' = hapus): [" .. (has and "diset" or "kosong") .. "] ")
-            if v and v:match("^%s*%-%s*$") then
-                wh.url = ""
-            elseif v and not v:match("^%s*$") then
-                v = v:gsub("%s+", "")
-                if v:match("^https://[%w%.%-]+/api/webhooks/") then wh.url = v
-                else print("URL webhook tidak valid (harus https://discord.com/api/webhooks/...)") end
-            end
-            if type(wh.url) == "string" and wh.url ~= "" then
-                v = prompt("Interval laporan (detik, min 60): [" .. tostring(wh.interval or 300) .. "] ")
-                local n = tonumber(v)
-                if n and n >= 60 then wh.interval = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-                cur = wh.screenshot ~= false and "y" or "n"
-                yn = prompt("Kirim screenshot di laporan? (y/n): [" .. cur .. "] ")
-                if yn and yn:match("^%s*[yY]") then wh.screenshot = true
-                elseif yn and yn:match("^%s*[nN]") then wh.screenshot = false end
-            end
+            print("(Jendela, heartbeat & mode hemat: Main Menu 11. Discord webhook: Main Menu 10.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

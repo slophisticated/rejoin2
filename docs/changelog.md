@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Menu dirapihin**: Settings `13` kembali hanya jeda launch (+ useRoot). Fitur besar pindah ke Main Menu: `10) Discord Webhook` (`core/webhook_cli.lua`: URL, interval, screenshot, notif, sembunyikan nama, kirim tes) dan `11) Jendela & Mode Hemat` (`core/display_cli.lua`: grid, kolom, jarak, heartbeat, mode hemat, batas FPS, render 3D, pasang ulang script). Pilih item satu-satu dengan nilai sekarang ditampilkan; tiap perubahan langsung disimpan.
+
 - **Laporan Discord webhook**: `managers/webhook.lua` — status (device, RAM `/proc/meminfo`, CPU dari selisih `/proc/stat`, suhu thermal zone, online/offline, per clone uptime + CPU dari `/proc/<pid>/stat`, memori heartbeat/RSS, screenshot `screencap`) dikirim tiap `webhook.interval` (300 dtk). Pesan pertama `POST ?wait=true`, id disimpan di `data/webhook_msg.txt`, berikutnya `PATCH /messages/<id>` (404 → pesan baru). Event terpisah (engine mulai, kick, recovery gagal, clone belum login gagal dibuka) dibatasi 1/menit per kejadian. curl jalan sebagai user Termux; URL tidak pernah masuk log. Diatur di Settings `13`; `url` kosong = tidak ada yang dijalankan.
 
 - **Fix: clone belum login yang FC tidak pernah dibuka lagi**: monitor dulu selalu diam untuk clone tanpa akun. Sekarang kalau clone itu tertutup — proses mati, atau proses tersisa tanpa jendela (`APKManager.hasWindow` dari `dumpsys window windows`; tidak terbaca = tidak menebak) — `Recovery.reopenNoLogin` membukanya lagi lewat launcher biasa, **tanpa force-stop** dan tanpa link game, maks sekali per `noLoginCooldown` (120 dtk). Clone yang masih di layar login tetap dibiarkan. Config: `relaunchNoLogin`, `noLoginCooldown`.
