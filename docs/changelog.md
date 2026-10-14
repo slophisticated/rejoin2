@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix: grid jendela tidak jalan di device baru**: clone yang belum pernah dibuka belum punya `<pkg>_preferences.xml`, jadi posisinya dilewati sampai clone dibuka sekali. `WindowLayout.apply` sekarang membuat file itu (dan folder `shared_prefs`) dengan owner, izin (771/660) dan label SELinux yang sama dengan folder data app, lalu menulis posisi grid — jadi Launch All pertama di device baru sudah langsung rapi.
+
 - **Izin background Termux otomatis**: `device_setup.sh` memasukkan `com.termux`, `com.termux.boot`, `com.termux.api` (yang terpasang) ke whitelist optimasi baterai (`dumpsys deviceidle whitelist +pkg`) dan `cmd appops set ... RUN_IN_BACKGROUND / RUN_ANY_IN_BACKGROUND allow`, jadi dialog "Let app always run in background?" dari `termux-wake-lock` tidak muncul. `--undo` mengembalikan. `termux-boot.sh` juga mem-whitelist Termux sebelum wake lock.
 
 - **Menu dirapihin**: Settings `13` kembali hanya jeda launch (+ useRoot). Fitur besar pindah ke Main Menu: `10) Discord Webhook` (`core/webhook_cli.lua`: URL, interval, screenshot, notif, sembunyikan nama, kirim tes) dan `11) Jendela & Mode Hemat` (`core/display_cli.lua`: grid, kolom, jarak, heartbeat, mode hemat, batas FPS, render 3D, pasang ulang script). Pilih item satu-satu dengan nilai sekarang ditampilkan; tiap perubahan langsung disimpan.

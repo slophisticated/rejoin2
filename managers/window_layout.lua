@@ -202,11 +202,25 @@ function WindowLayout.apply(instance, index, count)
 
     -- Android loads <file>.bak instead of the file when a previous write was cut off,
     -- so a leftover backup gets the same edit.
+    --
+    -- A clone that was never opened has no prefs file yet (common on a fresh device):
+    -- create an empty one with the same owner, mode and SELinux label as the app's data
+    -- directory, so the app can read and write it like its own, then edit it as usual.
     local file = prefsFile(pkg)
     local tmp = "/data/local/tmp/rejoin_window_" .. pkg .. ".xml"
     local script = table.concat({
         "f=" .. shQuote(file) .. "; t=" .. shQuote(tmp),
-        '[ -f "$f" ] || exit 3',
+        "d=" .. shQuote("/data/data/" .. pkg) .. '; sp="$d/shared_prefs"',
+        'if [ ! -f "$f" ]; then',
+        '  [ -d "$d" ] || exit 3',
+        '  own=$(stat -c "%u:%g" "$d") || exit 6',
+        '  ctx=$(ls -Zd "$d" 2>/dev/null | awk \'{print $1}\')',
+        '  if [ ! -d "$sp" ]; then mkdir "$sp" && chown "$own" "$sp" && chmod 771 "$sp" || exit 6; fi',
+        '  printf "%s\\n%s\\n%s\\n" "<?xml version=\'1.0\' encoding=\'utf-8\' standalone=\'yes\' ?>" "<map>" "</map>" > "$f" || exit 6',
+        '  chown "$own" "$f" && chmod 660 "$f" || exit 6',
+        '  case "$ctx" in *:*) chcon "$ctx" "$sp" "$f" 2>/dev/null ;; esac',
+        '  echo CREATED',
+        'fi',
         "edit() {",
         "  sed " .. table.concat(sedArgs, " ") .. ' "$1" > "$t" || return 4',
         '  grep -q "' .. KEY_PREFIX .. 'left" "$t" || { rm -f "$t"; return 5; }',
@@ -219,10 +233,14 @@ function WindowLayout.apply(instance, index, count)
     -- Shell.exec prefixes `timeout`; run the compound script as one command.
     local ok, out, code = Shell.exec("sh -c " .. shQuote(script))
     if not ok then
-        local reason = code == 3 and "prefs file not found (open the clone once first)"
+        local reason = code == 3 and "app data folder not found (clone not installed?)"
+            or code == 6 and "could not create prefs file"
             or ("write failed (code " .. tostring(code) .. ") " .. tostring(out or ""))
         Logger.warn("WindowLayout[" .. pkg .. "]: " .. reason)
         return false, reason
+    end
+    if out and out:find("CREATED", 1, true) then
+        Logger.info("WindowLayout[" .. pkg .. "]: file setting jendela dibuat (clone belum pernah dibuka)")
     end
     local stored = readBounds(pkg)
     if not sameBounds(stored, b) then
