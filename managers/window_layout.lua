@@ -16,6 +16,12 @@ local Config = require("core.config")
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
 --       offsetTop = 0,     -- pixels kept free at the top of the screen
+--       overlap = 80,      -- pixels every row except the last reaches into the row
+--                          -- below it, so a small window shows the whole Roblox
+--                          -- sidebar (up to "More"). With overlap the rows are filled
+--                          -- bottom-up: windows launched later open on top, so the
+--                          -- taller upper row covers the edge of the row below.
+--                          -- 0 = plain grid, filled top-down.
 --       screenWidth = 0,   -- 0 = detect from the current display
 --       screenHeight = 0,
 --       orientation = "landscape", -- grid in landscape even if the display reads
@@ -38,6 +44,7 @@ local KEY_PREFIX = "app_cloner_current_window_"
 
 local screenCache = nil      -- { w, h, at }
 local SCREEN_TTL = 30
+local DEFAULT_OVERLAP = 80
 local TOLERANCE = 10          -- pixels the app may adjust a window by
 local lastVerify = {}         -- pkg -> { ok, at, actual, target }
 
@@ -165,11 +172,18 @@ function WindowLayout.boundsFor(instance, index, count)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)
     if cellW < 50 or cellH < 50 then return nil, "grid too small" end
 
+    local overlap = math.max(0, math.floor(tonumber(wl.overlap) or DEFAULT_OVERLAP))
+    if rows < 2 then overlap = 0 end
+    overlap = math.min(overlap, math.floor(cellH / 2))
+
     local i = index - 1
     local col, row = i % cols, math.floor(i / cols)
+    if overlap > 0 then row = rows - 1 - row end
     local left = col * (cellW + gap)
     local top = top0 + row * (cellH + gap)
-    return { left = left, top = top, right = left + cellW, bottom = top + cellH }
+    local bottom = top + cellH
+    if row < rows - 1 then bottom = bottom + overlap end
+    return { left = left, top = top, right = left + cellW, bottom = bottom }
 end
 
 -- Write the bounds into the clone's prefs. Call only while the clone is stopped.

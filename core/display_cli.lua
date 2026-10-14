@@ -50,6 +50,7 @@ function CLI.run()
         print("  6) Batas FPS (mode hemat)   [" .. tostring(sv.fpsCap or 15) .. "]")
         print("  7) Render 3D mati           [" .. (sv.disable3d ~= false and "ya" or "tidak") .. "]")
         print("  8) Pasang ulang script heartbeat sekarang")
+        print("  9) Baris atas numpuk ke bawah [" .. tostring(wl.overlap or 80) .. " px, 0 = grid biasa]")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -90,6 +91,13 @@ function CLI.run()
             local Heartbeat = require("managers.heartbeat")
             local ok, msg = Heartbeat.install()
             print((ok and "OK: " or "Gagal: ") .. tostring(msg))
+        elseif choice == "9" then
+            local n = askInt("Tinggi tambahan baris atas (pixel, 0 = grid biasa)", wl.overlap or 80, 0)
+            if n then
+                wl.overlap = n
+                save(conf)
+                print("(Berlaku saat clone dibuka ulang.)")
+            end
         else
             print("Pilihan tidak dikenal.")
         end

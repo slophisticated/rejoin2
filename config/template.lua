@@ -85,6 +85,7 @@ return {
         columns = 0,
         gap = 0,
         offsetTop = 0,
+        overlap = 80,
     },
     -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
     -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;

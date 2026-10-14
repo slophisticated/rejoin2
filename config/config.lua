@@ -48,6 +48,7 @@ return {
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)
         gap = 0,       -- jarak antar jendela (pixel)
         offsetTop = 0, -- ruang kosong di atas layar (pixel)
+        overlap = 80,  -- baris atas lebih tinggi sekian pixel (numpuk baris bawah) biar menu Roblox sampai More kelihatan; 0 = grid biasa
     },
     -- Heartbeat Delta: rejoin memasang script ke folder Autoexecute Delta. Dari dalam
     -- game script lapor status (in-game / ke-kick, fps, memori); ke-kick = langsung
