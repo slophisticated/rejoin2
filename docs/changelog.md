@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Webhook: notif "Rejoin engine mulai" dihapus** (cuma spam tiap engine start/boot). Notif kick, recovery gagal dan clone belum login gagal dibuka tetap ada.
+
 - **Grid: baris atas lebih tinggi (numpuk)**: `windowLayout.overlap` (default 80 px) memanjangkan jendela di semua baris kecuali baris terakhir, jadi sidebar Roblox sampai *More* kelihatan tanpa mengubah density. Baris diisi dari bawah (clone pertama di baris bawah), karena jendela yang dibuka belakangan tampil di depan, jadi baris atas menutup tepi atas baris bawah. Diatur di Main Menu `11` → `9`; `0` = grid biasa (diisi dari atas seperti dulu). Clone yang dibuka ulang sendirian (recovery) bisa muncul di depan sampai Launch All berikutnya.
 
 - **Smallest width tetap 600dp** (900dp sempat jadi default tapi tampilan terlalu kecil). `SMALLEST_WIDTH=...` sekarang diingat di `data/smallest_width` (install ulang tidak mengembalikan), `--undo` menghapusnya. Device yang sempat pindah ke 900dp kembali ke 600dp lewat migrasi `update.sh` (`data/.migrated-sw600`) saat boot berikutnya.

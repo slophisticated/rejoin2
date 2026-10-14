@@ -306,7 +306,6 @@ function Monitor.start(conf, opts)
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
     installSignalHandler()
-    Webhook.event("start", "▶️ Rejoin engine mulai", tostring(#instanceManager.getAll()) .. " clone dipantau", 5763719)
     local hbOk, hbMsg = Heartbeat.install()
     if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
