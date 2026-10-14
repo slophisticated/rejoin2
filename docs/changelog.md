@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Izin background Termux otomatis**: `device_setup.sh` memasukkan `com.termux`, `com.termux.boot`, `com.termux.api` (yang terpasang) ke whitelist optimasi baterai (`dumpsys deviceidle whitelist +pkg`) dan `cmd appops set ... RUN_IN_BACKGROUND / RUN_ANY_IN_BACKGROUND allow`, jadi dialog "Let app always run in background?" dari `termux-wake-lock` tidak muncul. `--undo` mengembalikan. `termux-boot.sh` juga mem-whitelist Termux sebelum wake lock.
+
 - **Menu dirapihin**: Settings `13` kembali hanya jeda launch (+ useRoot). Fitur besar pindah ke Main Menu: `10) Discord Webhook` (`core/webhook_cli.lua`: URL, interval, screenshot, notif, sembunyikan nama, kirim tes) dan `11) Jendela & Mode Hemat` (`core/display_cli.lua`: grid, kolom, jarak, heartbeat, mode hemat, batas FPS, render 3D, pasang ulang script). Pilih item satu-satu dengan nilai sekarang ditampilkan; tiap perubahan langsung disimpan.
 
 - **Laporan Discord webhook**: `managers/webhook.lua` — status (device, RAM `/proc/meminfo`, CPU dari selisih `/proc/stat`, suhu thermal zone, online/offline, per clone uptime + CPU dari `/proc/<pid>/stat`, memori heartbeat/RSS, screenshot `screencap`) dikirim tiap `webhook.interval` (300 dtk). Pesan pertama `POST ?wait=true`, id disimpan di `data/webhook_msg.txt`, berikutnya `PATCH /messages/<id>` (404 → pesan baru). Event terpisah (engine mulai, kick, recovery gagal, clone belum login gagal dibuka) dibatasi 1/menit per kejadian. curl jalan sebagai user Termux; URL tidak pernah masuk log. Diatur di Settings `13`; `url` kosong = tidak ada yang dijalankan.

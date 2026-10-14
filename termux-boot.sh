@@ -39,6 +39,13 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$BOOT_LOG"; }
 log "boot script started (dir=$REJOIN_DIR, delay=${BOOT_DELAY}s)"
 
 # Keep the CPU awake so Android does not suspend the engine after boot.
+# Let Termux run in the background without the "always run in background?" dialog
+# (the wake lock below would otherwise ask for it). Best-effort; device_setup.sh does
+# the same for all Termux apps.
+if su -c "dumpsys deviceidle whitelist +com.termux" </dev/null >/dev/null 2>&1; then
+    log "termux whitelisted from battery optimization"
+fi
+
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock </dev/null && log "wake lock taken"
 fi

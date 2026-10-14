@@ -104,7 +104,7 @@ Installer mengerjakan semuanya: paket (`lua53 sqlite curl git`, lewat `apt` supa
 
 Setelah itu **tidak perlu `git pull` lagi**: setiap boot, script boot menjalankan `update.sh` dulu (ambil versi terbaru dari GitHub, `config/config.lua` & `data/rejoin.log` tetap), baru menyalakan engine. Kalau GitHub tidak bisa dihubungi, versi yang ada tetap jalan.
 
-- Installer juga **mengatur device** lewat `device_setup.sh` (root): animasi mati, Developer options *Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*, dan **Smallest width 600dp** (density dihitung dari ukuran layar; ganti lewat `SMALLEST_WIDTH=...`). Freeform/resizable aktif setelah reboot. Jalankan sendiri: `sh ~/rejoin/device_setup.sh`, kembalikan ke bawaan: `sh ~/rejoin/device_setup.sh --undo`.
+- Installer juga **mengatur device** lewat `device_setup.sh` (root): animasi mati, Developer options *Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*, **izin jalan di background** untuk Termux / Termux:Boot (whitelist optimasi baterai, jadi dialog *"Let app always run in background?"* tidak muncul lagi), dan **Smallest width 600dp** (density dihitung dari ukuran layar; ganti lewat `SMALLEST_WIDTH=...`). Freeform/resizable aktif setelah reboot. Jalankan sendiri: `sh ~/rejoin/device_setup.sh`, kembalikan ke bawaan: `sh ~/rejoin/device_setup.sh --undo`.
 - Update manual tanpa reboot: `sh ~/rejoin/update.sh`
 - Matikan auto-update: `touch ~/rejoin/data/no-auto-update` (nyalakan lagi: `rm ~/rejoin/data/no-auto-update`)
 - Kalau `curl` sendiri error (`CANNOT LINK EXECUTABLE`): `apt update && apt full-upgrade -y`, lalu ulangi.

@@ -45,7 +45,40 @@ set_global() {
     fi
 }
 
+# Background permission for the Termux apps: battery-optimization whitelist (what the
+# "Let app always run in background?" dialog asks for, so it no longer shows up) plus
+# the run-in-background app ops. Apps that are not installed are skipped.
+BG_PKGS="com.termux com.termux.boot com.termux.api"
+PKGS_INSTALLED=$(root "pm list packages")
+installed() { printf '%s\n' "$PKGS_INSTALLED" | grep -qx "package:$1"; }
+whitelisted() { root "dumpsys deviceidle whitelist" | grep -q ",$1,"; }
+background() {
+    for p in $BG_PKGS; do
+        installed "$p" || continue
+        if [ "$1" = off ]; then
+            root "dumpsys deviceidle whitelist -$p" >/dev/null
+            root "cmd appops set $p RUN_IN_BACKGROUND default" >/dev/null
+            root "cmd appops set $p RUN_ANY_IN_BACKGROUND default" >/dev/null
+            ok "$p: izin background dikembalikan"
+            continue
+        fi
+        root "cmd appops set $p RUN_IN_BACKGROUND allow" >/dev/null
+        root "cmd appops set $p RUN_ANY_IN_BACKGROUND allow" >/dev/null
+        if whitelisted "$p"; then
+            ok "$p boleh jalan di background (sudah)"
+            continue
+        fi
+        root "dumpsys deviceidle whitelist +$p" >/dev/null
+        if whitelisted "$p"; then
+            ok "$p boleh jalan di background"
+        else
+            warn "$p gagal dikecualikan dari optimasi baterai"
+        fi
+    done
+}
+
 if [ "$MODE" = undo ]; then
+    background off
     for k in window_animation_scale transition_animation_scale animator_duration_scale; do
         set_global "$k" 1 "animasi $k = 1"
     done
@@ -70,7 +103,10 @@ set_global force_resizable_activities 1 "Force activities to be resizable"
 set_global enable_freeform_support 1 "Enable freeform windows"
 set_global enable_non_resizable_multi_window 1 "Enable non-resizable in multi-window"
 
-# 3. Smallest width -------------------------------------------------------------------
+# 3. Background permission ---------------------------------------------------------
+background on
+
+# 4. Smallest width -------------------------------------------------------------------
 SIZE=$(root "wm size")
 DIM=$(printf '%s\n' "$SIZE" | grep -i 'override' | grep -oE '[0-9]+x[0-9]+' | head -1)
 [ -z "$DIM" ] && DIM=$(printf '%s\n' "$SIZE" | grep -oE '[0-9]+x[0-9]+' | head -1)
