@@ -108,6 +108,18 @@ Langsung masuk Main Menu. Panduan lengkap: [`setup.md`](setup.md). File `yanamin
 
 ### Auto-start saat boot (Termux:Boot)
 
+Biar engine otomatis jalan tiap HP dinyalakan (tanpa jendela Termux):
+
+#### Cara cepat — dari dalam tool (recommended, juga untuk loader 1 file)
+1. Pasang aplikasi **Termux:Boot** (aplikasi Android terpisah, **bukan** paket `pkg`) — ambil dari sumber yang **sama** dengan Termux kamu, kalau beda tanda tangan Android nggak mau jalan.
+2. Jalankan tool, masuk **menu `9) Auto-boot (Termux:Boot)`**:
+   - `1) Install / update script boot` — tool menulis sendiri `~/.termux/boot/start-rejoin.sh` (mencatat `REJOIN_DIR`/`REJOIN_ENTRY` dari file yang lagi jalan, memakai interpreter yang terdeteksi `lua5.3`/`lua`/`lua5.4`/`luajit`).
+   - `3) Lihat 10 baris terakhir boot.log` buat diagnosis.
+   - `2) Uninstall` buat matiin lagi.
+3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot.
+
+#### Cara manual (kalau mau tanpa menu)
+
 Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
 
 1. Pasang aplikasi **Termux:Boot** (ini aplikasi Android terpisah, **bukan** paket `pkg`). Ambil dari sumber yang **sama** dengan Termux yang terpasang — Termux dari F-Droid → Termux:Boot dari [F-Droid](https://f-droid.org/packages/com.termux.boot/); Termux dari GitHub → Termux:Boot dari [GitHub releases](https://github.com/termux/termux-boot/releases). Beda sumber = tanda tangan beda, Android menolak/aplikasi tidak jalan.
@@ -299,7 +311,10 @@ rejoin/
 - `4) View Logs`
 - `5) Start Monitor`
 - `6) AutoExecute Manager`
-- `7) Exit`
+- `7) Inject Cookie`
+- `8) Dump Cookies (debug)`
+- `9) Auto-boot (Termux:Boot)`
+- `10) Exit`
 
 ### Monitoring
 - Dashboard live menampilkan tiap instance sebagai `package (username)` (mis. `com.apengjers.v3 (apengjers)`) + status berwarna. Username di-resolve sekali per sesi via cookie `.ROBLOSECURITY` (root) → API Roblox, di-cache; kolom melebar otomatis di perangkat dengan tampilan lebar. Rincian scan tiap sesi ada di `data/username_scan.log`.

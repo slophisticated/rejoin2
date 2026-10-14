@@ -68,6 +68,14 @@ lua /sdcard/Download/yanamin.lua
 **Final Settings:** Configure delay and Private Server URL.
 *Note: Grant Root permissions when prompted.*
 
+## 🔁 Step 6 (opsional): Auto-start saat boot
+
+1. Pasang aplikasi **Termux:Boot** dari sumber yang **sama** dengan Termux kamu (F-Droid ↔ F-Droid, GitHub ↔ GitHub).
+2. Jalankan loader, pilih **menu `9) Auto-boot (Termux:Boot)`** → `1) Install / update script boot`.
+3. **Buka aplikasi Termux:Boot sekali**, lalu reboot. Engine jalan otomatis tanpa jendela Termux.
+
+*Note: cek `3) Lihat 10 baris terakhir boot.log` kalau clone tidak terbuka setelah reboot.*
+
 ——————
 *To reset the config settings, delete the generated config and run again — the loader recreates it from its built-in template.*
 **Android 10:**

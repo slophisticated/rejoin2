@@ -7,7 +7,7 @@
       node tools/bundle_loader.js
 
   Source:  https://github.com/apengjers/rejoin
-  Bundled: 30 modules, entry main.lua
+  Bundled: 32 modules, entry main.lua
 
   Install (one line) and run:
 
@@ -276,6 +276,85 @@ function CLI.run()
             deleteFlow()
         elseif choice == "4" then
             print("Exiting AutoExecute Manager")
+            break
+        else
+            print("Unknown choice")
+        end
+    end
+end
+
+return CLI]]
+__ya_sources["core.boot_cli"] = [[
+local Boot = require("managers.boot")
+
+-- Submenu "Auto-boot (Termux:Boot)": install / uninstall the boot script and
+-- inspect the boot log, so a single-file loader can enable auto-start on its own.
+
+local CLI = {}
+
+local function prompt(msg)
+    io.write(msg)
+    io.flush()
+    return io.read()
+end
+
+local function wait()
+    print("\n[Selesai] Tekan Enter untuk kembali ke menu utama")
+    io.read()
+end
+
+function CLI.run()
+    while true do
+        local st = Boot.status()
+        print("\nAuto-boot (Termux:Boot)")
+        print("  script boot : " .. st.path .. (st.installed and "   [TERPASANG]" or "   [belum]"))
+        print("  aplikasi    : " .. (st.app
+            and "Termux:Boot terpasang"
+            or "Termux:Boot BELUM terpasang (pasang dari sumber yang sama dengan Termux)"))
+        print("  log boot    : " .. st.log .. (st.logExists and "" or "   [belum ada]"))
+
+        print("\n  1) Install / update script boot")
+        print("  2) Uninstall script boot")
+        print("  3) Lihat 10 baris terakhir boot.log")
+        print("  4) Kembali")
+
+        local choice = (prompt("Choose: ") or ""):match("^%s*(.-)%s*$")
+
+        if choice == "1" then
+            local ok, info = Boot.install()
+            if ok then
+                print("\nScript boot terpasang: " .. tostring(info))
+                print("Langkah lanjut: BUKA aplikasi Termux:Boot sekali, lalu reboot HP.")
+                print("Saat boot engine jalan tersembunyi (headless launch + monitor).")
+                print("Log: " .. tostring(Boot.logPath()))
+            else
+                print("\nGAGAL: " .. tostring(info))
+            end
+            wait()
+            break
+        elseif choice == "2" then
+            local ok, info = Boot.uninstall()
+            if ok then
+                print("\nScript boot dihapus: " .. tostring(info))
+                print("Auto-start di boot berikutnya tidak dijalankan lagi.")
+            else
+                print("\n" .. tostring(info))
+            end
+            wait()
+            break
+        elseif choice == "3" then
+            local out, err = Boot.tailLog(10)
+            if out then
+                print("\n--- boot.log (10 baris terakhir) ---")
+                io.write(out)
+                if not out:match("\n$") then io.write("\n") end
+            else
+                print("\nBelum ada log: " .. tostring(err))
+                print("Normal kalau HP belum pernah di-boot sejak script dipasang.")
+            end
+            wait()
+            break
+        elseif choice == "4" then
             break
         else
             print("Unknown choice")
@@ -2005,6 +2084,200 @@ function AutoExecute.remove(name)
 end
 
 return AutoExecute]]
+__ya_sources["managers.boot"] = [=[
+local Logger = require("core.logger")
+local Shell = require("utils.shell")
+local File = require("utils.file")
+
+-- Auto-boot (Termux:Boot) installer.
+--
+-- Writes ~/.termux/boot/start-rejoin.sh so the engine starts on every boot with
+-- no Termux window: headless Launch All + Monitor, a crash-restart loop and a
+-- rotating data/boot.log.
+--
+-- The loader installs itself: REJOIN_DIR / REJOIN_ENTRY are baked from the file
+-- that is running right now, so the boot script keeps working as long as that
+-- file stays in that folder. Works for the single-file loader (yanamin.lua) and
+-- for the multi-file engine (main.lua) alike.
+
+local Boot = {}
+
+local SCRIPT_NAME = "start-rejoin.sh"
+local BOOT_APP_PKG = "com.termux.boot"
+
+local function quote(s)
+    return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'"
+end
+
+local function splitPath(p)
+    local dir, name = tostring(p or ""):match("^(.*[/\\])([^/\\]+)$")
+    if dir then dir = dir:gsub("/+$", "") end
+    return dir, name
+end
+
+function Boot.home()
+    local home = os.getenv("HOME")
+    if not home or home == "" then
+        home = "/data/data/com.termux/files/usr"
+    end
+    return home
+end
+
+function Boot.bootDir()
+    return Boot.home() .. "/.termux/boot"
+end
+
+function Boot.scriptPath()
+    return Boot.bootDir() .. "/" .. SCRIPT_NAME
+end
+
+-- Absolute path of the file that is running right now.
+function Boot.selfPath()
+    local self = (arg and arg[0]) or ""
+    if self == "" then return nil, "unknown_entry" end
+    if not self:match("^[/\\]") then
+        local pwd = os.getenv("PWD") or "."
+        self = pwd .. "/" .. self
+    end
+    return self
+end
+
+-- data/ lives next to the engine, so the boot log is easy to find.
+function Boot.logPath()
+    local dir = select(1, splitPath(Boot.selfPath() or "")) or Boot.home()
+    return dir .. "/data/boot.log"
+end
+
+function Boot.script(entryAbsPath)
+    local dir, entry = splitPath(entryAbsPath)
+    if not dir or not entry then return nil, "bad_entry_path" end
+    return string.format([[#!/data/data/com.termux/files/usr/bin/sh
+# Rejoin auto-start on device boot (Termux:Boot plugin).
+#
+# Generated by Rejoin (menu: Auto-boot -> Install). Safe to delete: use
+# menu "Auto-boot" -> Uninstall, or just rm this file.
+#
+# Runs the engine headless in the background — equivalent to menu
+# 1) Launch All + Monitor, but without a Termux window. Every step is logged
+# to $REJOIN_DIR/data/boot.log (rotated past ~256 KB).
+#
+# REJOIN_DIR/REJOIN_ENTRY point at the engine file that installed this script.
+# BOOT_DELAY / RESTART_DELAY / MAX_RESTARTS can be overridden from the env.
+
+REJOIN_DIR="%s"
+REJOIN_ENTRY="%s"
+BOOT_DELAY=${BOOT_DELAY:-30}
+RESTART_DELAY=${RESTART_DELAY:-30}
+MAX_RESTARTS=${MAX_RESTARTS:-5}
+
+# The interpreter package may be called lua, lua5.3, lua5.4 or luajit, so never
+# assume the bare name "lua" exists.
+LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
+
+BOOT_LOG="$REJOIN_DIR/data/boot.log"
+mkdir -p "$REJOIN_DIR/data" 2>/dev/null
+if [ -f "$BOOT_LOG" ] && [ "$(wc -c < "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+    mv -f "$BOOT_LOG" "$BOOT_LOG.old" 2>/dev/null
+fi
+log() { echo "[$(date '+%%Y-%%m-%%d %%H:%%M:%%S')] $*" >> "$BOOT_LOG"; }
+
+log "boot script started (dir=$REJOIN_DIR entry=$REJOIN_ENTRY delay=${BOOT_DELAY}s)"
+
+# Keep the CPU awake so Android does not suspend the engine after boot.
+if command -v termux-wake-lock >/dev/null 2>&1; then
+    termux-wake-lock </dev/null && log "wake lock taken"
+fi
+
+[ -f "$REJOIN_DIR/$REJOIN_ENTRY" ] || { log "ERROR: $REJOIN_DIR/$REJOIN_ENTRY not found"; exit 1; }
+cd "$REJOIN_DIR" || { log "ERROR: cannot cd to $REJOIN_DIR"; exit 1; }
+[ -f config/config.lua ] || log "WARN: config/config.lua missing"
+
+sleep "$BOOT_DELAY"
+if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
+
+restarts=0
+while :; do
+    # REJOIN_WRAPPER=1 runs the engine directly: Termux:Boot hands us no
+    # terminal, so the interactive terminal supervisor is not needed here.
+    log "starting engine: $REJOIN_ENTRY --headless --start-monitor --auto-launch"
+    REJOIN_WRAPPER=1 "$LUA_BIN" "$REJOIN_ENTRY" --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    code=$?
+    case "$code" in
+        0|130|143)
+            log "engine stopped (exit $code)"
+            exit "$code"
+            ;;
+    esac
+    restarts=$((restarts + 1))
+    if [ "$restarts" -gt "$MAX_RESTARTS" ]; then
+        log "ERROR: engine still crashing after $MAX_RESTARTS restarts (exit $code); giving up"
+        exit "$code"
+    fi
+    log "WARN: engine crashed (exit $code); restart $restarts/$MAX_RESTARTS in ${RESTART_DELAY}s"
+    sleep "$RESTART_DELAY"
+done
+]], dir, entry)
+end
+
+-- Write (or overwrite) the boot script. Returns ok, info-or-error.
+function Boot.install()
+    local self, err = Boot.selfPath()
+    if not self then return false, err or "tidak tahu file engine yang sedang jalan" end
+    if not File.exists(self) then
+        return false, "file engine tidak ditemukan: " .. tostring(self)
+    end
+    local content, serr = Boot.script(self)
+    if not content then return false, serr or "gagal membuat script boot" end
+    local path = Boot.scriptPath()
+    local ok, werr = File.write(path, content)
+    if not ok then
+        return false, "gagal menulis " .. path .. " (" .. tostring(werr) .. ")"
+    end
+    Shell.exec("chmod +x " .. quote(path))
+    Logger.info("Boot: script boot ditulis: " .. path)
+    return true, path
+end
+
+function Boot.uninstall()
+    local path = Boot.scriptPath()
+    if not File.exists(path) then return false, "script boot belum ada" end
+    local ok, rerr = os.remove(path)
+    if not ok then return false, "gagal hapus: " .. tostring(rerr) end
+    Logger.info("Boot: script boot dihapus: " .. path)
+    return true, path
+end
+
+-- Is the Termux:Boot Android app installed? It must come from the same source
+-- as Termux itself, otherwise Android refuses to run it.
+function Boot.appInstalled()
+    local _, out = Shell.exec("pm list packages " .. BOOT_APP_PKG)
+    if not out then return false end
+    return out:find(BOOT_APP_PKG, 1, true) ~= nil
+end
+
+function Boot.status()
+    local path = Boot.scriptPath()
+    local log = Boot.logPath()
+    return {
+        installed = File.exists(path),
+        path = path,
+        app = Boot.appInstalled(),
+        log = log,
+        logExists = File.exists(log),
+    }
+end
+
+-- Last few lines of data/boot.log, or nil when there is no log yet.
+function Boot.tailLog(lines)
+    local path = Boot.logPath()
+    if not File.exists(path) then return nil, "no_log" end
+    local ShellModule = Shell
+    local _, out = ShellModule.exec("tail -n " .. tostring(lines or 10) .. " " .. quote(path))
+    if not out or out == "" then return nil, "no_log" end
+    return out
+end
+
+return Boot]=]
 __ya_sources["managers.cookie_injector"] = [[
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
@@ -5086,7 +5359,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Auto-boot (Termux:Boot)\n  10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -5131,6 +5404,9 @@ while true do
         local DumpCookiesCLI = require("core.dump_cookies_cli")
         DumpCookiesCLI.run()
     elseif choice == "9" then
+        local BootCLI = require("core.boot_cli")
+        BootCLI.run()
+    elseif choice == "10" then
         print("Exiting main")
         break
     else
