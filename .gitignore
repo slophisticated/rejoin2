@@ -1,3 +1,4 @@
 data/monitor.pid
 data/boot.log
 data/boot.log.old
+./debug_probe.lua
