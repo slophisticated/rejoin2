@@ -3,7 +3,11 @@ return {
     -- AutoExecute is now managed DIRECTLY in the app's autoexecute folder: scripts are
     -- added/edited/deleted from the "Script Manager" menu into `appAutoExecutePath`
     -- (e.g. /sdcard/Delta/Autoexecute). No separate staging folder, no deploy step.
-    monitorInterval = 5,
+    -- Seconds between monitor cycles (one cycle checks every instance once).
+    -- 8 is a sane default with several clones: cheaper on battery/CPU, and status
+    -- changes are still noticed quickly. Menu 1 is unaffected (it has its own
+    -- launchWaitInterval = 3).
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,

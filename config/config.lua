@@ -1,6 +1,7 @@
 -- Sample config for Rejoin Engine (adjust package names and paths for your device)
 return {
-    monitorInterval = 5,
+    -- Detik antar siklus monitor (1 siklus = cek semua instance sekali).
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,

@@ -29,7 +29,11 @@ return {
     -- AutoExecute is now managed DIRECTLY in the app's autoexecute folder: scripts are
     -- added/edited/deleted from the "Script Manager" menu into `appAutoExecutePath`
     -- (e.g. /sdcard/Delta/Autoexecute). No separate staging folder, no deploy step.
-    monitorInterval = 5,
+    -- Seconds between monitor cycles (one cycle checks every instance once).
+    -- 8 is a sane default with several clones: cheaper on battery/CPU, and status
+    -- changes are still noticed quickly. Menu 1 is unaffected (it has its own
+    -- launchWaitInterval = 3).
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,
@@ -1137,7 +1141,7 @@ end
 
 function CLI.run()
     local conf = Config.get() or {}
-    conf.monitorInterval = conf.monitorInterval or 5
+    conf.monitorInterval = conf.monitorInterval or 8
     conf.recoveryDelay = conf.recoveryDelay or 3
     conf.recoveryRetries = conf.recoveryRetries or 3
     conf.checkTimeout = conf.checkTimeout or 15
@@ -1163,7 +1167,7 @@ function CLI.run()
         if choice == "1" then
             printSettings(conf)
         elseif choice == "2" then
-            local v = prompt("monitorInterval (seconds): [" .. tostring(conf.monitorInterval) .. "] ")
+            local v = prompt("monitorInterval (detik antar siklus monitor, default 8): [" .. tostring(conf.monitorInterval) .. "] ")
             local n = tonumber(v)
             if n then conf.monitorInterval = n else print("Invalid number") end
         elseif choice == "3" then
@@ -1624,6 +1628,7 @@ end
 -- Returns (success, output_or_err).
 function APKManager.launch(packageName)
     Logger.info("APKManager: launching package: " .. tostring(packageName))
+    APKManager.invalidateSnapshot()
 
     -- 1) Primary: am start MAIN/LAUNCHER targeting the package explicitly.
     local cmd = string.format("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p %s", packageName)
@@ -1637,6 +1642,7 @@ function APKManager.launch(packageName)
         end
         if not failed then
             Logger.info("APKManager: am start accepted for " .. tostring(packageName))
+            APKManager.invalidateSnapshot()
             return true, out
         end
     else
@@ -1652,6 +1658,7 @@ function APKManager.launch(packageName)
         -- monkey exits 0 even on some errors; only treat as success on injected events
         if out:find("Events injected", 1, true) then
             Logger.info("APKManager: monkey launch injected events for " .. tostring(packageName))
+            APKManager.invalidateSnapshot()
             return true, out
         end
         Logger.warn("APKManager: monkey reported an error for " .. tostring(packageName) .. ": " .. tostring(out))
@@ -1665,6 +1672,7 @@ function APKManager.launch(packageName)
         Logger.info("APKManager: fallback resolved launch component: " .. tostring(component))
         local ok2, out2 = Shell.exec(string.format("am start -n %s", component))
         if ok2 and out2 and out2:find("Error", 1, true) == nil then
+            APKManager.invalidateSnapshot()
             return true, out2
         end
         Logger.warn("APKManager: fallback am start failed for " .. tostring(packageName) .. ": " .. tostring(out2))
@@ -1677,6 +1685,7 @@ function APKManager.forceStop(packageName)
     Logger.info("APKManager: force stopping: " .. tostring(packageName))
     local cmd = string.format("am force-stop %s", packageName)
     local ok, out = Shell.exec(cmd)
+    APKManager.invalidateSnapshot()
     return ok, out
 end
 
@@ -1686,10 +1695,61 @@ local function escapeRegex(s)
     return s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "\\%1")
 end
 
--- Check whether a package has a running process. Tries pidof, then pgrep, then ps.
--- Matching is anchored to the START of the process command. A clone's MAIN process runs
--- under its own exact package name (e.g. com.apengjers.v3), so we match that name EXACTLY —
--- NOT sub-processes like `com.apengjers.v3:p0` (background services that keep running after
+-- ---------------------------------------------------------------------------
+-- Process snapshot: ONE `ps -A` per monitor cycle instead of one per probe.
+--
+-- isRunning, isActive and getRSSinKB are each called once per instance per cycle, and
+-- every one of them used to shell out (pidof / pgrep / ps -A). With four clones that
+-- added up to ~20 `su` spawns per cycle. The snapshot parses `ps -A` once and is then
+-- reused by all probes in the same cycle.
+--
+-- It is invalidated explicitly after launch / force-stop / recovery (see
+-- APKManager.invalidateSnapshot) and also expires after SNAPSHOT_TTL, so a stale list
+-- can never outlive a process change we did not initiate.
+-- ---------------------------------------------------------------------------
+local SNAPSHOT_TTL = 1.5 -- seconds
+local snapshot = nil
+
+local function parseSnapshot(out)
+    local byName, order = {}, {}
+    for line in out:gmatch("[^\r\n]+") do
+        local fields = {}
+        for f in line:gmatch("%S+") do fields[#fields + 1] = f end
+        if #fields >= 9 then
+            local name = fields[#fields]
+            if name ~= "" then
+                byName[name] = { name = name, pid = fields[2], rssKb = tonumber(fields[5]) or -1 }
+                order[#order + 1] = name
+            end
+        end
+    end
+    return { byName = byName, order = order, at = os.time() }
+end
+
+-- Cached process list, refreshed when older than SNAPSHOT_TTL.
+-- Returns nil when `ps -A` cannot be read; callers then use their own fallback probe.
+function APKManager.snapshot()
+    if snapshot and (os.time() - snapshot.at) < SNAPSHOT_TTL then
+        return snapshot
+    end
+    local ok, out = Shell.exec("ps -A")
+    if not ok or not out or out == "(dry-run)" then
+        snapshot = nil
+        return nil
+    end
+    snapshot = parseSnapshot(out)
+    return snapshot
+end
+
+-- Drop the cached process list. Call after anything that changes the process table so
+-- the next probe in the same cycle reads fresh data.
+function APKManager.invalidateSnapshot()
+    snapshot = nil
+end
+
+-- Check whether a package has a running process. A clone's MAIN process runs under its
+-- own exact package name (e.g. com.apengjers.v3), so we match that name EXACTLY — NOT
+-- sub-processes like `com.apengjers.v3:p0` (background services that keep running after
 -- the UI is swiped away, which previously left `isRunning` true -> status stuck at "ingame"
 -- -> the closed app was never recovered/open again).
 -- Returns true if any method finds a matching process, false otherwise.
@@ -1698,33 +1758,24 @@ function APKManager.isRunning(packageName)
     local pkg = packageName:gsub("['\" ]", "")
     if pkg == "" then return false end
 
-    -- Match the exact main process name only (no trailing `:` sub-process).
-    local pattern = "^" .. escapeRegex(pkg) .. "$"
+    -- 1) Snapshot: one `ps -A` shared by every probe in this cycle.
+    local snap = APKManager.snapshot()
+    if snap and next(snap.byName) ~= nil then
+        return snap.byName[pkg] ~= nil
+    end
 
-    -- 1) pidof (exact process-name match; busybox sometimes missing it)
+    -- 2) Snapshot unavailable (restricted shell / unreadable ps) -> probe directly.
+    -- pidof: exact process-name match; busybox sometimes missing it.
     local ok, out = Shell.exec(string.format("pidof %s", pkg))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         return true
     end
 
-    -- 2) pgrep -f with a pattern matching this clone's exact process command
+    -- pgrep -f with a pattern matching this clone's exact process command
+    local pattern = "^" .. escapeRegex(pkg) .. "$"
     ok, out = Shell.exec(string.format("pgrep -f '%s'", pattern))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         return true
-    end
-
-    -- 3) ps -A fallback (compare the process COMMAND exactly, since ps lines are columnar
-    --    and the ERE pattern above would not match Lua's pattern syntax)
-    ok, out = Shell.exec("ps -A")
-    if ok and out and out ~= "(dry-run)" then
-        for line in (out or ""):gmatch("[^\r\n]+") do
-            local cmd = line:match("(%S+)$")
-            if cmd then
-                if cmd == pkg then
-                    return true
-                end
-            end
-        end
     end
 
     return false
@@ -1761,6 +1812,14 @@ function APKManager.getRSSinKB(packageName)
     if not packageName or packageName == "" then return -1 end
     local pkg = packageName:gsub("['\" ]", "")
     if pkg == "" then return -1 end
+    local snap = APKManager.snapshot()
+    if snap and next(snap.byName) ~= nil then
+        local entry = snap.byName[pkg]
+        if entry then return entry.rssKb end
+        return -1
+    end
+
+    -- Snapshot unavailable -> read `ps -A` directly.
     local ok, out = Shell.exec("ps -A")
     if not ok or not out or out == "(dry-run)" then return -1 end
     for line in out:gmatch("[^\r\n]+") do
@@ -1792,38 +1851,38 @@ end
 function APKManager.countProcess(name)
     if not name or name == "" then return 0 end
 
-    -- 1) pgrep -f <name>: one PID per line; count non-empty lines (works on busybox).
+    -- 1) Snapshot: count the exact process plus its `name:sub` services.
+    local snap = APKManager.snapshot()
+    if snap and next(snap.byName) ~= nil then
+        local n = 0
+        for _, entryName in ipairs(snap.order) do
+            if entryName == name or entryName:sub(1, #name + 1) == name .. ":" then
+                n = n + 1
+            end
+        end
+        return n
+    end
+
+    -- 2) Snapshot unavailable -> probe directly.
+    -- pgrep -f <name>: one PID per line; count non-empty lines (works on busybox).
     local ok, out = Shell.exec(string.format("pgrep -f %s", name))
-    if ok and out and out ~= "(dry-run)" and out ~= "" then
+    if ok and out and out == "(dry-run)" then
+        return 1
+    end
+    if ok and out and out ~= "" then
         local n = 0
         for _ in (out.."\n"):gmatch("[^\r\n]+") do
             n = n + 1
         end
         return n
     end
-    if ok and out and out == "(dry-run)" then
-        return 1
-    end
 
-    -- 2) pidof <name>: a space-separated list of PIDs; count tokens.
+    -- pidof <name>: a space-separated list of PIDs; count tokens.
     ok, out = Shell.exec(string.format("pidof %s", name))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         local n = 0
         for _ in (out.." "):gmatch("%S+") do
             n = n + 1
-        end
-        return n
-    end
-
-    -- 3) ps -A fallback: count lines whose COMMAND starts with the token.
-    ok, out = Shell.exec("ps -A")
-    if ok and out and out ~= "(dry-run)" then
-        local n = 0
-        for line in (out or ""):gmatch("[^\r\n]+") do
-            local cmd = line:match("(%S+)$")
-            if cmd and (cmd == name or cmd:sub(1, #name + 1) == name .. ":") then
-                n = n + 1
-            end
         end
         return n
     end
@@ -3340,11 +3399,16 @@ local ProbeLog = require("utils.probe_log")
 local Monitor = {}
 local running = false
 local interrupted = false
-local interval = 5
+local interval = 8
 local instanceManager = nil
 local recoveryManager = nil
 local apkManager = nil
 local Optimizer = nil
+
+-- How often (in monitor cycles) to re-apply renice/ionice to every instance. 60 cycles
+-- is roughly every 5-8 minutes, enough to catch clones whose pid changed behind our back
+-- without flooding the device with shell calls.
+local OPT_REFRESH_CYCLES = 60
 
 -- Install a SIGINT handler via lua-posix so Ctrl+C stops monitoring and exits the
 -- program immediately. This is the ONLY reliable way to catch Ctrl+C in Termux: the
@@ -3560,6 +3624,15 @@ function Monitor.start(conf, opts)
     -- Warm the username cache once right away so the launch/dashboard draws hit the
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
+    -- Tune the clones that are ALREADY running: the optimizer was previously only
+    -- applied to clones this session launched/recovered, so everything started by the
+    -- boot engine (or already open when the monitor began) stayed at default priority.
+    pcall(function()
+        local tuned = Optimizer.applyAll()
+        if tuned and tuned > 0 then
+            Logger.info(string.format("Monitor: optimizer tuned %d running instance(s) at start", tuned))
+        end
+    end)
     installSignalHandler()
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
     -- the dashboard around (log lines still go to the log file).
@@ -3576,7 +3649,15 @@ function Monitor.start(conf, opts)
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
+    -- Instances that need recovery in this cycle. At most one is actually recovered
+    -- per cycle (see the bottom of the loop) so a slow recovery never blocks the
+    -- status checks or the dashboard of the other clones.
+    local pendingRecovery = {}
+    local cycles = 0
+
     while running do
+        cycles = cycles + 1
+        pendingRecovery = {}
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
@@ -3648,27 +3729,13 @@ function Monitor.start(conf, opts)
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
-                    setRecovering(id, true)
-                    Status.beginRecovery(id)
-                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    local p_ok, recovered = pcall(function()
-                        return recoveryManager.checkAndRecover(inst)
-                    end)
-                    if not p_ok then
-                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
-                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    elseif recovered then
-                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
-                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
-                        pcall(function() return Optimizer.applyForInstance(inst) end)
-                    else
-                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
-                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    end
-                    Status.endRecovery(id)
-                    setRecovering(id, false)
+                    -- Queue it instead of recovering inline. Recovery can take up to
+                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
+                    -- inside the status loop froze the dashboard AND stopped every other
+                    -- clone from being checked for that whole time. At most one queued
+                    -- instance is recovered per cycle (see below), so the monitor stays
+                    -- responsive and the rest is picked up on the following cycles.
+                    pendingRecovery[#pendingRecovery + 1] = inst
                 end
             end
 
@@ -3682,6 +3749,52 @@ function Monitor.start(conf, opts)
 
         -- Print the per-instance status table for the user to see.
         Status.printSummary(instances)
+
+        -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
+        -- next cycle, so the dashboard above already shows the full picture and no other
+        -- clone stops being checked while one instance is being restarted.
+        if #pendingRecovery > 0 and running then
+            if #pendingRecovery > 1 then
+                Logger.warn(string.format("Monitor: %d instance butuh recovery; proses 1 per siklus (sisa %d)",
+                    #pendingRecovery, #pendingRecovery - 1))
+            end
+            local inst = pendingRecovery[1]
+            local id = inst.id
+            local name = tostring(inst.name or id)
+            local pkg = inst.package
+            setRecovering(id, true)
+            Status.beginRecovery(id)
+            ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            local p_ok, recovered = pcall(function()
+                return recoveryManager.checkAndRecover(inst)
+            end)
+            if not p_ok then
+                Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            elseif recovered then
+                Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                pcall(function() return Optimizer.applyForInstance(inst) end)
+            else
+                Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            end
+            Status.endRecovery(id)
+            setRecovering(id, false)
+        end
+
+        -- Re-tune everything periodically: a clone can get a new pid without us
+        -- restarting it (e.g. the app restarts itself), which drops its priorities back
+        -- to the default. Cheap enough at this cadence (a few shell calls per clone).
+        if OPT_REFRESH_CYCLES > 0 and cycles % OPT_REFRESH_CYCLES == 0 and running then
+            pcall(function()
+                local tuned = Optimizer.applyAll()
+                if tuned and tuned > 0 then
+                    Logger.info(string.format("Monitor: optimizer re-tuned %d instance(s)", tuned))
+                end
+            end)
+        end
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.
@@ -4153,6 +4266,7 @@ end
 
 function Status.reset()
     states = {}
+    anrCache = nil
 end
 
 -- Mark an instance as currently being recovered (so the monitor shows "recovery").
@@ -4207,25 +4321,35 @@ function Status.endResetting(id)
 end
 
 -- Read ANR lines from logcat and return a set of package names that (recently) ANR'd.
--- Best-effort: returns empty on failure/without logcat.
-local function scanAnrPackages()
-    local anr = {}
-    if not anrEnabled then return anr end
+--
+-- This used to run once PER INSTANCE PER CYCLE, i.e. `logcat -d -b main -t 1000`
+-- several times per second with several clones — by far the most expensive probe in the
+-- monitor (dump + parse every time, and the answer is identical for every clone). The
+-- result is now cached for ANR_TTL seconds and cleared whenever Status.reset() runs.
+local ANR_TTL = 15 -- seconds
+local anrCache = nil
 
-    local ok, out = Shell.exec("logcat -d -b main -t 1000")
-    if not ok or not out or out == "(dry-run)" then
-        return anr
+local function scanAnrPackages()
+    if not anrEnabled then return {} end
+    if anrCache and (os.time() - anrCache.at) < ANR_TTL then
+        return anrCache.pkgs
     end
 
-    -- ActivityManager emits lines like: "ANR in com.apengjers.v3 (com.apengjers.v3/.X)"
-    for line in out:gmatch("[^\r\n]+") do
-        local pkg = line:match("ANR in (%S+)")
-        if pkg then
-            -- drop trailing '(' / component suffix if present
-            pkg = pkg:gsub("%s*%(.+$", "")
-            anr[pkg] = true
+    local anr = {}
+    local ok, out = Shell.exec("logcat -d -b main -t 1000")
+    if ok and out and out ~= "(dry-run)" then
+        -- ActivityManager emits lines like: "ANR in com.apengjers.v3 (com.apengjers.v3/.X)"
+        for line in out:gmatch("[^\r\n]+") do
+            local pkg = line:match("ANR in (%S+)")
+            if pkg then
+                -- drop trailing '(' / component suffix if present
+                pkg = pkg:gsub("%s*%(.+$", "")
+                anr[pkg] = true
+            end
         end
     end
+
+    anrCache = { pkgs = anr, at = os.time() }
     return anr
 end
 
@@ -4489,17 +4613,35 @@ local function blankCell(width)
     return string.rep(" ", width)
 end
 
+-- Human-readable RSS for the dashboard: "1.2 GB" / "310 MB", or "-" when the clone has
+-- no process / no reading yet. Uses the value cached by classify(), so the dashboard
+-- costs zero extra shell calls.
+local function rssText(rssKb)
+    if not rssKb or rssKb < 0 then return "-" end
+    if rssKb >= 1024 * 1024 then
+        return string.format("%.1f GB", rssKb / (1024 * 1024))
+    end
+    if rssKb >= 1024 then
+        return string.format("%d MB", math.floor(rssKb / 1024))
+    end
+    return string.format("%d kB", math.floor(rssKb))
+end
+
 function Status.printSummary(instances)
     local LCOL = 33   -- width of the left (Instance) column
-    local RCOL = 23   -- width of the right (Status/Value) column
+    local RCOL = 23   -- width of the status column
+    local RSSCOL = 14 -- width of the RSS column
 
-    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL) .. "╮"
-    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL) .. "┤"
-    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL) .. "╯"
+    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL)
+        .. "┬" .. string.rep("─", RSSCOL) .. "╮"
+    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL)
+        .. "┼" .. string.rep("─", RSSCOL) .. "┤"
+    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL)
+        .. "┴" .. string.rep("─", RSSCOL) .. "╯"
 
-    -- One body row. `rightColor`, if given, colors the visible right text only so
-    -- every row still aligns on the same column.
-    local function bodyRow(left, rightText, rightColor)
+    -- One body row. `rightColor`, if given, colors the visible status text only so
+    -- every row still aligns on the same column. `rss` is the rightmost cell.
+    local function bodyRow(left, rightText, rightColor, rss)
         local lc = padCell(left, LCOL)
         local rc = padCell(rightText, RCOL)
         if rightColor then
@@ -4507,22 +4649,24 @@ function Status.printSummary(instances)
             rc = " " .. string.rep(" ", l) .. rightColor .. rightText .. C.reset
                  .. string.rep(" ", (RCOL - 2 - #rightText) - l) .. " "
         end
-        return "│" .. lc .. "│" .. rc .. "│"
+        local rc2 = padCell(rss or "", RSSCOL)
+        return "│" .. lc .. "│" .. rc .. "│" .. rc2 .. "│"
     end
 
     local function blankRow()
-        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│"
+        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│" .. blankCell(RSSCOL) .. "│"
     end
 
     local sb = {}
     table.insert(sb, top)
     table.insert(sb, blankRow())
-    table.insert(sb, bodyRow("Instance", "Status"))
+    table.insert(sb, bodyRow("Instance", "Status", nil, "RSS"))
     table.insert(sb, blankRow())
     table.insert(sb, mid)
 
+    local totalRssKb = 0
     if not instances or #instances == 0 then
-        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
+        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim, "-"))
         table.insert(sb, mid)
     else
         for _, inst in ipairs(instances) do
@@ -4535,11 +4679,15 @@ function Status.printSummary(instances)
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
             local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg
-            table.insert(sb, bodyRow(rowText, label, ui[2]))
+            local rss = s and s.rssKb or -1
+            if rss and rss > 0 then totalRssKb = totalRssKb + rss end
+            table.insert(sb, bodyRow(rowText, label, ui[2], rssText(rss)))
         end
         table.insert(sb, mid)
     end
 
+    -- Footer facts: how much RAM the clones themselves hold, then the system numbers.
+    table.insert(sb, bodyRow("App RAM (total)", totalRssKb > 0 and rssText(totalRssKb) or "--"))
     table.insert(sb, bodyRow("Memory Usage", memoryLine() or "--"))
     table.insert(sb, bodyRow("Storage Available", storageLine() or "--"))
     table.insert(sb, bot)
