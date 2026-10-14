@@ -306,10 +306,40 @@ local function msgId()
     return s and s:match("(%d+)")
 end
 
+-- The message's own "id": the "id" key of the top-level JSON object. Discord's key
+-- order is not fixed and nested objects (author, attachments, embeds) have ids too,
+-- so walk the JSON tracking depth instead of matching neighbours.
 local function parseId(body)
-    return body and (body:match('"id"%s*:%s*"(%d+)"%s*,%s*"channel_id"')
-        or body:match('"channel_id"%s*:%s*"%d+"%s*,%s*"id"%s*:%s*"(%d+)"'))
+    if type(body) ~= "string" then return nil end
+    local depth, i, n = 0, 1, #body
+    while i <= n do
+        local c = body:sub(i, i)
+        if c == '"' then
+            local j = i + 1
+            while j <= n do
+                local cj = body:sub(j, j)
+                if cj == "\\" then j = j + 2
+                elseif cj == '"' then break
+                else j = j + 1 end
+            end
+            if depth == 1 and body:sub(i + 1, j - 1) == "id" then
+                local v = body:match('^%s*:%s*"(%d+)"', j + 1)
+                if v then return v end
+            end
+            i = j + 1
+        elseif c == "{" or c == "[" then
+            depth = depth + 1
+            i = i + 1
+        elseif c == "}" or c == "]" then
+            depth = depth - 1
+            i = i + 1
+        else
+            i = i + 1
+        end
+    end
+    return nil
 end
+Webhook._parseId = parseId
 
 local function send(payload, withImage, method, url)
     if not writeFile(PAYLOAD, payload) then
@@ -327,8 +357,22 @@ local function send(payload, withImage, method, url)
 end
 
 -- Post or edit the status message now.
+-- CPU numbers need two samples. Before the very first report, take one and wait a
+-- moment, so the first report already shows CPU instead of "-".
+local function primeCpu(instances)
+    local t, idle, cores = cpuTotals()
+    if not t then return end
+    cpuPrev = { total = t, idle = idle }
+    local sys = { cpuTotal = t, cores = cores }
+    for _, inst in ipairs(instances or {}) do
+        pcall(procStats, inst.package, sys)
+    end
+    os.execute("sleep 2")
+end
+
 function Webhook.report(instances)
     if not Webhook.enabled() then return false end
+    if not cpuPrev then primeCpu(instances) end
     local sys = systemStats()
     local withImage = conf.screenshot and screenshot() or false
     local payload = buildReport(instances, sys, withImage)

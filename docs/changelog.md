@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix: pesan status webhook tidak ter-update + CPU "-"**: id pesan dari respons Discord dulu cuma terbaca kalau `"id"` berada tepat di sebelah `"channel_id"`; urutan key Discord beda, jadi id tidak tersimpan dan tiap laporan tidak bisa meng-edit pesan (runtime kelihatan beku). Sekarang id diambil dari key `"id"` tingkat atas JSON (bukan id author/attachment). CPU butuh dua sampel: laporan pertama sekarang mengambil sampel awal + jeda 2 dtk, jadi CPU sistem & per clone langsung tampil.
+
 - **Fix: grid jendela tidak jalan di device baru**: clone yang belum pernah dibuka belum punya `<pkg>_preferences.xml`, jadi posisinya dilewati sampai clone dibuka sekali. `WindowLayout.apply` sekarang membuat file itu (dan folder `shared_prefs`) dengan owner, izin (771/660) dan label SELinux yang sama dengan folder data app, lalu menulis posisi grid — jadi Launch All pertama di device baru sudah langsung rapi.
 
 - **Izin background Termux otomatis**: `device_setup.sh` memasukkan `com.termux`, `com.termux.boot`, `com.termux.api` (yang terpasang) ke whitelist optimasi baterai (`dumpsys deviceidle whitelist +pkg`) dan `cmd appops set ... RUN_IN_BACKGROUND / RUN_ANY_IN_BACKGROUND allow`, jadi dialog "Let app always run in background?" dari `termux-wake-lock` tidak muncul. `--undo` mengembalikan. `termux-boot.sh` juga mem-whitelist Termux sebelum wake lock.
