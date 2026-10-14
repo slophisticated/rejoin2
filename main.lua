@@ -102,6 +102,19 @@ local data = conf
 local InstanceManager = require("managers.instance")
 InstanceManager.load(Config.get())
 
+-- Warn about instances whose package is not installed on this device (e.g. a leftover
+-- placeholder from the config template). Warning only — nothing is blocked.
+local missing = InstanceManager.missingPackages()
+if #missing > 0 then
+    print("")
+    print("[WARN] Package instance ini TIDAK terpasang di device:")
+    for _, m in ipairs(missing) do
+        print(string.format("  - id=%s  %s  (%s)", tostring(m.id), tostring(m.name), tostring(m.package)))
+    end
+    print("      Buang lewat menu Instances Manager > 4) Delete, atau edit config.")
+    print("")
+end
+
 -- One-shot: environment doctor -- run on EACH device, diff outputs to find the
 -- dependency/fingerprint difference causing "inject [OK] tapi app ga login" on one
 -- device but not the other. Exits after printing.

@@ -1398,7 +1398,16 @@ function Wizard.run()
     choice = choice:match("^%s*(.-)%s*$")
 
     local conf = Config.get() or {}
-    conf.instances = conf.instances or {}
+    -- Start from an EMPTY list. The packaged template ships one example instance
+    -- (com.roblox.client) that is almost never a real clone on this device, and
+    -- keeping it leaves a phantom instance in the monitor that can never run.
+    -- The wizard is a first-run "build my instance list" flow, so old entries go.
+    local previous = 0
+    for _ in pairs(conf.instances or {}) do previous = previous + 1 end
+    conf.instances = {}
+    if previous > 0 then
+        print(("Menghapus %d instance lama dari config (termasuk contoh dari template)."):format(previous))
+    end
 
     -- find next available id (pairs + normalization, so string keys don't break it)
     local function nextId()
@@ -3238,6 +3247,33 @@ end
 
 function InstanceManager.count()
     return #instances
+end
+
+-- Which configured packages are not installed on this device?
+-- A leftover placeholder from the config template (com.roblox.client) is the usual
+-- cause: it looks like a real instance but can never run. Best-effort: one
+-- `pm list packages` call; on failure we report nothing rather than guessing.
+function InstanceManager.missingPackages()
+    local missing = {}
+    if #instances == 0 then return missing end
+
+    local Shell = require("utils.shell")
+    local _, out = Shell.exec("pm list packages")
+    if not out or out == "(dry-run)" then return missing end
+
+    local installed = {}
+    for line in out:gmatch("[^\n]+") do
+        local pkg = line:match("package:(%S+)")
+        if pkg then installed[pkg] = true end
+    end
+
+    for _, inst in ipairs(instances) do
+        local pkg = inst and inst.package
+        if pkg and pkg ~= "" and not installed[pkg] then
+            missing[#missing + 1] = { id = inst.id, name = inst.name or pkg, package = pkg }
+        end
+    end
+    return missing
 end
 
 function InstanceManager.findById(id)
@@ -5594,6 +5630,19 @@ local data = conf
 
 local InstanceManager = require("managers.instance")
 InstanceManager.load(Config.get())
+
+-- Warn about instances whose package is not installed on this device (e.g. a leftover
+-- placeholder from the config template). Warning only — nothing is blocked.
+local missing = InstanceManager.missingPackages()
+if #missing > 0 then
+    print("")
+    print("[WARN] Package instance ini TIDAK terpasang di device:")
+    for _, m in ipairs(missing) do
+        print(string.format("  - id=%s  %s  (%s)", tostring(m.id), tostring(m.name), tostring(m.package)))
+    end
+    print("      Buang lewat menu Instances Manager > 4) Delete, atau edit config.")
+    print("")
+end
 
 -- One-shot: environment doctor -- run on EACH device, diff outputs to find the
 -- dependency/fingerprint difference causing "inject [OK] tapi app ga login" on one
