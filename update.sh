@@ -53,8 +53,9 @@ migrate_device() {
 }
 run_migrations() {
     migrate window-layout-on --enable-window-layout
-    # Smallest width 600 -> 900dp: the whole Roblox UI fits a 2x2 grid window.
-    migrate_device sw900
+    # Back to smallest width 600dp on devices an earlier update moved to 900dp
+    # (a value the user picked with SMALLEST_WIDTH=... is kept).
+    migrate_device sw600
 }
 
 cd "$DIR" || exit 0

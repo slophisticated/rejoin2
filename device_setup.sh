@@ -8,10 +8,9 @@
 #   - animations off (window / transition / animator scale = 0)
 #   - Developer options: force allow apps on external, force activities to be
 #     resizable, enable freeform windows, enable non-resizable in multi-window
-#   - Smallest width SMALLEST_WIDTH dp (default 900), via `wm density`. 900 makes the
-#     small floating windows of a 2x2 grid show the whole Roblox UI (sidebar up to
-#     "More"). A value given with SMALLEST_WIDTH=... is remembered in
-#     data/smallest_width, so reinstalls and updates keep it; --undo forgets it.
+#   - Smallest width SMALLEST_WIDTH dp (default 600), via `wm density`. A value given
+#     with SMALLEST_WIDTH=... is remembered in data/smallest_width, so reinstalls and
+#     updates keep it; --undo forgets it.
 # Freeform / resizable take effect after a reboot.
 #
 # Prints one "[OK]" / "[!!]" line per item. Never exits with an error, so the
@@ -23,7 +22,7 @@ MODE=apply
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SW_FILE="$DIR/data/smallest_width"
 valid_sw() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 320 ] && [ "$1" -le 1600 ]; }
-SW=900
+SW=600
 if [ -n "$SMALLEST_WIDTH" ] && valid_sw "$SMALLEST_WIDTH"; then
     SW=$SMALLEST_WIDTH
     [ "$MODE" = apply ] && mkdir -p "$DIR/data" && echo "$SW" > "$SW_FILE"

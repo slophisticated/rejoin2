@@ -2,7 +2,7 @@
 
 ## Unreleased / Bug fixes
 
-- **Smallest width default 900dp** (dulu 600): di grid 2x2 tiap jendela cuma ±340 px tinggi, dengan density 192 sidebar Roblox kepotong sebelum *More*. Density 128 (720p) bikin semua menu muat. `SMALLEST_WIDTH=...` sekarang diingat di `data/smallest_width` (install ulang tidak mengembalikan), `--undo` menghapusnya. Device lama ikut lewat migrasi `update.sh` (`data/.migrated-sw900`) saat boot berikutnya.
+- **Smallest width tetap 600dp** (900dp sempat jadi default tapi tampilan terlalu kecil). `SMALLEST_WIDTH=...` sekarang diingat di `data/smallest_width` (install ulang tidak mengembalikan), `--undo` menghapusnya. Device yang sempat pindah ke 900dp kembali ke 600dp lewat migrasi `update.sh` (`data/.migrated-sw600`) saat boot berikutnya.
 
 - **Fix: pesan status webhook tidak ter-update + CPU "-"**: id pesan dari respons Discord dulu cuma terbaca kalau `"id"` berada tepat di sebelah `"channel_id"`; urutan key Discord beda, jadi id tidak tersimpan dan tiap laporan tidak bisa meng-edit pesan (runtime kelihatan beku). Sekarang id diambil dari key `"id"` tingkat atas JSON (bukan id author/attachment). CPU butuh dua sampel: laporan pertama sekarang mengambil sampel awal + jeda 2 dtk, jadi CPU sistem & per clone langsung tampil.
 

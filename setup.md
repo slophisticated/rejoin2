@@ -26,7 +26,7 @@ Tunggu sampai muncul **SELESAI**. Installer mengerjakan 8 langkah dan menandai t
 2. Perintah `lua`
 3. Cek root
 4. Download Rejoin ke `~/rejoin` (config lama tetap dipakai kalau install ulang)
-5. **Setting device otomatis** + auto atur jendela floating (grid) dinyalakan: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 900dp (menu Roblox muat sampai *More* di jendela kecil), izin Termux jalan di background (dialog *"always run in background"* tidak muncul lagi) — plus script heartbeat ke folder Autoexecute Delta
+5. **Setting device otomatis** + auto atur jendela floating (grid) dinyalakan: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 600dp, izin Termux jalan di background (dialog *"always run in background"* tidak muncul lagi) — plus script heartbeat ke folder Autoexecute Delta
 6. Cek clone di config terpasang di device
 7. Script auto-start + auto-update saat boot
 8. Aktifkan Termux:Boot (layar Termux:Boot bisa terbuka sendiri — kembali saja ke Termux)
@@ -61,7 +61,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
 | Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
 | Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
-| Tampilan kekecilan / kegedean (default 900, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
+| Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
 | Install ulang (config tetap) | perintah di Step 2 |
 
 *Mau pakai menu manual saat engine boot sedang jalan? Stop engine boot dulu (perintah di atas), kalau tidak muncul pesan `engine lain masih jalan`.*
