@@ -89,6 +89,7 @@ Baris paling atas menu menampilkan versi, apakah device di-install pakai cara in
 | Matikan auto-start saat boot | `rm ~/.termux/boot/start-rejoin.sh` (install ulang untuk menyalakan lagi) |
 | Setting device ulang / kembalikan ke bawaan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
 | Ganti smallest width (angka diingat) | `SMALLEST_WIDTH=700 sh ~/rejoin/device_setup.sh` |
+| Bikin / kirim update log script (template: `tools/update_log_template.lua`) | `lua tools/update_log.lua <file> [--send <webhook_url>]` |
 | Jalan tanpa menu (seperti boot) | `cd ~/rejoin && lua main.lua --headless --start-monitor --auto-launch` |
 
 Hanya satu engine yang boleh jalan. Kalau engine dari boot masih aktif dan kamu buka menu `1` / `5`, muncul pesan `engine lain masih jalan`. Stop dulu engine boot-nya dengan perintah di atas.

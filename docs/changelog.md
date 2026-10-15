@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Generator update log**: `tools/update_log.lua <file>` membuat teks update log (judul, mention, Place, Version, Developer Notes, Added `[ + ]`, Improved `[ / ]`, Fixed `[ ! ]`, Deleted `[ - ]`; bagian kosong dilewati) dari file Lua seperti `tools/update_log_template.lua`. `--send <url>` (atau env `UPDATE_LOG_WEBHOOK`) langsung mengirim ke Discord webhook, dipecah per 2000 karakter; ping role lewat `mention = "<@&ROLE_ID>"`.
+
 - **Webhook: lanjutkan pesan status lama**: Menu 9 → `8) Pakai pesan status lama` menerima link pesan Discord (`.../channels/<guild>/<channel>/<message>`) atau ID pesan, menyimpannya ke `data/webhook_msg.txt` dan langsung mengedit pesan itu. Berguna setelah replace device, supaya pesan device lama tidak nyangkut. Pesan yang sudah dihapus / dari webhook lain → otomatis pesan baru.
 
 - **Launch All: clone yang sudah login duluan**: sebelum launch, status login tiap clone dibaca (`Auth.isLoggedIn`). Urutan baru: clone login (dan yang tidak diketahui) sesuai urutan Menu 2, lalu clone belum login di paling belakang. Urutan dicatat di log (`Monitor: urutan launch: ...`). Posisi jendela grid tetap per urutan Menu 2.
