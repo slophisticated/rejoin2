@@ -2,9 +2,11 @@
 # Update rejoin to the latest version on GitHub, keeping your settings.
 #
 # Usage:   sh ~/rejoin/update.sh            (manual)
-#          sh ~/rejoin/update.sh --boot     (from the boot script; logs to data/boot.log)
+#          sh ~/rejoin/update.sh --boot     (from the boot script; logs to
+#                                          <data root>/data/boot.log)
 #
-# config/config.lua and data/rejoin.log are kept as they are; everything else is
+# config/config.lua and data/rejoin.log live in the DATA ROOT
+# (${YANAMIN_HOME:-/sdcard/yanamin}) and are kept as they are; everything else is
 # replaced with the version on GitHub. Never fails hard: if GitHub can't be reached
 # the current version simply keeps running.
 
@@ -21,17 +23,17 @@ done
 
 say() {
     if [ "$BOOT" = 1 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] update: $*" >> "$DIR/data/boot.log"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] update: $*" >> "$DATA_ROOT/data/boot.log"
     else
         echo "$*"
     fi
 }
 
-# One-time config changes for new defaults. Each runs once per device (marker in
-# data/, which updates keep), so a setting changed by the user afterwards is never
-# overridden. Runs on every exit path: also when already up to date or offline.
+# One-time config changes for new defaults. Each runs once per device (marker in the
+# data root's data/, which updates keep), so a setting changed by the user afterwards is
+# never overridden. Runs on every exit path: also when already up to date or offline.
 migrate() {
-    marker="data/.migrated-$1"; shift
+    marker="$DATA_ROOT/data/.migrated-$1"; shift
     [ -f "$marker" ] && return 0
     command -v lua >/dev/null 2>&1 || return 0
     out=$(REJOIN_WRAPPER=1 lua main.lua "$@" </dev/null 2>/dev/null | tail -1)
@@ -42,7 +44,7 @@ migrate() {
 }
 # Same idea for device tweaks done by device_setup.sh (safe to repeat).
 migrate_device() {
-    marker="data/.migrated-$1"
+    marker="$DATA_ROOT/data/.migrated-$1"
     [ -f "$marker" ] && return 0
     [ -f device_setup.sh ] || return 0
     out=$(sh device_setup.sh </dev/null 2>&1 | grep 'Smallest width')
@@ -59,7 +61,9 @@ run_migrations() {
 }
 
 cd "$DIR" || exit 0
-mkdir -p data 2>/dev/null
+# Data root: config + data live here, not inside the repo (YANAMIN_HOME overrides it).
+DATA_ROOT=${YANAMIN_HOME:-/sdcard/yanamin}
+mkdir -p "$DATA_ROOT/config" "$DATA_ROOT/data" 2>/dev/null || true
 
 # Second pass started by the update below: the files are already new, so this runs
 # the migrations of the NEW version (a migration added in an update applies on the
@@ -101,15 +105,18 @@ if [ -z "$after" ] || [ "$before" = "$after" ]; then
     exit 0
 fi
 
-# Keep the user's settings and log across the reset.
+# Keep the user's settings and log across the reset. Both live in the data root, which
+# `git reset` never touches, but we back them up anyway so a broken data root can be
+# restored from the previous version.
 BACKUP="$HOME/.rejoin-backup"
 mkdir -p "$BACKUP"
-cp -f config/config.lua "$BACKUP/config.lua" 2>/dev/null
-cp -f data/rejoin.log "$BACKUP/rejoin.log" 2>/dev/null
+cp -f "$DATA_ROOT/config/config.lua" "$BACKUP/config.lua" 2>/dev/null
+cp -f "$DATA_ROOT/data/rejoin.log" "$BACKUP/rejoin.log" 2>/dev/null
 
 if git reset -q --hard FETCH_HEAD </dev/null >/dev/null 2>&1; then
-    [ -f "$BACKUP/config.lua" ] && cp -f "$BACKUP/config.lua" config/config.lua
-    [ -f "$BACKUP/rejoin.log" ] && cp -f "$BACKUP/rejoin.log" data/rejoin.log
+    mkdir -p "$DATA_ROOT/config" "$DATA_ROOT/data" 2>/dev/null
+    [ -f "$BACKUP/config.lua" ] && cp -f "$BACKUP/config.lua" "$DATA_ROOT/config/config.lua"
+    [ -f "$BACKUP/rejoin.log" ] && cp -f "$BACKUP/rejoin.log" "$DATA_ROOT/data/rejoin.log"
     say "update $before -> $after (config tetap)"
     # This shell is still running the old copy of this script: hand over to the new one.
     if [ "$BOOT" = 1 ]; then

@@ -59,7 +59,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 |---|---|
 | Update manual tanpa reboot | `sh ~/rejoin/update.sh` |
 | Stop engine yang jalan dari boot | `kill $(cat /sdcard/yanamin/data/monitor.pid)` |
-| Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
+| Matikan auto-update | `touch /sdcard/yanamin/data/no-auto-update` |
 | Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
 | Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
 | Install ulang (config tetap) | perintah di Step 2 |
