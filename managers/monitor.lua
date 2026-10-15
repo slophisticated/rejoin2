@@ -11,11 +11,16 @@ local Webhook = require("managers.webhook")
 local Monitor = {}
 local running = false
 local interrupted = false
-local interval = 5
+local interval = 8
 local instanceManager = nil
 local recoveryManager = nil
 local apkManager = nil
 local Optimizer = nil
+
+-- How often (in monitor cycles) to re-apply renice/ionice to every instance. 60 cycles
+-- is roughly every 5-8 minutes, enough to catch clones whose pid changed behind our back
+-- without flooding the device with shell calls.
+local OPT_REFRESH_CYCLES = 60
 
 -- Install a SIGINT handler via lua-posix so Ctrl+C stops monitoring and exits the
 -- program immediately. This is the ONLY reliable way to catch Ctrl+C in Termux: the
@@ -48,8 +53,8 @@ end
 
 -- Only one engine may drive the clones: the boot engine runs hidden in the
 -- background, and a second one started from the menu would force-stop and relaunch
--- the same clones. The running engine's pid is kept in data/monitor.pid.
-local PID_FILE = "data/monitor.pid"
+-- the same clones. The running engine's pid is kept in the data root.
+local PID_FILE = require("core.paths").data("monitor.pid")
 
 local function selfPid()
     -- The shell spawned by popen is our child, so its $PPID is this Lua process.
@@ -305,6 +310,15 @@ function Monitor.start(conf, opts)
     -- Warm the username cache once right away so the launch/dashboard draws hit the
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
+    -- Tune the clones that are ALREADY running: the optimizer was previously only
+    -- applied to clones this session launched/recovered, so everything started by the
+    -- boot engine (or already open when the monitor began) stayed at default priority.
+    pcall(function()
+        local tuned = Optimizer.applyAll()
+        if tuned and tuned > 0 then
+            Logger.info(string.format("Monitor: optimizer tuned %d running instance(s) at start", tuned))
+        end
+    end)
     installSignalHandler()
     local hbOk, hbMsg = Heartbeat.install()
     if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
@@ -450,6 +464,52 @@ function Monitor.start(conf, opts)
         Status.setProgress(nil)
         Status.printSummary(instances)
         Webhook.tick(instances)
+
+        -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
+        -- next cycle, so the dashboard above already shows the full picture and no other
+        -- clone stops being checked while one instance is being restarted.
+        if #pendingRecovery > 0 and running then
+            if #pendingRecovery > 1 then
+                Logger.warn(string.format("Monitor: %d instance butuh recovery; proses 1 per siklus (sisa %d)",
+                    #pendingRecovery, #pendingRecovery - 1))
+            end
+            local inst = pendingRecovery[1]
+            local id = inst.id
+            local name = tostring(inst.name or id)
+            local pkg = inst.package
+            setRecovering(id, true)
+            Status.beginRecovery(id)
+            ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            local p_ok, recovered = pcall(function()
+                return recoveryManager.checkAndRecover(inst)
+            end)
+            if not p_ok then
+                Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            elseif recovered then
+                Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                pcall(function() return Optimizer.applyForInstance(inst) end)
+            else
+                Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+            end
+            Status.endRecovery(id)
+            setRecovering(id, false)
+        end
+
+        -- Re-tune everything periodically: a clone can get a new pid without us
+        -- restarting it (e.g. the app restarts itself), which drops its priorities back
+        -- to the default. Cheap enough at this cadence (a few shell calls per clone).
+        if OPT_REFRESH_CYCLES > 0 and cycles % OPT_REFRESH_CYCLES == 0 and running then
+            pcall(function()
+                local tuned = Optimizer.applyAll()
+                if tuned and tuned > 0 then
+                    Logger.info(string.format("Monitor: optimizer re-tuned %d instance(s)", tuned))
+                end
+            end)
+        end
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.

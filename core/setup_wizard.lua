@@ -76,7 +76,16 @@ function Wizard.run()
     choice = choice:match("^%s*(.-)%s*$")
 
     local conf = Config.get() or {}
-    conf.instances = conf.instances or {}
+    -- Start from an EMPTY list. The packaged template ships one example instance
+    -- (com.roblox.client) that is almost never a real clone on this device, and
+    -- keeping it leaves a phantom instance in the monitor that can never run.
+    -- The wizard is a first-run "build my instance list" flow, so old entries go.
+    local previous = 0
+    for _ in pairs(conf.instances or {}) do previous = previous + 1 end
+    conf.instances = {}
+    if previous > 0 then
+        print(("Menghapus %d instance lama dari config (termasuk contoh dari template)."):format(previous))
+    end
 
     -- find next available id (pairs + normalization, so string keys don't break it)
     local function nextId()
@@ -133,7 +142,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Instances imported and saved to config/config.lua")
+        print("Setup complete. Instances imported and saved to " .. require("core.paths").config())
         return true
 
     else
@@ -163,7 +172,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Configuration saved to config/config.lua")
+        print("Setup complete. Configuration saved to " .. require("core.paths").config())
         return true
     end
 end

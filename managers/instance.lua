@@ -27,6 +27,33 @@ function InstanceManager.count()
     return #instances
 end
 
+-- Which configured packages are not installed on this device?
+-- A leftover placeholder from the config template (com.roblox.client) is the usual
+-- cause: it looks like a real instance but can never run. Best-effort: one
+-- `pm list packages` call; on failure we report nothing rather than guessing.
+function InstanceManager.missingPackages()
+    local missing = {}
+    if #instances == 0 then return missing end
+
+    local Shell = require("utils.shell")
+    local _, out = Shell.exec("pm list packages")
+    if not out or out == "(dry-run)" then return missing end
+
+    local installed = {}
+    for line in out:gmatch("[^\n]+") do
+        local pkg = line:match("package:(%S+)")
+        if pkg then installed[pkg] = true end
+    end
+
+    for _, inst in ipairs(instances) do
+        local pkg = inst and inst.package
+        if pkg and pkg ~= "" and not installed[pkg] then
+            missing[#missing + 1] = { id = inst.id, name = inst.name or pkg, package = pkg }
+        end
+    end
+    return missing
+end
+
 function InstanceManager.findById(id)
     for _, v in ipairs(instances) do
         if v.id == id then return v end

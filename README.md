@@ -15,9 +15,11 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
   - `privateServer` (link game / private server)
 - **Auto Detect Clone** — Setup Wizard otomatis mendeteksi app/clone Roblox yang terinstall lewat `cmd package resolve-activity`, jadi clone dengan package name di-rename (mis. `com.apengjers.v3`) tetap ketahuan.
 - **Launch tiap clone ditarget package** — membuka app clone lewat `am start -a MAIN -c LAUNCHER -p <pkg>` (menarget package eksplisit, jadi tiap clone dibuka sbg task sendiri; tidak butuh `cmd package resolve-activity` yang sering tidak tersedia di Termux non-root). `monkey` & resolve-activity hanya cadangan.
-- **Monitor** — loop tunggal, cek tiap instance bergantian. Jika satu instance mati, hanya instance itu yang di-recovery; instance lain tetap diproses.
+- **Monitor** — loop tunggal, cek tiap instance bergantian. Jika satu instance mati, hanya instance itu yang di-recovery; instance lain tetap diproses. Satu siklus = semua instance dicek sekali, lalu tidur `monitorInterval` (default **8 detik**, ubah di Settings `2)`).
+  - **Recovery non-blocking**: instance yang perlu recovery di-antre, dan **paling banyak 1 diproses per siklus** (setelah dashboard digambar) — jadi satu clone yang recovery lambat tidak lagi membekukan dashboard dan tidak menghentikan pengecekan clone lain.
+  - **Probe hemat shell**: `ps -A` di-parse **satu kali per siklus** (dipakai bersama oleh semua cek proses/RSS) dan scan ANR `logcat` di-cache 15 detik — sebelumnya tiap clone melepas beberapa `pidof`/`ps`/`logcat` per siklus.
 - **Live status per instance** — monitor menampilkan status tiap instance (`offline`, `starting`, `ingame`, `nologin`, `stuck`, `freeze`, `recovery`) setiap siklus.
-- **Username display** — dashboard monitoring menampilkan **username Roblox** di tiap baris instance (mis. `com.apengjers.v3 (apengjers)`). Di-resolve otomatis dari token `.ROBLOSECURITY` via API Roblox (`users.roblox.com`). Hasil di-cache per instance (600 detik). Bisa di-override per-instance lewat `usernamePath` (path file yang baris pertamanya berisi username). Bukti scan tersimpan di `data/username_scan.log`.
+- **Username display** — dashboard monitoring menampilkan **username Roblox** di tiap baris instance (mis. `com.apengjers.v3 (apengjers)`). Di-resolve otomatis dari token `.ROBLOSECURITY` via API Roblox (`users.roblox.com`). Hasil di-cache per instance (600 detik). Bisa di-override per-instance lewat `usernamePath` (path file yang baris pertamanya berisi username). Bukti scan tersimpan di `/sdcard/yanamin/data/username_scan.log`.
 - **Auto relaunch freeze** — app yang freeze/stuck lebih dari `freezeTimeout` (default 300 detik / 5 menit) otomatis di-force-stop & di-relaunch.
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
 - **Cek login + debug log** — token `.ROBLOSECURITY` dibaca dari Cookies DB lalu diverifikasi ke Roblox pakai curl (`users.roblox.com/v1/users/authenticated`, tiap `loginVerifyInterval` detik). Token ditolak (HTTP 401) = dianggap logout: status `NoLogin` walaupun RAM clone masih tinggi, dan tidak di-force-stop. Semua hasil cek login (`[LOGIN]`) dan tiap perubahan status (`[STATUS]`, lengkap dengan RSS & login) ditulis ke `data/rejoin.log`. Token tidak pernah ditulis ke log.
@@ -27,10 +29,12 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Laporan ke Discord webhook** — isi URL webhook di Main Menu `10) Discord Webhook` (ada tombol **Kirim tes sekarang**). Tiap `webhook.interval` detik (default 300) satu pesan status di-**update** (bukan spam pesan baru): device, RAM/CPU/suhu, jumlah online/offline, dan per clone uptime, memori, CPU, plus **screenshot** layar (`webhook.screenshot`). Pesan terpisah saat clone ke-kick, atau recovery gagal (`webhook.events`). Nama akun disembunyikan sebagai spoiler (`hideNames`). Beban: 1 request tiap 5 menit + screencap ±1 detik. URL webhook tidak pernah ditulis ke log. Kosongkan URL (`-` di menu 10) untuk mematikan.
 - **Clone belum login yang FC dibuka lagi** — clone tanpa akun yang **tertutup** (proses mati, atau proses tersisa tanpa jendela) dibuka ulang lewat launcher biasa, **tanpa force-stop**, maks sekali tiap `noLoginCooldown` detik (default 120). Yang masih tampil di layar login tetap tidak disentuh. Log: `grep NOLOGIN data/rejoin.log`. Matikan: `relaunchNoLogin = false`.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
-- **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`) dan diterapkan ulang tiap launch/recovery (karena PID berubah). Pengaturan ini tidak membatasi pemakaian RAM clone.
+- **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`), dijalankan saat monitor mulai (termasuk clone yang sudah jalan dari boot sebelumnya) dan tiap 60 siklus, serta setiap kali launch/recovery (karena PID berubah). Pengaturan ini **tidak** membatasi pemakaian RAM clone.
+- **Dashboard tampilkan RAM** — kolom `RSS` per clone (`1.2 GB` / `310 MB`) plus baris `App RAM (total)` di bawah tabel, dari nilai RSS yang sudah dibaca tiap siklus (tanpa panggilan shell tambahan).
 - **Recovery** — force-stop → launch → buka game/private server → lanjut monitoring. Dicoba berulang (sesuai `recoveryRetries`).
 - **AutoExecute / Script Manager** — kelola **script `.lua`** langsung di `appAutoExecutePath` (mis. `/sdcard/Delta/Autoexecute`) lewat menu `6) AutoExecute Manager`: di layar langsung tampil isi folder (Add / Edit / Delete). Rejoin adalah pengelola script — **semua logika ditulis user** di dalam file script.
 - **Inject Cookie** — menu `7) Inject Cookie`: inject token **`.ROBLOSECURITY`** ke Cookies DB WebView clone mana pun dari daftar config (auto `am force-stop` dulu, target path sama dengan deteksi login / `cookiePath`, backup DB dulu, verifikasi setelahnya). Butuh `sqlite3` di device (`pkg install sqlite`). Sebelum menulis, token **diverifikasi dulu ke Roblox** (`users.roblox.com/v1/users/authenticated`, pakai curl) — verifikasi **fail-closed**: kalau bukan respons jelas valid (`HTTP 200` + body berisi `"name"`), inject langsung dibatalkan dan body respons Roblox ditampilkan, jadi tidak akan lagi "DB tertulis tapi tidak login". Bisa cek token tanpa inject lewat submenu `3) Cek validitas token`. Baris cookie hasil inject dibuat **identik dengan baris login asli in-app** (host_key `.roblox.com`, samesite `-1`, expires jauh ke depan, `creation/last_access` real), sisa baris lama yang salah dihapus otomatis.
+- **Loader 1 file** — seluruh engine dibundel jadi satu file `yanamin.lua` (dibangkitkan `node tools/bundle_loader.js`). Distribusi cukup satu baris `curl`, lalu `lua yanamin.lua`. Supervisor terminal dan template config ikut tertanam di dalam file itu, jadi tidak perlu unduh repo. Patch bundel hanya diterapkan ke artifact hasil build — file sumber di repo tidak berubah.
 
 ---
 
@@ -40,6 +44,27 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - Termux + akses root (Magisk/KernelSU) untuk beberapa fitur
 - Lua **PUC-Rio** (5.3/5.4) — setup.sh menginstal otomatis untuk `lua`
 - Perintah shell Android: `am`, `pm`, `pidof`/`pgrep`/`ps`, `cp`
+- **Izin storage Termux** (`termux-setup-storage`) — engine menyimpan semua datanya di `/sdcard/yanamin`. Tanpa izin ini tool berhenti dengan pesan agar storage diberikan lebih dulu.
+
+## Data root: `/sdcard/yanamin`
+
+Semua yang dimiliki tool disimpan di **satu folder**, supaya gampang di-backup, dibaca, atau dihapus total:
+
+```
+/sdcard/yanamin/config/config.lua          konfigurasi (instance, setting)
+/sdcard/yanamin/data/rejoin.log            log utama
+/sdcard/yanamin/data/launch.log            diagnostik per siklus launch/monitor
+/sdcard/yanamin/data/monitor.pid           lock: hanya satu engine yang boleh jalan
+/sdcard/yanamin/data/username_scan.log     log resolusi username
+/sdcard/yanamin/data/boot.log              log Termux:Boot
+/sdcard/yanamin/data/yanamin_wrapper.sh    supervisor terminal (loader 1 file)
+```
+
+- Path relatif di config (`logPath`, `launchLogPath`) dihitung dari data root: `"data/rejoin.log"` → `/sdcard/yanamin/data/rejoin.log`. Path absolut dipakai apa adanya.
+- Lokasi root bisa diganti lewat env `YANAMIN_HOME=/path/lain` (debug).
+- Kalau `/sdcard/yanamin` tidak bisa ditulis, tool **berhenti** dengan pesan menjalankan `termux-setup-storage` — bukan diam-diam fallback.
+- Data versi lama (`config/`, `data/` di folder tempat tool dijalankan sebelumnya) **dipindahkan otomatis** ke data root saat pertama kali jalan.
+- Data app/clone, script AutoExecute, dan script Termux:Boot **tidak pernah** disentuh engine.
 
 ### Agar Ctrl+C bisa menghentikan program
 
@@ -55,6 +80,25 @@ lua main.lua
 
 ## Quickstart (Termux/Android)
 
+### Cara tercepat — loader 1 file (tanpa unduh repo)
+
+Rejoin bisa dijalankan dari **satu file** (`yanamin.lua`): engine, supervisor terminal, template config, dan sistem key sudah dibundel jadi satu. Satu baris curl:
+
+**Android 10:**
+```sh
+curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
+lua /sdcard/download/yanamin.lua
+```
+**Android 12+:**
+```sh
+curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
+lua /sdcard/Download/yanamin.lua
+```
+
+Langsung masuk Main Menu. Panduan lengkap: [`setup.md`](setup.md). File `yanamin.lua` dibangkitkan dari source repo ini dengan `node tools/bundle_loader.js` — jangan diedit manual.
+
+### Dari source repository
+
 1. Pastikan Termux punya Lua PUC-Rio (`pkg install lua`).
 
 2. Letakkan project di device, lalu jalankan setup (sekali):
@@ -67,9 +111,9 @@ lua main.lua
    ```sh
    lua main.lua
    ```
-   - Jika `config/config.lua` belum ada, **Setup Wizard** akan berjalan untuk mendeteksi/menambah instance.
+   - Jika config belum ada di data root, **Setup Wizard** akan berjalan untuk mendeteksi/menambah instance.
 
-4. Gunakan Main Menu untuk: **Instances**, **Settings**, **View Logs**, dan **Start Monitor**.
+4. Gunakan Main Menu untuk: **Launch All + Monitor**, **Instances**, **Settings**, **Inject Cookie**, dan **Auto-boot**.
 
 ### Headless / automated run
 
@@ -112,6 +156,18 @@ Setelah itu **tidak perlu `git pull` lagi**: setiap boot, script boot menjalanka
 
 ### Auto-start saat boot (Termux:Boot)
 
+Biar engine otomatis jalan tiap HP dinyalakan (tanpa jendela Termux):
+
+#### Cara cepat — dari dalam tool (recommended, juga untuk loader 1 file)
+1. Pasang aplikasi **Termux:Boot** (aplikasi Android terpisah, **bukan** paket `pkg`) — ambil dari sumber yang **sama** dengan Termux kamu, kalau beda tanda tangan Android nggak mau jalan.
+2. Jalankan tool, masuk **menu `6) Auto-boot (Termux:Boot)`**:
+   - `1) Install / update script boot` — tool menulis sendiri `~/.termux/boot/start-rejoin.sh` (mencatat `REJOIN_HOME` = data root `/sdcard/yanamin` dan `REJOIN_ENTRY` = file yang lagi jalan, memakai interpreter yang terdeteksi `lua5.3`/`lua`/`lua5.4`/`luajit`).
+   - `3) Lihat 10 baris terakhir boot.log` buat diagnosis (`/sdcard/yanamin/data/boot.log`).
+   - `2) Uninstall` buat matiin lagi.
+3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot.
+
+#### Cara manual (kalau mau tanpa menu)
+
 Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
 
 1. Pasang aplikasi **Termux:Boot** (ini aplikasi Android terpisah, **bukan** paket `pkg`). Ambil dari sumber yang **sama** dengan Termux yang terpasang — Termux dari F-Droid → Termux:Boot dari [F-Droid](https://f-droid.org/packages/com.termux.boot/); Termux dari GitHub → Termux:Boot dari [GitHub releases](https://github.com/termux/termux-boot/releases). Beda sumber = tanda tangan beda, Android menolak/aplikasi tidak jalan.
@@ -122,15 +178,15 @@ Biar Termux otomatis terbuka & langsung jalan ke Menu 1 setiap HP dinyalakan:
    chmod +x ~/.termux/boot/start-rejoin.sh
    ```
 3. **Buka aplikasi Termux:Boot sekali** (agar boot receiver terdaftar), lalu reboot HP.
-4. Setiap boot, Termux:Boot menjalankan script ini **di belakang layar (tidak ada jendela Termux yang terbuka)**: tunggu `BOOT_DELAY` detik (default 30), lalu `lua main.lua --headless --start-monitor --auto-launch` dari folder repo (setara pilih menu `1`). Jika repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
-5. Kalau setelah reboot clone tidak terbuka, cek `cat ~/rejoin/data/boot.log` (atau `~/rejoin-boot.log` kalau folder repo tidak ketemu). Dua-duanya tidak ada = script tidak dijalankan sama sekali (Termux:Boot belum dibuka sekali / beda sumber dengan Termux / dibatasi optimasi baterai). Ada isinya = lihat baris `ERROR`/`WARN` terakhir, lalu `data/rejoin.log`.
+4. Setiap boot, Termux:Boot menjalankan script ini **di belakang layar (tidak ada jendela Termux yang terbuka)**: tunggu `BOOT_DELAY` detik (default 30), lalu menjalankan engine headless (`--headless --start-monitor --auto-launch`, setara pilih menu `1`). Data root untuk log = `/sdcard/yanamin/data`. Kalau repo ada di lokasi lain, set `REJOIN_DIR` di script boot.
+5. Kalau setelah reboot clone tidak terbuka, cek `cat /sdcard/yanamin/data/boot.log`. File tidak ada = script tidak dijalankan sama sekali (Termux:Boot belum dibuka sekali / beda sumber dengan Termux / dibatasi optimasi baterai). Ada isinya = lihat baris `ERROR`/`WARN` terakhir, lalu `/sdcard/yanamin/data/rejoin.log`.
 
 ### Engine dari boot & menjalankan manual
 
 Engine dari boot jalan **tersembunyi** (tanpa jendela). Hanya satu engine yang boleh jalan: kalau engine boot masih aktif lalu kamu pilih menu `1`/`5`, muncul pesan `engine lain masih jalan (pid ...)` dan monitor tidak dimulai (supaya dua engine tidak saling force-stop clone). Hentikan engine boot dulu:
 
 ```sh
-kill $(cat ~/rejoin/data/monitor.pid)
+kill $(cat /sdcard/yanamin/data/monitor.pid)
 ```
 
 Kalau engine boot crash, script boot menjalankannya ulang (jeda `RESTART_DELAY` 30 detik, maks `MAX_RESTARTS` 5 kali berturut-turut). Dihentikan dengan `kill` = tidak dijalankan ulang. Semua tercatat di `data/boot.log`.
@@ -251,6 +307,7 @@ Catatan link:
 
 ```
 rejoin/
+├── yanamin.lua                  # loader 1 file (hasil build: seluruh engine jadi satu file)
 ├── main.lua                    # entry point + main menu
 ├── setup.sh                    # setup skrip Termux
 ├── termux-boot.sh              # template auto-start saat boot (Termux:Boot)
@@ -299,13 +356,14 @@ rejoin/
 - `1) Launch All + Monitor` (launch semua instance + join game, langsung masuk monitor dengan status live). Clone dibuka **satu per satu**: clone 1 dibuka → tunggu sampai jalan (RSS ≥ `minRss`, maks `launchWaitTimeout`) → tunggu `launchSettleDelay` detik biar masuk game → baru clone 2, dst. Semua clone dibuka; clone yang kebaca belum login hanya ditunggu `launchEmptyDelay` detik (default 5) biar jendelanya sempat muncul.
 - `2) Instances Manager`
 - `3) Settings`
-- `4) View Logs`
-- `5) Start Monitor`
-- `6) AutoExecute Manager`
-- `7) Exit`
+- `4) AutoExecute Manager`
+- `5) Inject Cookie`
+- `6) Auto-boot (Termux:Boot)`
+- `7) Uninstall yanamin`
+- `8) Exit`
 
 ### Monitoring
-- Dashboard live menampilkan tiap instance sebagai `package (username)` (mis. `com.apengjers.v3 (apengjers)`) + status berwarna. Username di-resolve sekali per sesi via cookie `.ROBLOSECURITY` (root) → API Roblox, di-cache; kolom melebar otomatis di perangkat dengan tampilan lebar. Rincian scan tiap sesi ada di `data/username_scan.log`.
+- Dashboard live menampilkan tiap instance sebagai `package (username)` (mis. `com.apengjers.v3 (apengjers)`) + status berwarna. Username di-resolve sekali per sesi via cookie `.ROBLOSECURITY` (root) → API Roblox, di-cache; kolom melebar otomatis di perangkat dengan tampilan lebar. Rincian scan tiap sesi ada di `/sdcard/yanamin/data/username_scan.log`.
 
 ### Instances Manager
 - List, Add, Edit, Delete instance
@@ -327,9 +385,22 @@ rejoin/
 
 ## Logging
 
-- File log: `data/rejoin.log` (path bisa diubah di Settings → `logPath`).
+- File log: `/sdcard/yanamin/data/rejoin.log` (path bisa diubah di Settings → `logPath`; path relatif dihitung dari data root).
 - Mencatat aktivitas: launch, recovery, join, error, sukses.
-- Lihat via menu `View Logs`, atau langsung di device.
+- Log dibaca langsung dari device (file manager / text editor), tidak ada menu log anymore — semua file log ada di `/sdcard/yanamin/data/`.
+- Log Termux:Boot: `/sdcard/yanamin/data/boot.log` (atau lihat 10 baris terakhir dari menu `6) Auto-boot`).
+
+---
+
+## Uninstall
+
+Menu **`7) Uninstall yanamin`** menghapus semuanya dalam satu langkah (setelah mengetik `HAPUS`):
+
+1. Script auto-boot `~/.termux/boot/start-rejoin.sh`
+2. Seluruh data root `/sdcard/yanamin` (config + data + semua log)
+3. File loader itu sendiri — **hanya** kalau yang jalan adalah loader 1 file. Kalau yang jalan `main.lua` dari repo, file-nya sengaja tidak dihapus (pesan untuk hapus manual).
+
+Data app/clone, script AutoExecute, dan file lain di HP tidak disentuh.
 
 ---
 

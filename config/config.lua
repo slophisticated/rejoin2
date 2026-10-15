@@ -1,10 +1,12 @@
 -- Sample config for Rejoin Engine (adjust package names and paths for your device)
 return {
-    monitorInterval = 5,
+    -- Detik antar siklus monitor (1 siklus = cek semua instance sekali).
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,
     debug = true,
+    -- Path relatif dihitung dari data root (/sdcard/yanamin).
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",
@@ -15,7 +17,7 @@ return {
     -- Minimum resident memory (MB) for a clone's process to be considered ACTIVE.
     -- A running clone reads ~1 GB while a force-close stub is ~188 MB, so anything
     -- below this is treated as "not really running" and gets relaunched. Tune if needed.
-    minRss = 200,
+    minRss = 400,
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,

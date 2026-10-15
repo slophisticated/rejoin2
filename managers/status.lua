@@ -35,6 +35,7 @@ end
 
 function Status.reset()
     states = {}
+    anrCache = nil
 end
 
 -- Mark an instance as currently being recovered (so the monitor shows "recovery").
@@ -89,25 +90,35 @@ function Status.endResetting(id)
 end
 
 -- Read ANR lines from logcat and return a set of package names that (recently) ANR'd.
--- Best-effort: returns empty on failure/without logcat.
-local function scanAnrPackages()
-    local anr = {}
-    if not anrEnabled then return anr end
+--
+-- This used to run once PER INSTANCE PER CYCLE, i.e. `logcat -d -b main -t 1000`
+-- several times per second with several clones — by far the most expensive probe in the
+-- monitor (dump + parse every time, and the answer is identical for every clone). The
+-- result is now cached for ANR_TTL seconds and cleared whenever Status.reset() runs.
+local ANR_TTL = 15 -- seconds
+local anrCache = nil
 
-    local ok, out = Shell.exec("logcat -d -b main -t 1000")
-    if not ok or not out or out == "(dry-run)" then
-        return anr
+local function scanAnrPackages()
+    if not anrEnabled then return {} end
+    if anrCache and (os.time() - anrCache.at) < ANR_TTL then
+        return anrCache.pkgs
     end
 
-    -- ActivityManager emits lines like: "ANR in com.apengjers.v3 (com.apengjers.v3/.X)"
-    for line in out:gmatch("[^\r\n]+") do
-        local pkg = line:match("ANR in (%S+)")
-        if pkg then
-            -- drop trailing '(' / component suffix if present
-            pkg = pkg:gsub("%s*%(.+$", "")
-            anr[pkg] = true
+    local anr = {}
+    local ok, out = Shell.exec("logcat -d -b main -t 1000")
+    if ok and out and out ~= "(dry-run)" then
+        -- ActivityManager emits lines like: "ANR in com.apengjers.v3 (com.apengjers.v3/.X)"
+        for line in out:gmatch("[^\r\n]+") do
+            local pkg = line:match("ANR in (%S+)")
+            if pkg then
+                -- drop trailing '(' / component suffix if present
+                pkg = pkg:gsub("%s*%(.+$", "")
+                anr[pkg] = true
+            end
         end
     end
+
+    anrCache = { pkgs = anr, at = os.time() }
     return anr
 end
 
@@ -418,15 +429,19 @@ end
 
 function Status.printSummary(instances)
     local LCOL = 33   -- width of the left (Instance) column
-    local RCOL = 23   -- width of the right (Status/Value) column
+    local RCOL = 23   -- width of the status column
+    local RSSCOL = 14 -- width of the RSS column
 
-    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL) .. "╮"
-    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL) .. "┤"
-    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL) .. "╯"
+    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL)
+        .. "┬" .. string.rep("─", RSSCOL) .. "╮"
+    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL)
+        .. "┼" .. string.rep("─", RSSCOL) .. "┤"
+    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL)
+        .. "┴" .. string.rep("─", RSSCOL) .. "╯"
 
-    -- One body row. `rightColor`, if given, colors the visible right text only so
-    -- every row still aligns on the same column.
-    local function bodyRow(left, rightText, rightColor)
+    -- One body row. `rightColor`, if given, colors the visible status text only so
+    -- every row still aligns on the same column. `rss` is the rightmost cell.
+    local function bodyRow(left, rightText, rightColor, rss)
         local lc = padCell(left, LCOL)
         local rc = padCell(rightText, RCOL)
         if rightColor then
@@ -434,11 +449,12 @@ function Status.printSummary(instances)
             rc = " " .. string.rep(" ", l) .. rightColor .. rightText .. C.reset
                  .. string.rep(" ", (RCOL - 2 - #rightText) - l) .. " "
         end
-        return "│" .. lc .. "│" .. rc .. "│"
+        local rc2 = padCell(rss or "", RSSCOL)
+        return "│" .. lc .. "│" .. rc .. "│" .. rc2 .. "│"
     end
 
     local function blankRow()
-        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│"
+        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│" .. blankCell(RSSCOL) .. "│"
     end
 
     local sb = {}
@@ -456,6 +472,7 @@ function Status.printSummary(instances)
     table.insert(sb, bodyRow("Storage", storageLine() or "--"))
     table.insert(sb, mid)
 
+    local totalRssKb = 0
     if not instances or #instances == 0 then
         table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
     else
