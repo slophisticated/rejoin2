@@ -1,6 +1,6 @@
 return {
     title   = "Rejoin Update Logs",
-    mention = "@Script Buyer",
+    mention = "",  -- kosong = tanpa mention; ping role: "<@&ROLE_ID>"
     version = "v0.0.0.1",
     color   = 0x5865F2,
 
