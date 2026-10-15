@@ -50,7 +50,7 @@ cd ~/rejoin && lua main.lua
    - Mode hemat (render 3D mati, FPS dibatasi, grafik rendah) + batas FPS
 4. **Discord Webhook** (opsional) — menu `9`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), isi `7) Nama device` (mis. nama di Redfinger, biar tiap device kebedain), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot; notif terpisah hanya kalau **Delta minta key** (file license di folder Delta hilang).
 5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
-*Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya dibuka.*
+*Clone yang sudah login dibuka duluan, satu per satu: tiap clone ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya. Clone yang belum login dibuka paling akhir dan tidak ditunggu.*
 
 ## 🔁 Auto Start & Update
 Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan sendiri (±10 detik setelah boot, tanpa jendela Termux). Config kamu tidak tertimpa.

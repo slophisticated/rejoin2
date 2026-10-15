@@ -195,7 +195,24 @@ local function checkWindow(inst)
 end
 
 local function runSequentialLaunch(conf)
-    local instances = instanceManager.getAll()
+    -- Logged-in clones first (each waited for until in game), clones without an account
+    -- last; within each group the Menu 2 order. Unknown login counts as logged in.
+    -- Window slots follow the Menu 2 order, so positions do not change.
+    local instances, later, names, laterNames = {}, {}, {}, {}
+    for _, inst in ipairs(instanceManager.getAll()) do
+        local okL, li = pcall(Auth.isLoggedIn, inst)
+        local label = tostring(inst.name or inst.id or "?")
+        if okL and li == false then
+            later[#later + 1] = inst
+            laterNames[#laterNames + 1] = label
+        else
+            instances[#instances + 1] = inst
+            names[#names + 1] = label
+        end
+    end
+    for _, inst in ipairs(later) do instances[#instances + 1] = inst end
+    Logger.info("Monitor: urutan launch: " .. (#names > 0 and table.concat(names, ", ") or "-")
+        .. (#laterNames > 0 and (" | belum login: " .. table.concat(laterNames, ", ")) or ""))
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
     local poll = tonumber(conf and conf.launchWaitInterval) or 3
     if poll <= 0 then poll = 3 end
