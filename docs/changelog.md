@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Heartbeat baru muncul setelah game benar-benar selesai loading** (script v2): dulu heartbeat pertama ditulis begitu `game.Loaded`, padahal karakter belum spawn dan aset masih didownload, jadi Launch All membuka clone berikutnya saat clone sebelumnya masih loading. Sekarang script menunggu karakter (`HumanoidRootPart`) ada dan antrian aset `ContentProvider.RequestQueueSize` kosong 5 detik berturut-turut (masing-masing maks 90 dtk; ke-kick saat loading langsung dilaporkan). Default `launchJoinTimeout` naik ke 240 dtk. Script terpasang ulang otomatis saat monitor mulai.
+
 - **Launch All benar-benar menunggu clone masuk game**: dulu clone berikutnya dibuka setelah jeda tetap `launchSettleDelay` (20 dtk) sejak proses jalan — di device lambat clone sebelumnya masih loading, jadi kelihatan dibuka barengan. Sekarang dengan heartbeat Delta, tiap clone ditunggu sampai heartbeat-nya muncul (in game) maks `launchJoinTimeout` (baru, default 120 dtk; Settings `13`). Lanjut lebih cepat kalau proses mati atau ke-kick. Kalau satu clone tidak pernah mengirim heartbeat (Delta belum key / script tidak jalan), sisa Launch All itu kembali ke jeda `launchSettleDelay`. Heartbeat dimatikan = perilaku lama.
 
 - **Webhook: notif "Rejoin engine mulai" dihapus** (cuma spam tiap engine start/boot). Notif kick, recovery gagal dan clone belum login gagal dibuka tetap ada.

@@ -1,4 +1,4 @@
--- REJOIN_HEARTBEAT v1
+-- REJOIN_HEARTBEAT v2
 -- Installed automatically by rejoin into the executor's autoexecute folder.
 -- Edits here are overwritten: change the settings in rejoin (Settings > 13) instead.
 --
@@ -86,6 +86,31 @@ task.spawn(function()
         end
     end)
 end)
+
+-- Wait until the game has really finished loading -----------------------------
+-- game.Loaded fires before the character spawns and while the game is still
+-- downloading assets. rejoin starts the next clone once the first heartbeat shows
+-- up, so only write it when the character exists and the asset queue stayed empty
+-- for a few seconds (each capped, so a game with a menu or endless streaming still
+-- gets a heartbeat). A kick during loading is reported at once.
+local ContentProvider = game:GetService("ContentProvider")
+local function waitFor(cond, maxSeconds)
+    local t = 0
+    while t < maxSeconds and state ~= "kicked" and not cond() do
+        task.wait(1)
+        t = t + 1
+    end
+end
+waitFor(function()
+    local ch = lp.Character
+    return ch ~= nil and ch:FindFirstChild("HumanoidRootPart") ~= nil
+end, 90)
+local idle = 0
+waitFor(function()
+    local q = safe(function() return ContentProvider.RequestQueueSize end) or 0
+    idle = (q == 0) and idle + 1 or 0
+    return idle >= 5
+end, 90)
 
 -- Heartbeat file -------------------------------------------------------------
 local frames = 0

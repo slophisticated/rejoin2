@@ -25,7 +25,7 @@ return {
     -- launchSettleDelay detik. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
-    launchJoinTimeout = 120,
+    launchJoinTimeout = 240,
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,

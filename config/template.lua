@@ -61,7 +61,7 @@ return {
     -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
-    launchJoinTimeout = 120,
+    launchJoinTimeout = 240,
     launchSettleDelay = 20,
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.

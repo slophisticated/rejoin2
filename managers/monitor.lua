@@ -185,7 +185,7 @@ local function runSequentialLaunch(conf)
     if settle < 0 then settle = 0 end
     local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
     if emptyDelay < 0 then emptyDelay = 0 end
-    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 120
+    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 240
     if joinTimeout < 0 then joinTimeout = 0 end
     -- With the Delta heartbeat, wait until each clone is really in game before the next
     -- one starts. Turned off for the rest of this Launch All once a clone never sends

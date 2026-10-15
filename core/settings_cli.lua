@@ -59,7 +59,7 @@ function CLI.run()
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
-    conf.launchJoinTimeout = conf.launchJoinTimeout or 120
+    conf.launchJoinTimeout = conf.launchJoinTimeout or 240
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
