@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Webhook: lanjutkan pesan status lama**: Menu 9 → `8) Pakai pesan status lama` menerima link pesan Discord (`.../channels/<guild>/<channel>/<message>`) atau ID pesan, menyimpannya ke `data/webhook_msg.txt` dan langsung mengedit pesan itu. Berguna setelah replace device, supaya pesan device lama tidak nyangkut. Pesan yang sudah dihapus / dari webhook lain → otomatis pesan baru.
+
 - **Launch All: clone yang sudah login duluan**: sebelum launch, status login tiap clone dibaca (`Auth.isLoggedIn`). Urutan baru: clone login (dan yang tidak diketahui) sesuai urutan Menu 2, lalu clone belum login di paling belakang. Urutan dicatat di log (`Monitor: urutan launch: ...`). Posisi jendela grid tetap per urutan Menu 2.
 
 - **Install ulang jadi cepat**: `install.sh` melewati `apt update` + `full-upgrade` (beberapa menit) kalau `lua53 sqlite curl git` sudah terpasang (`dpkg -s`) dan benar-benar jalan (`curl/git/sqlite3 --version`, lua). Ada yang kurang/rusak → alur apt lama. Paksa: `FULL_UPGRADE=1`.

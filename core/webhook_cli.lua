@@ -37,6 +37,7 @@ function CLI.run()
         print("  6) Kirim tes sekarang")
         local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
         print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
+        print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -104,6 +105,31 @@ function CLI.run()
             else
                 wh.deviceName = v:sub(1, 60)
                 save(conf)
+            end
+        elseif choice == "8" then
+            if not hasUrl then
+                print("Isi URL webhook dulu (pilihan 1), harus sama dengan device lama.")
+            else
+                print("Discord: klik kanan pesan status lama > Copy Message Link (atau Copy Message ID).")
+                local v = prompt("Link / ID pesan: ")
+                local Webhook = require("managers.webhook")
+                Webhook.configure(conf)
+                local id, err = Webhook.useMessage(v)
+                if not id then
+                    print(err)
+                else
+                    print("Mengedit pesan itu sekarang...")
+                    local okI, Instances = pcall(require, "managers.instance")
+                    local list = okI and Instances.getAll and Instances.getAll() or {}
+                    local ok, res = pcall(Webhook.report, list)
+                    if not (ok and res) then
+                        print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                    elseif Webhook.messageId() == id then
+                        print("Berhasil: pesan lama sekarang di-update oleh device ini.")
+                    else
+                        print("Pesan itu tidak bisa diedit (sudah dihapus atau dari webhook lain); dibuat pesan baru.")
+                    end
+                end
             end
         else
             print("Pilihan tidak dikenal.")

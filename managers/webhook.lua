@@ -323,6 +323,22 @@ local function msgId()
     return s and s:match("(%d+)")
 end
 
+function Webhook.messageId() return msgId() end
+
+-- Keep editing an existing status message (e.g. the one an old / replaced device left
+-- behind) instead of posting a new one. Takes a message link
+-- (https://discord.com/channels/<guild>/<channel>/<message>) or a bare message id.
+function Webhook.useMessage(input)
+    local id
+    for digits in tostring(input or ""):gmatch("%d+") do
+        if #digits >= 15 and #digits <= 22 then id = digits end
+    end
+    if not id then return nil, "link / ID pesan tidak valid" end
+    writeFile(STATE_FILE, id .. "\n")
+    Logger.info("Webhook: pakai pesan status yang sudah ada")
+    return id
+end
+
 -- The message's own "id": the "id" key of the top-level JSON object. Discord's key
 -- order is not fixed and nested objects (author, attachments, embeds) have ids too,
 -- so walk the JSON tracking depth instead of matching neighbours.
