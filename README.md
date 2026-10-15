@@ -20,7 +20,7 @@ curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.s
 
 Tunggu sampai muncul **SELESAI**, lalu **reboot sekali**. Tiap langkah ditandai `[OK]` atau `[!!]`:
 
-1. Paket Termux (`lua53 sqlite curl git`)
+1. Paket Termux (`lua53 sqlite curl git`). Dilewati kalau semuanya sudah terpasang dan jalan, jadi install ulang cuma belasan detik. Paksa upgrade: `curl -sL .../install.sh | FULL_UPGRADE=1 sh`
 2. Perintah `lua`
 3. Cek root
 4. Download Rejoin ke `~/rejoin`. Kalau folder lama sudah ada (termasuk hasil `git clone` dulu), config dan log tetap dipakai, jadi **tidak perlu `rm -rf`**.
