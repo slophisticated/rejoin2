@@ -1,6 +1,6 @@
 local Config = require("core.config")
 
--- Main Menu 11: floating window grid, Delta heartbeat and saver mode.
+-- Main Menu 10: floating window grid, Delta heartbeat and saver mode.
 -- Pick one item at a time; every change is saved right away. Displayed values follow
 -- the same defaults as the modules that use them (window_layout / heartbeat).
 

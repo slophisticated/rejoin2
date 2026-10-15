@@ -43,7 +43,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Heartbeat Delta.** Script di Autoexecute Delta melaporkan status dari dalam game: in-game atau ke-kick, FPS, ping, dan memori. Kalau ke-kick, langsung rejoin tanpa menunggu.
 - **Mode hemat.** Render 3D mati, FPS dibatasi, grafik paling rendah, suara mati. CPU dan RAM per clone turun banyak.
 - **Auto atur jendela.** Jendela floating clone disusun jadi grid (4 clone → 2×2). Baris atas sedikit lebih tinggi supaya menu Roblox kelihatan sampai *More*. Posisi dicek terus.
-- **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 10).
+- **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 9).
 - **Cek login.** Akun diverifikasi ke Roblox. Clone yang belum login **tidak pernah di-force-stop**, tapi dibuka lagi kalau tertutup.
 - **Auto start + auto update saat boot** lewat Termux:Boot, tanpa jendela Termux. Config tidak tertimpa.
 - **Setting device otomatis.** Animasi, freeform, smallest width, dan izin background diatur sekali dari installer.
@@ -70,11 +70,11 @@ cd ~/rejoin && lua main.lua
 | `6` AutoExecute Manager | Kelola script Autoexecute Delta |
 | `7` Inject Cookie | Login clone pakai cookie |
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
-| `9` Exit | |
-| `10` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, nama device |
-| `11` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
+| `9` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, nama device |
+| `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
+| `0` Exit | |
 
-Keluar dari monitor: **Ctrl+C**. Perubahan di menu 10 dan 11 langsung tersimpan.
+Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.
 
 ---
 

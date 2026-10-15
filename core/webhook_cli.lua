@@ -1,6 +1,6 @@
 local Config = require("core.config")
 
--- Main Menu 10: Discord webhook status reports (managers/webhook.lua).
+-- Main Menu 9: Discord webhook status reports (managers/webhook.lua).
 -- Pick one item at a time; every change is saved right away.
 
 local CLI = {}

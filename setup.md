@@ -44,11 +44,11 @@ cd ~/rejoin && lua main.lua
 
 1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + link game / Private Server tiap clone.
 2. **Jeda launch** — menu `3` → `13`: `launchJoinTimeout` (default 240 dtk: maks tunggu clone **masuk game** lewat heartbeat Delta sebelum clone berikutnya) dan `launchSettleDelay` (20 dtk, dipakai kalau heartbeat tidak ada), lalu `15) Save and Exit`.
-3. **Jendela & Mode Hemat** — menu `11` (pilih nomor, langsung tersimpan):
+3. **Jendela & Mode Hemat** — menu `10` (pilih nomor, langsung tersimpan):
    - Auto atur jendela floating (grid) — sudah **nyala** dari installer. Baris atas numpuk 80 px ke baris bawah biar menu Roblox sampai *More* kelihatan (pilihan `9`, 0 = grid biasa)
    - Heartbeat Delta (status dari dalam game, langsung rejoin kalau ke-kick)
    - Mode hemat (render 3D mati, FPS dibatasi, grafik rendah) + batas FPS
-4. **Discord Webhook** (opsional) — menu `10`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), isi `7) Nama device` (mis. nama di Redfinger, biar tiap device kebedain), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot; notif terpisah hanya kalau **Delta minta key** (file license di folder Delta hilang).
+4. **Discord Webhook** (opsional) — menu `9`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), isi `7) Nama device` (mis. nama di Redfinger, biar tiap device kebedain), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot; notif terpisah hanya kalau **Delta minta key** (file license di folder Delta hilang).
 5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
 *Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya dibuka.*
 

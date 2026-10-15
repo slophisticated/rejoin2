@@ -34,7 +34,7 @@ return {
     -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
     relaunchNoLogin = true,
     -- Laporan status ke Discord webhook (1 pesan yang terus di-update + notif kejadian).
-    -- url kosong = mati. Isi lewat Main Menu 10) Discord Webhook.
+    -- url kosong = mati. Isi lewat Main Menu 9) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,    -- detik antar laporan
@@ -47,7 +47,7 @@ return {
     deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
-    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 11) Jendela & Mode Hemat.
+    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 10) Jendela & Mode Hemat.
     windowLayout = {
         enabled = true,
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)

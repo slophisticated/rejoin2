@@ -138,7 +138,7 @@ local function model()
     return modelCache
 end
 
--- Name shown in every message: the one set in Menu 10 (the Redfinger name lives on
+-- Name shown in every message: the one set in Menu 9 (the Redfinger name lives on
 -- Redfinger's servers, not inside Android), else the device model.
 function Webhook.deviceLabel()
     if conf.deviceName and conf.deviceName ~= "" then return conf.deviceName end
