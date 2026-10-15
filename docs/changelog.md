@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Update log jadi pesan components**: `tools/update_log.lua --send` sekarang mengirim lewat webhook sebagai pesan Components V2 (`?with_components=true`, flag 32768): satu container dengan garis warna (`color`), judul `# Rejoin Update Logs`, mention, Version + Developer Notes, lalu tiap bagian (`### Added` dst.) dipisah separator. Field `place` dihapus dari template. Kalau Discord menolak format components (HTTP 4xx), teks yang sama dikirim sebagai pesan biasa.
+
 - **Generator update log**: `tools/update_log.lua <file>` membuat teks update log (judul, mention, Place, Version, Developer Notes, Added `[ + ]`, Improved `[ / ]`, Fixed `[ ! ]`, Deleted `[ - ]`; bagian kosong dilewati) dari file Lua seperti `tools/update_log_template.lua`. `--send <url>` (atau env `UPDATE_LOG_WEBHOOK`) langsung mengirim ke Discord webhook, dipecah per 2000 karakter; ping role lewat `mention = "<@&ROLE_ID>"`.
 
 - **Webhook: lanjutkan pesan status lama**: Menu 9 → `8) Pakai pesan status lama` menerima link pesan Discord (`.../channels/<guild>/<channel>/<message>`) atau ID pesan, menyimpannya ke `data/webhook_msg.txt` dan langsung mengedit pesan itu. Berguna setelah replace device, supaya pesan device lama tidak nyangkut. Pesan yang sudah dihapus / dari webhook lain → otomatis pesan baru.

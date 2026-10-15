@@ -1,16 +1,17 @@
 -- Template update log. Copy this file for every new version, fill it in, then:
---   lua tools/update_log.lua tools/update_log_template.lua            (show the text)
+--   lua tools/update_log.lua tools/update_log_template.lua            (preview)
 --   lua tools/update_log.lua tools/update_log_template.lua --send URL (post to Discord)
 --
--- Empty sections ({}) are left out of the text automatically.
+-- Sent as a Discord components message (a box with a colored bar) through the webhook.
+-- Empty sections ({}) are left out automatically.
 -- mention: plain text, or a real ping: "<@&ROLE_ID>" (Discord: right-click the
 -- role > Copy Role ID, with Developer Mode on).
 
 return {
-    title   = "Atomicals Script Update Logs",
+    title   = "Rejoin Update Logs",
     mention = "@Script Buyer",
-    place   = "Animal Hospital",
     version = "v0.0.0.1",
+    color   = 0x5865F2, -- color of the bar on the left of the box
 
     notes = {
         "Found any bugs or issues? Feel free to report them to the developers!",
