@@ -23,10 +23,10 @@ Rejoin Engine adalah tools otomatisasi berbasis **Lua** yang berjalan di **Termu
 - **Auto relaunch freeze** — app yang freeze/stuck lebih dari `freezeTimeout` (default 300 detik / 5 menit) otomatis di-force-stop & di-relaunch.
 - **RSS-based health** — clone dideteksi benar-benar jalan (bukan sekadar proses hidup) lewat RSS ≥ `minRss` (default 200 MB). Clone yang di-close (stub RSS rendah) otomatis di-relaunch.
 - **Cek login + debug log** — token `.ROBLOSECURITY` dibaca dari Cookies DB lalu diverifikasi ke Roblox pakai curl (`users.roblox.com/v1/users/authenticated`, tiap `loginVerifyInterval` detik). Token ditolak (HTTP 401) = dianggap logout: status `NoLogin` walaupun RAM clone masih tinggi, dan tidak di-force-stop. Semua hasil cek login (`[LOGIN]`) dan tiap perubahan status (`[STATUS]`, lengkap dengan RSS & login) ditulis ke `data/rejoin.log`. Token tidak pernah ditulis ke log.
-- **Heartbeat Delta (status dari dalam game)** — rejoin otomatis memasang `rejoin_heartbeat.lua` ke folder Autoexecute Delta (`appAutoExecutePath`) setiap monitor/installer jalan. Di dalam game script menulis status ke `Workspace/rejoin/hb_<username>.txt` tiap 10 detik (in-game / ke-kick, FPS, ping, memori). Rejoin memakainya untuk: status **Running** yang benar-benar di dalam game (dashboard menampilkan `Running 12fps 380MB`), **Kicked** → langsung rejoin tanpa menunggu, heartbeat berhenti > `staleAfter` (90 dtk) → recovery, dan Launch All lanjut ke clone berikutnya begitu clone sudah masuk game. Tanpa heartbeat (mis. Delta belum di-key) rejoin memakai cek lama (RSS + login). Matikan: Main Menu `11) Jendela & Mode Hemat` atau `heartbeat.enabled = false` (script dilepas otomatis).
-- **Mode hemat** — (opsional, default mati, lewat script heartbeat) render 3D mati, FPS dibatasi (`fpsCap`, default 15), grafik paling rendah, suara mati → CPU/GPU/RAM per clone turun jauh. Saat mode hemat aktif, clone dinilai hidup dari heartbeat / proses berjalan, bukan dari RSS (`minRss`), supaya tidak di-relaunch terus. Atur di Main Menu `11) Jendela & Mode Hemat`.
-- **Auto atur jendela floating** — (default **nyala**; installer juga menyalakannya di config lama) jendela floating tiap clone disusun jadi grid (4 clone → 2×2 di layar 1280×720). Baris atas dibuat **80 px lebih tinggi** dan sedikit menumpuk baris bawah, supaya menu samping Roblox kelihatan sampai *More*. Baris diisi dari bawah: clone 1-2 di bawah, clone 3-4 di atas, karena jendela yang dibuka belakangan tampil di depan. Ubah lewat Main Menu `11` → `9` (`windowLayout.overlap`, 0 = grid biasa). Posisi ditulis ke setting clone (`app_cloner_current_window_*` di `<pkg>_preferences.xml`) **saat clone sedang mati**, tepat sebelum dibuka, jadi tidak mengganggu clone yang jalan. Matikan di Main Menu `11) Jendela & Mode Hemat`. Per clone bisa diatur manual lewat `window = { left=, top=, right=, bottom= }`. Clone yang belum pernah dibuka dibuatkan file setting-nya (owner, izin & label SELinux sama dengan folder data app), jadi device baru langsung ke-grid. **Divalidasi terus:** setelah ditulis nilainya dibaca balik, tiap ±60 detik posisi jendela clone yang jalan dicek; yang meleset ditandai `[win]` di dashboard dan dicatat di log (`grep WINDOW data/rejoin.log`), lalu dibetulkan otomatis saat clone itu dibuka ulang berikutnya (game yang sedang jalan tidak diganggu). Ukuran layar dibaca ulang tiap 30 detik dan grid selalu landscape (`windowLayout.orientation = "auto"` untuk mengikuti layar apa adanya).
-- **Laporan ke Discord webhook** — isi URL webhook di Main Menu `10) Discord Webhook` (ada tombol **Kirim tes sekarang**). Tiap `webhook.interval` detik (default 300) satu pesan status di-**update** (bukan spam pesan baru): device, RAM/CPU/suhu, jumlah online/offline, dan per clone uptime, memori, CPU, plus **screenshot** layar (`webhook.screenshot`). Pesan terpisah saat clone ke-kick, atau recovery gagal (`webhook.events`). Nama akun disembunyikan sebagai spoiler (`hideNames`). Beban: 1 request tiap 5 menit + screencap ±1 detik. URL webhook tidak pernah ditulis ke log. Kosongkan URL (`-` di menu 10) untuk mematikan.
+- **Heartbeat Delta (status dari dalam game)** — rejoin otomatis memasang `rejoin_heartbeat.lua` ke folder Autoexecute Delta (`appAutoExecutePath`) setiap monitor/installer jalan. Di dalam game script menulis status ke `Workspace/rejoin/hb_<username>.txt` tiap 10 detik (in-game / ke-kick, FPS, ping, memori). Rejoin memakainya untuk: status **Running** yang benar-benar di dalam game (dashboard menampilkan `Running 12fps 380MB`), **Kicked** → langsung rejoin tanpa menunggu, heartbeat berhenti > `staleAfter` (90 dtk) → recovery, dan Launch All lanjut ke clone berikutnya begitu clone sudah masuk game. Tanpa heartbeat (mis. Delta belum di-key) rejoin memakai cek lama (RSS + login). Matikan: Main Menu `9) Jendela & Mode Hemat` atau `heartbeat.enabled = false` (script dilepas otomatis).
+- **Mode hemat** — (opsional, default mati, lewat script heartbeat) render 3D mati, FPS dibatasi (`fpsCap`, default 15), grafik paling rendah, suara mati → CPU/GPU/RAM per clone turun jauh. Saat mode hemat aktif, clone dinilai hidup dari heartbeat / proses berjalan, bukan dari RSS (`minRss`), supaya tidak di-relaunch terus. Atur di Main Menu `9) Jendela & Mode Hemat`.
+- **Auto atur jendela floating** — (default **nyala**; installer juga menyalakannya di config lama) jendela floating tiap clone disusun jadi grid (4 clone → 2×2 di layar 1280×720). Baris atas dibuat **80 px lebih tinggi** dan sedikit menumpuk baris bawah, supaya menu samping Roblox kelihatan sampai *More*. Baris diisi dari bawah: clone 1-2 di bawah, clone 3-4 di atas, karena jendela yang dibuka belakangan tampil di depan. Ubah lewat Main Menu `9` → `9` (`windowLayout.overlap`, 0 = grid biasa). Posisi ditulis ke setting clone (`app_cloner_current_window_*` di `<pkg>_preferences.xml`) **saat clone sedang mati**, tepat sebelum dibuka, jadi tidak mengganggu clone yang jalan. Matikan di Main Menu `9) Jendela & Mode Hemat`. Per clone bisa diatur manual lewat `window = { left=, top=, right=, bottom= }`. Clone yang belum pernah dibuka dibuatkan file setting-nya (owner, izin & label SELinux sama dengan folder data app), jadi device baru langsung ke-grid. **Divalidasi terus:** setelah ditulis nilainya dibaca balik, tiap ±60 detik posisi jendela clone yang jalan dicek; yang meleset ditandai `[win]` di dashboard dan dicatat di log (`grep WINDOW data/rejoin.log`), lalu dibetulkan otomatis saat clone itu dibuka ulang berikutnya (game yang sedang jalan tidak diganggu). Ukuran layar dibaca ulang tiap 30 detik dan grid selalu landscape (`windowLayout.orientation = "auto"` untuk mengikuti layar apa adanya).
+- **Laporan ke Discord webhook** — isi URL webhook di Main Menu `8) Discord Webhook` (ada tombol **Kirim tes sekarang**). Tiap `webhook.interval` detik (default 300) satu pesan status di-**update** (bukan spam pesan baru): device, RAM/CPU/suhu, jumlah online/offline, dan per clone uptime, memori, CPU, plus **screenshot** layar (`webhook.screenshot`). Pesan terpisah saat clone ke-kick, atau recovery gagal (`webhook.events`). Nama akun disembunyikan sebagai spoiler (`hideNames`). Beban: 1 request tiap 5 menit + screencap ±1 detik. URL webhook tidak pernah ditulis ke log. Kosongkan URL (`-` di menu 8) untuk mematikan.
 - **Clone belum login yang FC dibuka lagi** — clone tanpa akun yang **tertutup** (proses mati, atau proses tersisa tanpa jendela) dibuka ulang lewat launcher biasa, **tanpa force-stop**, maks sekali tiap `noLoginCooldown` detik (default 120). Yang masih tampil di layar login tetap tidak disentuh. Log: `grep NOLOGIN data/rejoin.log`. Matikan: `relaunchNoLogin = false`.
 - **Skip restart jika belum login** — clone yang **belum punya akun Roblox login** dan RSS rendah dianggap idle (status `NoLogin`), tidak pernah di-force-relaunch apapun status/kejadiannya (login screen wajar RSS kecil). Deteksi otomatis dengan **scan recursive** token `.ROBLOSECURITY` di direktori data clone (root) — work untuk clone Roblox Lite/mod, bukan cuma `app_webview`. Lihat `Auth` / `cookiePath`.
 - **Optimasi prioritas CPU/I/O** — semua clone di-deprioritaskan (`renice 19` + `ionice idle`), dijalankan saat monitor mulai (termasuk clone yang sudah jalan dari boot sebelumnya) dan tiap 60 siklus, serta setiap kali launch/recovery (karena PID berubah). Pengaturan ini **tidak** membatasi pemakaian RAM clone.
@@ -134,9 +134,22 @@ Langsung masuk Main Menu. Panduan lengkap: [`setup.md`](setup.md). File `yanamin
   lua main.lua --headless --start-monitor --auto-launch
   ```
 
-### ⚡ Install / update satu perintah (disarankan)
+### ⚡ Loader 1 file (paling gampang — recommended)
 
 > Panduan lengkap langkah demi langkah (siap di-share): **[setup.md](setup.md)**.
+
+Seluruh engine (termasuk sistem monitor, grid jendela, heartbeat Delta, Discord webhook, auto-boot, dan sistem key) jadi **satu file**. Cukup dua perintah di Termux:
+
+```sh
+curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
+lua /sdcard/download/yanamin.lua
+```
+
+Android 12+ memakai `/sdcard/Download` bukan `/sdcard/download`. Setelah jalan pertama kali, wizard mendeteksi clone Roblox yang terpasang; semua data (config + log) tersimpan di **`/sdcard/yanamin`** — bisa dibaca langsung dari file manager.
+
+`yanamin.lua` adalah file hasil build (`node tools/bundle_loader.js`) — jangan diedit manual. Update cukup `curl` ulang file itu.
+
+### ⚡ Alternatif: install/update satu perintah (repo clone)
 
 Di Termux (cloud phone baru maupun yang sudah ada rejoin):
 
@@ -144,7 +157,7 @@ Di Termux (cloud phone baru maupun yang sudah ada rejoin):
 curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh
 ```
 
-Installer mengerjakan semuanya: paket (`lua53 sqlite curl git`, lewat `apt` supaya aman dari curl yang rusak), `lua`, cek root, download rejoin ke `~/rejoin` (config & log lama **tetap dipakai**), cek clone di config terpasang, pasang script boot, dan mengaktifkan Termux:Boot. Tiap langkah ditandai `[OK]` / `[!!]`. Aman dijalankan ulang kapan saja.
+Installer mengerjakan semuanya: paket (`lua53 sqlite curl git`, lewat `apt` supaya aman dari curl yang rusak), `lua`, cek root, download rejoin ke `~/rejoin`, cek clone di config terpasang, pasang script boot, dan mengaktifkan Termux:Boot. Tiap langkah ditandai `[OK]` / `[!!]`. Aman dijalankan ulang kapan saja.
 
 Setelah itu **tidak perlu `git pull` lagi**: setiap boot, script boot menjalankan `update.sh` dulu (ambil versi terbaru dari GitHub, `config/config.lua` & `data/rejoin.log` tetap), baru menyalakan engine. Kalau GitHub tidak bisa dihubungi, versi yang ada tetap jalan.
 
@@ -360,7 +373,9 @@ rejoin/
 - `5) Inject Cookie`
 - `6) Auto-boot (Termux:Boot)`
 - `7) Uninstall yanamin`
-- `8) Exit`
+- `8) Discord Webhook`
+- `9) Jendela & Mode Hemat`
+- `10) Exit`
 
 ### Monitoring
 - Dashboard live menampilkan tiap instance sebagai `package (username)` (mis. `com.apengjers.v3 (apengjers)`) + status berwarna. Username di-resolve sekali per sesi via cookie `.ROBLOSECURITY` (root) → API Roblox, di-cache; kolom melebar otomatis di perangkat dengan tampilan lebar. Rincian scan tiap sesi ada di `/sdcard/yanamin/data/username_scan.log`.

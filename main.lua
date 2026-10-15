@@ -178,7 +178,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n 10) Discord Webhook\n 11) Jendela & Mode Hemat\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -215,12 +215,12 @@ while true do
         local UninstallCLI = require("core.uninstall_cli")
         UninstallCLI.run()
     elseif choice == "8" then
+        require("core.webhook_cli").run()
+    elseif choice == "9" then
+        require("core.display_cli").run()
+    elseif choice == "10" then
         print("Exiting main")
         break
-    elseif choice == "10" then
-        require("core.webhook_cli").run()
-    elseif choice == "11" then
-        require("core.display_cli").run()
     else
         print("Unknown choice")
     end

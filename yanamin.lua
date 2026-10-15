@@ -7,7 +7,7 @@
       node tools/bundle_loader.js
 
   Source:  https://github.com/apengjers/rejoin
-  Bundled: 33 modules, entry main.lua
+  Bundled: 38 modules, entry main.lua
 
   Install (one line) and run:
 
@@ -95,15 +95,47 @@ return {
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.
     launchEmptyDelay = 5,
+    -- A clone without an account is left alone on its login screen, but if it CLOSED
+    -- (force close: process gone or no window left) it is opened again, gently (no
+    -- force-stop) and at most once per noLoginCooldown seconds.
+    relaunchNoLogin = true,
+    -- Status reports to a Discord webhook (one message kept up to date + event
+    -- messages). Empty url = off. Set it in Main Menu 8) Discord Webhook.
+    webhook = {
+        url = "",
+        interval = 300,
+        screenshot = true,
+        events = true,
+        hideNames = true,
+    },
+    noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
-    -- right before launch. Off by default. columns = 0 picks automatically.
+    -- right before launch. On by default. columns = 0 picks automatically.
     -- A clone can override its spot with window = { left=, top=, right=, bottom= }.
     windowLayout = {
-        enabled = false,
+        enabled = true,
         columns = 0,
         gap = 0,
         offsetTop = 0,
+        overlap = 80,
+    },
+    -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
+    -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
+    -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
+    -- low graphics, mute). Without a heartbeat the old RSS checks are used.
+    heartbeat = {
+        enabled = true,
+        interval = 10,
+        staleAfter = 90,
+        workspacePath = "",
+        saver = {
+            enabled = false,
+            disable3d = true,
+            fpsCap = 15,
+            lowGraphics = true,
+            mute = true,
+        },
     },
     -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
     -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as
@@ -473,6 +505,118 @@ function Config.resetToTemplate()
 end
 
 return Config]]
+__ya_sources["core.display_cli"] = [[
+local Config = require("core.config")
+
+-- Main Menu 9: floating window grid, Delta heartbeat and saver mode.
+-- Pick one item at a time; every change is saved right away. Displayed values follow
+-- the same defaults as the modules that use them (window_layout / heartbeat).
+
+local CLI = {}
+
+local function prompt(msg)
+    io.write(msg)
+    io.flush()
+    return io.read()
+end
+
+local function onoff(v) return v and "nyala" or "mati" end
+
+local function save(conf)
+    local ok, err = Config.save(conf)
+    print(ok and "Tersimpan." or ("Gagal menyimpan: " .. tostring(err)))
+end
+
+local function tables(conf)
+    conf.windowLayout = type(conf.windowLayout) == "table" and conf.windowLayout or {}
+    conf.heartbeat = type(conf.heartbeat) == "table" and conf.heartbeat or {}
+    conf.heartbeat.saver = type(conf.heartbeat.saver) == "table" and conf.heartbeat.saver or {}
+    return conf.windowLayout, conf.heartbeat, conf.heartbeat.saver
+end
+
+-- Ask for a whole number >= min; empty input keeps the old value.
+local function askInt(label, current, min)
+    local v = prompt(label .. ": [" .. tostring(current) .. "] ")
+    if not v or v:match("^%s*$") then return nil end
+    local n = tonumber(v)
+    if n and n >= min then return math.floor(n) end
+    print("Angka tidak valid.")
+    return nil
+end
+
+function CLI.run()
+    local conf = Config.get() or {}
+    while true do
+        local wl, hb, sv = tables(conf)
+        local cols = tonumber(wl.columns) or 0
+        print("\nJendela & Mode Hemat:")
+        print("  1) Auto atur jendela (grid) [" .. onoff(wl.enabled == true) .. "]")
+        print("  2) Kolom grid               [" .. (cols > 0 and tostring(cols) or "0 = otomatis") .. "]")
+        print("  3) Jarak antar jendela      [" .. tostring(wl.gap or 0) .. " px]")
+        print("  4) Heartbeat Delta          [" .. onoff(hb.enabled ~= false) .. "]")
+        print("  5) Mode hemat               [" .. onoff(sv.enabled == true) .. "]")
+        print("  6) Batas FPS (mode hemat)   [" .. tostring(sv.fpsCap or 15) .. "]")
+        print("  7) Render 3D mati           [" .. (sv.disable3d ~= false and "ya" or "tidak") .. "]")
+        print("  8) Pasang ulang script heartbeat sekarang")
+        print("  9) Baris atas numpuk ke bawah [" .. tostring(wl.overlap or 80) .. " px, 0 = grid biasa]")
+        print("  0) Kembali")
+        local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
+
+        if choice == "0" or choice == "" then
+            return
+        elseif choice == "1" then
+            wl.enabled = not (wl.enabled == true)
+            print("Auto atur jendela: " .. onoff(wl.enabled))
+            save(conf)
+        elseif choice == "2" then
+            local n = askInt("Kolom grid (0 = otomatis)", cols, 0)
+            if n then wl.columns = n; save(conf) end
+        elseif choice == "3" then
+            local n = askInt("Jarak antar jendela (pixel)", wl.gap or 0, 0)
+            if n then wl.gap = n; save(conf) end
+        elseif choice == "4" then
+            hb.enabled = not (hb.enabled ~= false)
+            print("Heartbeat Delta: " .. onoff(hb.enabled))
+            if not hb.enabled and sv.enabled then
+                print("(Mode hemat ikut tidak aktif tanpa heartbeat.)")
+            end
+            save(conf)
+        elseif choice == "5" then
+            sv.enabled = not (sv.enabled == true)
+            print("Mode hemat: " .. onoff(sv.enabled))
+            if sv.enabled and hb.enabled == false then
+                print("(Nyalakan juga Heartbeat Delta / pilihan 4, mode hemat jalan lewat script itu.)")
+            end
+            save(conf)
+        elseif choice == "6" then
+            local n = askInt("Batas FPS (0 = tanpa batas)", sv.fpsCap or 15, 0)
+            if n then sv.fpsCap = n; save(conf) end
+        elseif choice == "7" then
+            sv.disable3d = not (sv.disable3d ~= false)
+            print("Render 3D mati: " .. (sv.disable3d and "ya" or "tidak"))
+            save(conf)
+        elseif choice == "8" then
+            local Heartbeat = require("managers.heartbeat")
+            local ok, msg = Heartbeat.install()
+            print((ok and "OK: " or "Gagal: ") .. tostring(msg))
+        elseif choice == "9" then
+            local n = askInt("Tinggi tambahan baris atas (pixel, 0 = grid biasa)", wl.overlap or 80, 0)
+            if n then
+                wl.overlap = n
+                save(conf)
+                print("(Berlaku saat clone dibuka ulang.)")
+            end
+        else
+            print("Pilihan tidak dikenal.")
+        end
+        if choice ~= "8" and (choice == "4" or choice == "5" or choice == "6" or choice == "7") then
+            print("(Berlaku setelah script heartbeat dipasang ulang: pilihan 8, atau otomatis saat monitor mulai.)")
+        end
+    end
+end
+
+return CLI
+]]
 __ya_sources["core.inject_cookie_cli"] = [[
 local InstanceManager = require("managers.instance")
 local CookieInjector = require("managers.cookie_injector")
@@ -1136,6 +1280,14 @@ local function printSettings(conf)
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
     print("  windowLayout.enabled (auto atur jendela) = " .. tostring(wl.enabled == true)
         .. ", columns = " .. tostring(wl.columns or 0) .. ", gap = " .. tostring(wl.gap or 0))
+    local wh = type(conf.webhook) == "table" and conf.webhook or {}
+    print("  webhook = " .. ((type(wh.url) == "string" and wh.url ~= "") and "diset" or "kosong")
+        .. ", interval = " .. tostring(wh.interval or 300) .. ", screenshot = " .. tostring(wh.screenshot ~= false))
+    local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
+    local sv = type(hb.saver) == "table" and hb.saver or {}
+    print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
+        .. ", mode hemat = " .. tostring(sv.enabled == true)
+        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati = " .. tostring(sv.disable3d ~= false))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
@@ -1219,24 +1371,7 @@ function CLI.run()
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            -- Floating window grid (managers/window_layout.lua), applied while a clone
-            -- is stopped right before it is launched.
-            conf.windowLayout = type(conf.windowLayout) == "table" and conf.windowLayout or {}
-            local wl = conf.windowLayout
-            local cur = wl.enabled == true and "y" or "n"
-            local yn = prompt("Auto atur jendela floating jadi grid? (y/n): [" .. cur .. "] ")
-            if yn and yn:match("^%s*[yY]") then wl.enabled = true
-            elseif yn and yn:match("^%s*[nN]") then wl.enabled = false end
-            if wl.enabled then
-                local v = prompt("Jumlah kolom grid (0 = otomatis): [" .. tostring(wl.columns or 0) .. "] ")
-                local n = tonumber(v)
-                if n and n >= 0 then wl.columns = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-                v = prompt("Jarak antar jendela (pixel): [" .. tostring(wl.gap or 0) .. "] ")
-                n = tonumber(v)
-                if n and n >= 0 then wl.gap = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-            end
+            print("(Jendela, heartbeat & mode hemat: Main Menu 9. Discord webhook: Main Menu 8.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then
@@ -1592,6 +1727,108 @@ function CLI.run()
 end
 
 return CLI]]
+__ya_sources["core.webhook_cli"] = [[
+local Config = require("core.config")
+
+-- Main Menu 10: Discord webhook status reports (managers/webhook.lua).
+-- Pick one item at a time; every change is saved right away.
+
+local CLI = {}
+
+local function prompt(msg)
+    io.write(msg)
+    io.flush()
+    return io.read()
+end
+
+local function section(conf)
+    conf.webhook = type(conf.webhook) == "table" and conf.webhook or {}
+    return conf.webhook
+end
+
+local function onoff(v) return v and "nyala" or "mati" end
+
+local function save(conf)
+    local ok, err = Config.save(conf)
+    print(ok and "Tersimpan." or ("Gagal menyimpan: " .. tostring(err)))
+end
+
+function CLI.run()
+    local conf = Config.get() or {}
+    while true do
+        local wh = section(conf)
+        local hasUrl = type(wh.url) == "string" and wh.url ~= ""
+        print("\nDiscord Webhook:")
+        print("  1) URL webhook          [" .. (hasUrl and "diset" or "kosong") .. "]")
+        print("  2) Interval laporan     [" .. tostring(wh.interval or 300) .. " detik]")
+        print("  3) Screenshot           [" .. onoff(wh.screenshot ~= false) .. "]")
+        print("  4) Notif kejadian       [" .. onoff(wh.events ~= false) .. "]")
+        print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
+        print("  6) Kirim tes sekarang")
+        print("  0) Kembali")
+        local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
+
+        if choice == "0" or choice == "" then
+            return
+        elseif choice == "1" then
+            local v = prompt("URL webhook (Discord > Edit Channel > Integrations > Webhooks > Copy URL; '-' = hapus): ")
+            v = (v or ""):gsub("%s+", "")
+            if v == "-" then
+                wh.url = ""
+                save(conf)
+            elseif v == "" then
+                print("Tidak diubah.")
+            elseif v:match("^https://[%w%.%-]+/api/webhooks/") then
+                wh.url = v
+                save(conf)
+            else
+                print("URL tidak valid (harus https://discord.com/api/webhooks/...).")
+            end
+        elseif choice == "2" then
+            local v = prompt("Interval laporan (detik, min 60): [" .. tostring(wh.interval or 300) .. "] ")
+            local n = tonumber(v)
+            if n and n >= 60 then
+                wh.interval = math.floor(n)
+                save(conf)
+            elseif v and not v:match("^%s*$") then
+                print("Angka tidak valid (min 60).")
+            end
+        elseif choice == "3" then
+            wh.screenshot = not (wh.screenshot ~= false)
+            print("Screenshot: " .. onoff(wh.screenshot))
+            save(conf)
+        elseif choice == "4" then
+            wh.events = not (wh.events ~= false)
+            print("Notif kejadian: " .. onoff(wh.events))
+            save(conf)
+        elseif choice == "5" then
+            wh.hideNames = not (wh.hideNames ~= false)
+            print("Sembunyikan nama: " .. onoff(wh.hideNames))
+            save(conf)
+        elseif choice == "6" then
+            if not hasUrl then
+                print("Isi URL webhook dulu (pilihan 1).")
+            else
+                local Webhook = require("managers.webhook")
+                Webhook.configure(conf)
+                local okI, Instances = pcall(require, "managers.instance")
+                local list = okI and Instances.getAll and Instances.getAll() or {}
+                print("Mengirim laporan tes...")
+                local ok, res = pcall(Webhook.report, list)
+                if ok and res then
+                    print("Terkirim. Cek channel Discord.")
+                else
+                    print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                end
+            end
+        else
+            print("Pilihan tidak dikenal.")
+        end
+    end
+end
+
+return CLI
+]]
 __ya_sources["managers.apk"] = [[
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
@@ -1832,6 +2069,26 @@ function APKManager.getRSSinKB(packageName)
         end
     end
     return -1
+end
+
+-- Does the package have a window on screen? A force-closed clone can leave a stub
+-- process alive with no window at all. Window lines in `dumpsys window windows` look
+-- like "Window{a1b2c3 u0 com.pkg/com.pkg.Activity}" (or "... u0 com.pkg}" for a
+-- floating window titled with the package).
+-- Returns true / false, or nil when the dump could not be read (caller: don't guess).
+function APKManager.hasWindow(packageName)
+    if not packageName or packageName == "" then return nil end
+    local pkg = packageName:gsub("['\" ]", "")
+    local ok, out = Shell.exec("dumpsys window windows")
+    if not ok or not out or out == "" or out == "(dry-run)" then return nil end
+    if not out:find("Window{", 1, true) then return nil end
+    local esc = pkg:gsub("%p", "%%%0")
+    for line in out:gmatch("[^\r\n]+") do
+        if line:find("Window{", 1, true) and line:match(" u%d+ " .. esc .. "[/}%s]") then
+            return true
+        end
+    end
+    return false
 end
 
 function APKManager.isActive(packageName)
@@ -3278,6 +3535,253 @@ function Doctor.run()
 end
 
 return Doctor]]
+__ya_sources["managers.heartbeat"] = [=[
+local Logger = require("core.logger")
+local Config = require("core.config")
+local File = require("utils.file")
+local Shell = require("utils.shell")
+
+-- In-game status from inside Roblox.
+--
+-- rejoin installs scripts/rejoin_heartbeat.lua into the executor's autoexecute folder
+-- (appAutoExecutePath). Inside the game that script writes
+--   <workspace>/rejoin/hb_<username>.txt
+-- every `interval` seconds: state (ingame / kicked), fps, ping, memory, time.
+-- The workspace folder is found next to the autoexecute folder (Workspace/workspace)
+-- unless heartbeat.workspacePath is set.
+--
+-- Only a heartbeat written AFTER the clone's latest launch counts, so an old file
+-- (e.g. the "kicked" one from before a relaunch) never triggers anything.
+--
+-- Config (all optional):
+--   heartbeat = {
+--       enabled = true,      -- install the script and use its status
+--       interval = 10,       -- seconds between writes inside the game
+--       staleAfter = 90,     -- seconds without a write before the game counts as gone
+--       workspacePath = "",  -- "" = auto
+--       saver = { enabled = false, disable3d = true, fpsCap = 15,
+--                 lowGraphics = true, mute = true },
+--   }
+
+local Heartbeat = {}
+
+local SCRIPT_NAME = "rejoin_heartbeat.lua"
+local MARKER = "REJOIN_HEARTBEAT"
+local FOLDER = "rejoin"
+
+local launchedAt = {} -- pkg -> os.time() of the latest launch
+-- Files older than this engine run never count (e.g. yesterday's stale heartbeat).
+local startedAt = os.time()
+local wsCache = nil
+local readCache = {} -- pkg -> { at, hb } ; the monitor asks several times per cycle
+
+local function conf()
+    local ok, c = pcall(Config.get)
+    c = ok and type(c) == "table" and c or {}
+    local hb = type(c.heartbeat) == "table" and c.heartbeat or {}
+    local sv = type(hb.saver) == "table" and hb.saver or {}
+    return {
+        enabled = hb.enabled ~= false,
+        interval = math.max(3, math.floor(tonumber(hb.interval) or 10)),
+        staleAfter = math.max(20, math.floor(tonumber(hb.staleAfter) or 90)),
+        workspacePath = type(hb.workspacePath) == "string" and hb.workspacePath or "",
+        saver = {
+            enabled = sv.enabled == true,
+            disable3d = sv.disable3d ~= false,
+            fpsCap = math.max(0, math.floor(tonumber(sv.fpsCap) or 15)),
+            lowGraphics = sv.lowGraphics ~= false,
+            mute = sv.mute ~= false,
+        },
+    }, c
+end
+
+function Heartbeat.isEnabled() return conf().enabled end
+function Heartbeat.saverEnabled()
+    local c = conf()
+    return c.enabled and c.saver.enabled
+end
+
+local function autoexecDir()
+    local _, c = conf()
+    local dir = c.appAutoExecutePath
+    if type(dir) ~= "string" or dir == "" then return nil end
+    return (dir:gsub("/+$", ""))
+end
+
+local function dirExists(path)
+    local ok, out = Shell.exec("[ -d '" .. path:gsub("'", "'\\''") .. "' ] && echo AE_YES || echo AE_NO")
+    return ok and out and out:find("AE_YES", 1, true) ~= nil
+end
+
+-- The executor's workspace folder (where writefile() lands).
+function Heartbeat.workspaceDir()
+    local c = conf()
+    if c.workspacePath ~= "" then return (c.workspacePath:gsub("/+$", "")) end
+    if wsCache then return wsCache end
+    local ae = autoexecDir()
+    if not ae then return nil end
+    local parent = ae:match("^(.*)/[^/]+$") or ae
+    for _, name in ipairs({ "Workspace", "workspace" }) do
+        local p = parent .. "/" .. name
+        if dirExists(p) then
+            wsCache = p
+            return p
+        end
+    end
+    return parent .. "/Workspace"
+end
+
+local function scriptSource()
+    local here = (debug.getinfo(1, "S").source or ""):match("^@(.*)/managers/[^/]+$") or "."
+    local fromDisk = File.read(here .. "/scripts/rejoin_heartbeat.lua") or File.read("scripts/rejoin_heartbeat.lua")
+    if fromDisk then return fromDisk end
+    -- yanamin bundle: no scripts/ folder next to the loader, use the embedded copy.
+    return __ya_source("scripts.rejoin_heartbeat")
+end
+
+local function luaValue(v)
+    if type(v) == "boolean" or type(v) == "number" then return tostring(v) end
+    return string.format("%q", tostring(v))
+end
+
+-- Install (or refresh) the script in the autoexecute folder; remove it when disabled.
+-- Returns ok, message.
+function Heartbeat.install()
+    local c = conf()
+    local dir = autoexecDir()
+    if not dir then return false, "appAutoExecutePath kosong" end
+    local target = dir .. "/" .. SCRIPT_NAME
+
+    if not c.enabled then
+        local existing = File.read(target)
+        if existing and existing:find(MARKER, 1, true) then
+            os.remove(target)
+            Logger.info("Heartbeat: script dilepas dari " .. target)
+        end
+        return true, "disabled"
+    end
+
+    local src = scriptSource()
+    if not src then return false, "scripts/rejoin_heartbeat.lua tidak ditemukan" end
+    local cfg = string.format(
+        "{\n    interval = %d,\n    folder = %s,\n    saver = %s,\n    disable3d = %s,\n"
+        .. "    fpsCap = %d,\n    lowGraphics = %s,\n    mute = %s,\n}",
+        c.interval, luaValue(FOLDER), luaValue(c.saver.enabled), luaValue(c.saver.disable3d),
+        c.saver.fpsCap, luaValue(c.saver.lowGraphics), luaValue(c.saver.mute))
+    local s, e = src:find("--[[REJOIN_CFG]]", 1, true)
+    local s2, e2 = src:find("--[[/REJOIN_CFG]]", 1, true)
+    if not s or not s2 then return false, "template rusak" end
+    local out = src:sub(1, e) .. cfg .. src:sub(s2)
+
+    if File.read(target) == out then return true, "up to date" end
+    local ok, err = File.write(target, out)
+    if not ok then
+        Logger.warn("Heartbeat: gagal menulis " .. target .. ": " .. tostring(err))
+        return false, tostring(err)
+    end
+    Logger.info("Heartbeat: script terpasang di " .. target .. (c.saver.enabled and " (mode hemat)" or ""))
+    return true, target
+end
+
+function Heartbeat.markLaunched(instance)
+    local pkg = instance and instance.package
+    if pkg then
+        launchedAt[pkg] = os.time()
+        readCache[pkg] = nil
+    end
+end
+
+local function readFile(path)
+    local content = File.read(path)
+    if content then return content end
+    -- Files written by the app may not be readable by Termux directly.
+    local ok, out = Shell.exec("cat '" .. path:gsub("'", "'\\''") .. "' 2>/dev/null")
+    if ok and out and out ~= "" and out ~= "(dry-run)" then return out end
+    return nil
+end
+
+-- Latest heartbeat for this clone, or nil. Fields: state, fps, ping, mem, time,
+-- fresh (written within staleAfter), current (written after the latest launch).
+function Heartbeat.read(instance)
+    local c = conf()
+    if not c.enabled or not instance or not instance.package then return nil end
+    local cached = readCache[instance.package]
+    if cached and os.time() - cached.at < 2 then return cached.hb end
+    local hb = Heartbeat.readNow(instance, c)
+    readCache[instance.package] = { at = os.time(), hb = hb }
+    return hb
+end
+
+function Heartbeat.readNow(instance, c)
+    c = c or conf()
+    local okU, Username = pcall(require, "managers.username")
+    local name = okU and Username.get(instance) or nil
+    if not name or name == "" then return nil end
+    local ws = Heartbeat.workspaceDir()
+    if not ws then return nil end
+    local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
+    if not content then return nil end
+
+    local hb = {}
+    for line in content:gmatch("[^\r\n]+") do
+        local k, v = line:match("^(%w+)=(.*)$")
+        if k then hb[k] = v end
+    end
+    hb.time = tonumber(hb.time)
+    if not hb.time then return nil end
+    hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
+    local now = os.time()
+    hb.age = now - hb.time
+    hb.fresh = hb.age <= c.staleAfter
+    local since = launchedAt[instance.package] or startedAt
+    hb.current = hb.time >= since
+    return hb
+end
+
+-- Is the game up, judged from inside it?
+--   true  = fresh heartbeat from this session, in game
+--   false = kicked/disconnected, or this session's heartbeat stopped
+--   nil   = no heartbeat from this session yet: caller decides another way
+function Heartbeat.alive(instance)
+    local ok, hb = pcall(Heartbeat.read, instance)
+    if not ok or not hb or not hb.current then return nil end
+    if hb.state == "kicked" then
+        if hb.fresh then return false, "kicked: " .. tostring(hb.reason or "") end
+        return nil
+    end
+    if hb.fresh then return true end
+    return false, string.format("heartbeat berhenti %ds", hb.age)
+end
+
+-- Short dashboard suffix like "12fps 380MB", or nil.
+function Heartbeat.summary(instance)
+    local ok, hb = pcall(Heartbeat.read, instance)
+    if not ok or not hb or not hb.fresh or not hb.current or hb.state ~= "ingame" then return nil end
+    local parts = {}
+    if hb.fps then parts[#parts + 1] = hb.fps .. "fps" end
+    if hb.mem and hb.mem > 0 then parts[#parts + 1] = hb.mem .. "MB" end
+    if #parts == 0 then return nil end
+    return table.concat(parts, " ")
+end
+
+-- Is the clone up? Heartbeat first; without one, the old checks: RSS >= minRss, or
+-- (saver mode, where RSS drops on purpose) the process simply running.
+function Heartbeat.isUp(instance, apk)
+    local alive = Heartbeat.alive(instance)
+    if alive ~= nil then return alive end
+    local pkg = instance and instance.package
+    if not pkg then return false end
+    apk = apk or require("managers.apk")
+    if Heartbeat.saverEnabled() then
+        local ok, res = pcall(apk.isRunning, pkg)
+        return ok and res or false
+    end
+    local ok, res = pcall(apk.isActive, pkg)
+    return ok and res or false
+end
+
+return Heartbeat
+]=]
 __ya_sources["managers.instance"] = [[
 local InstanceManager = {}
 
@@ -3395,6 +3899,9 @@ local Status = require("managers.status")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local ProbeLog = require("utils.probe_log")
+local Heartbeat = require("managers.heartbeat")
+local WindowLayout = require("managers.window_layout")
+local Webhook = require("managers.webhook")
 
 local Monitor = {}
 local running = false
@@ -3505,6 +4012,70 @@ end
 --   launchEmptyDelay   - seconds to wait after a clone with no account, before the next
 -- Every clone is launched. One that reads as not logged in only gets a short pause
 -- instead of the full wait, since it will sit on the login screen with low RSS.
+-- Floating window check (window grid on): compare each running clone's window with
+-- its grid slot. Only reported (log on change + dashboard mark); the position is
+-- rewritten on the clone's next launch, never by restarting a running game.
+local windowState = {} -- pkg -> true (in place) / false (off grid)
+local monitorConf = {}
+
+-- A clone without a logged-in account is left alone while it sits on the login
+-- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
+-- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
+-- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
+local noLoginLast = {} -- pkg -> os.time() of the last reopen
+
+local function reopenNoLoginIfClosed(inst, id, name, pkg)
+    if monitorConf.relaunchNoLogin == false or not pkg then return false end
+    local okR, alive = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR then return false end
+    local why
+    if not alive then
+        why = "proses mati"
+    else
+        local okW, has = pcall(function() return apkManager.hasWindow(pkg) end)
+        if okW and has == false then why = "tanpa jendela" end
+    end
+    if not why then return false end
+    local cooldown = tonumber(monitorConf.noLoginCooldown) or 120
+    local now = os.time()
+    if noLoginLast[pkg] and now - noLoginLast[pkg] < cooldown then return false end
+    if isRecovering(id) then return false end
+    noLoginLast[pkg] = now
+
+    Logger.info(string.format("[NOLOGIN] %s tertutup (%s); dibuka lagi", name, why))
+    setRecovering(id, true)
+    Status.beginRecovery(id)
+    local okL, launched = pcall(function() return recoveryManager.reopenNoLogin(inst) end)
+    Status.endRecovery(id)
+    setRecovering(id, false)
+    if okL and launched then
+        pcall(function() return Optimizer.applyForInstance(inst) end)
+    else
+        Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
+        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
+    end
+    return true
+end
+
+local function checkWindow(inst)
+    if not WindowLayout.isEnabled() then return end
+    local pkg = inst and inst.package
+    if not pkg then return end
+    local okR, runningNow = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR or not runningNow then return end
+    local okV, res, actual, target = pcall(WindowLayout.verify, inst)
+    if not okV or res == nil then return end
+    if windowState[pkg] == res then return end
+    windowState[pkg] = res
+    local name = tostring(inst.name or pkg)
+    if res then
+        Logger.info(string.format("[WINDOW] %s posisi OK", name))
+    else
+        Logger.warn(string.format("[WINDOW] %s meleset (sekarang %s; target %s) -> dibetulkan saat relaunch berikutnya",
+            name, WindowLayout.formatBounds(actual), WindowLayout.formatBounds(target)))
+    end
+end
+
 local function runSequentialLaunch(conf)
     local instances = instanceManager.getAll()
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
@@ -3518,6 +4089,7 @@ local function runSequentialLaunch(conf)
 
     for i, inst in ipairs(instances) do
         if not running then break end
+        Status.setProgress(i, #instances, "Launching")
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
@@ -3546,7 +4118,7 @@ local function runSequentialLaunch(conf)
 
             local function isActiveNow()
                 if not pkg then return false end
-                local okA, resA = pcall(function() return apkManager.isActive(pkg) end)
+                local okA, resA = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 return okA and resA
             end
 
@@ -3577,9 +4149,15 @@ local function runSequentialLaunch(conf)
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
                     break
                 end
+                -- The in-game heartbeat proves it already joined: no need to wait longer.
+                if Heartbeat.alive(inst) == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
+                    break
+                end
             end
 
             Status.endStarting(id)
+            if launched then checkWindow(inst) end
             -- New process got a new pid during this launch: deprioritize it now.
             pcall(function() return Optimizer.applyForInstance(inst) end)
             ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds settled=%ds",
@@ -3593,6 +4171,9 @@ end
 
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
+    monitorConf = type(conf) == "table" and conf or {}
+    Webhook.configure(monitorConf)
+    noLoginLast = {}
     instanceManager = require("managers.instance")
     recoveryManager = require("managers.recovery")
     apkManager = require("managers.apk")
@@ -3634,6 +4215,8 @@ function Monitor.start(conf, opts)
         end
     end)
     installSignalHandler()
+    local hbOk, hbMsg = Heartbeat.install()
+    if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
     -- the dashboard around (log lines still go to the log file).
     Logger.setConsoleVisible(false)
@@ -3645,22 +4228,20 @@ function Monitor.start(conf, opts)
     -- dashboard (Starting -> Running) before the monitoring loop takes over.
     if opts.autoLaunch then
         runSequentialLaunch(conf)
+        Status.setProgress(nil)
         -- one full refresh so the "starting" override is cleared and statuses settle
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
-    -- Instances that need recovery in this cycle. At most one is actually recovered
-    -- per cycle (see the bottom of the loop) so a slow recovery never blocks the
-    -- status checks or the dashboard of the other clones.
-    local pendingRecovery = {}
-    local cycles = 0
-
+    local cycle = 0
+    local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
-        cycles = cycles + 1
-        pendingRecovery = {}
+        cycle = cycle + 1
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
+            Status.setProgress(i, #instances, "Checking")
+            if i > 1 then Status.printSummary(instances) end
             local id = inst.id or i
             local name = tostring(inst.name or id)
             local pkg = inst.package
@@ -3713,8 +4294,17 @@ function Monitor.start(conf, opts)
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has
                 -- ~1 GB while a force-close stub is only ~188 MB.
-                local ok, res = pcall(function() return apkManager.isActive(pkg) end)
+                -- An in-game heartbeat (when the Delta script runs) decides first: a kick or
+                -- a stopped heartbeat is unhealthy even with plenty of RSS.
+                local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                if not healthy then
+                    local _, why = Heartbeat.alive(inst)
+                    if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
+                    if why and why:find("^kicked") then
+                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
+                    end
+                end
             end
 
             if healthy then
@@ -3725,17 +4315,35 @@ function Monitor.start(conf, opts)
                 -- expected while it sits on the login screen). Never force-recover it,
                 -- regardless of the transient status shown.
                 if status == "nologin" or Auth.isLoggedIn(inst) == false then
-                    Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    -- On the login screen: leave it. Closed: reopen gently (see above).
+                    if not reopenNoLoginIfClosed(inst, id, name, pkg) then
+                        Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    end
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- Queue it instead of recovering inline. Recovery can take up to
-                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
-                    -- inside the status loop froze the dashboard AND stopped every other
-                    -- clone from being checked for that whole time. At most one queued
-                    -- instance is recovered per cycle (see below), so the monitor stays
-                    -- responsive and the rest is picked up on the following cycles.
-                    pendingRecovery[#pendingRecovery + 1] = inst
+                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
+                    setRecovering(id, true)
+                    Status.beginRecovery(id)
+                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    local p_ok, recovered = pcall(function()
+                        return recoveryManager.checkAndRecover(inst)
+                    end)
+                    if not p_ok then
+                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    elseif recovered then
+                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                        pcall(function() return Optimizer.applyForInstance(inst) end)
+                    else
+                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                        Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
+                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    end
+                    Status.endRecovery(id)
+                    setRecovering(id, false)
                 end
             end
 
@@ -3748,7 +4356,9 @@ function Monitor.start(conf, opts)
         end
 
         -- Print the per-instance status table for the user to see.
+        Status.setProgress(nil)
         Status.printSummary(instances)
+        Webhook.tick(instances)
 
         -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
         -- next cycle, so the dashboard above already shows the full picture and no other
@@ -3799,6 +4409,10 @@ function Monitor.start(conf, opts)
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.
         os.execute("stty isig 2>/dev/null")
+
+        if running and cycle % windowEvery == 0 then
+            for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+        end
 
         Timer.sleepInterruptible(interval, function() return not running end)
     end
@@ -3927,6 +4541,7 @@ local Config = require("core.config")
 local Status = require("managers.status")
 local Auth = require("managers.auth")
 local WindowLayout = require("managers.window_layout")
+local Heartbeat = require("managers.heartbeat")
 
 local Recovery = {}
 
@@ -3940,9 +4555,9 @@ local function isHealthy(instance)
     local pkg = instance and instance.package
     if not pkg then return false end
     -- A force-close leaves a low-RSS stub process alive, so process existence can't prove
-    -- the app actually came back up. Health = RSS above the active threshold (isActive),
-    -- so recovery only completes once the clone is genuinely running with real memory.
-    local ok, res = pcall(function() return APK.isActive(pkg) end)
+    -- the app actually came back up. Health = an in-game heartbeat from this session,
+    -- else RSS above the active threshold (isActive) as before.
+    local ok, res = pcall(function() return Heartbeat.isUp(instance, APK) end)
     return ok and res
 end
 
@@ -4021,12 +4636,14 @@ function Recovery.launchAndJoin(instance)
         Timer.sleep(1)
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
+        Heartbeat.markLaunched(instance)
         local opened = openGameLink(instance)
         if not opened then return false end
     else
         if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
             WindowLayout.applyForInstance(instance)
         end
+        Heartbeat.markLaunched(instance)
         local ok, err = APK.launch(pkg)
         if not ok then
             Logger.error("Recovery.launchAndJoin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
@@ -4133,6 +4750,7 @@ function Recovery.relaunch(instance)
 
     Timer.sleep(1)
     WindowLayout.applyForInstance(instance)
+    Heartbeat.markLaunched(instance)
 
     local ok, err = APK.launch(pkg)
     if not ok then
@@ -4141,6 +4759,26 @@ function Recovery.relaunch(instance)
     end
 
     Logger.debug("Recovery.relaunch: relaunched " .. tostring(instance.name or pkg))
+    return true
+end
+
+-- Re-open a clone that has NO logged-in account after it closed (force close / crash).
+-- Gentle on purpose: never force-stops (that loop is what used to push other clones
+-- out of memory), no game link (there is no account to join with), no retries; the
+-- monitor rate-limits calls. A dead process gets its window slot first.
+function Recovery.reopenNoLogin(instance)
+    local pkg = instance and instance.package
+    if not pkg then return false end
+    local okR, alive = pcall(function() return APK.isRunning(pkg) end)
+    if okR and not alive then
+        WindowLayout.applyForInstance(instance)
+    end
+    Heartbeat.markLaunched(instance)
+    local ok, err = APK.launch(pkg)
+    if not ok then
+        Logger.warn("Recovery.reopenNoLogin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
+        return false
+    end
     return true
 end
 
@@ -4180,6 +4818,7 @@ function Recovery.checkAndRecover(instance)
         -- small pause to let system settle
         Timer.sleep(1)
         WindowLayout.applyForInstance(instance)
+        Heartbeat.markLaunched(instance)
 
         -- A game link must launch a cold app. Launching MAIN first can leave the
         -- subsequent VIEW intent on the game page without joining the server.
@@ -4240,6 +4879,7 @@ local APK = require("managers.apk")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local Shell = require("utils.shell")
+local Heartbeat = require("managers.heartbeat")
 
 local Status = {}
 
@@ -4262,6 +4902,11 @@ function Status.configure(conf)
     freezeTimeout = tonumber(conf.freezeTimeout) or 300
     gracePeriod = tonumber(conf.gracePeriod) or 30
     anrEnabled = conf.anrCheckEnabled ~= false -- default true
+end
+
+-- Current status string of an instance (for reports), or nil.
+function Status.statusOf(id)
+    return states[id] and states[id].status or nil
 end
 
 function Status.reset()
@@ -4392,7 +5037,7 @@ classify = function(instance)
         -- that exists but stays below the threshold means its UI is gone.
         local okP, resP = pcall(function() return APK.isRunning(pkg) end)
         procExists = okP and resP
-        local okA, resA = pcall(function() return APK.isActive(pkg) end)
+        local okA, resA = pcall(function() return Heartbeat.isUp(instance, APK) end)
         active = okA and resA
     end
     local rssKb = pkg and APK.getRSSinKB(pkg) or -1
@@ -4406,6 +5051,18 @@ classify = function(instance)
         s.anrSeen = nil
         s.forceRunning = nil
         return s.status
+    end
+
+    -- The in-game script reported a kick/disconnect: show it plainly (the monitor
+    -- recovers the clone right away).
+    if not active and procExists then
+        local alive, why = Heartbeat.alive(instance)
+        if alive == false and why and why:find("^kicked") then
+            s.status = "kicked"
+            s.stuckSince = nil
+            s.healthySince = nil
+            return s.status
+        end
     end
 
     if not active then
@@ -4516,6 +5173,7 @@ local STATUS_UI = {
     starting = { "Starting", C.blue },
     offline  = { "Offline",  C.dim },
     nologin  = { "NoLogin",  C.dim },
+    kicked   = { "Kicked",   C.red },
 }
 
 -- Best-effort memory + storage readout, cached to avoid shell cost every cycle.
@@ -4613,6 +5271,38 @@ local function blankCell(width)
     return string.rep(" ", width)
 end
 
+-- What the monitor is doing right now, shown in the "System" row:
+-- nil = idle (monitoring), or { verb = "Checking" | "Launching", i, n }.
+local progress = nil
+
+function Status.setProgress(i, n, verb)
+    if i and n then
+        progress = { verb = verb or "Checking", i = i, n = n }
+    else
+        progress = nil
+    end
+end
+
+-- "package (username)" squeezed into `width` columns: the username is shortened
+-- with ".." first so the package (what identifies the clone) stays readable.
+local function instanceLabel(pkg, uname, width, prefix)
+    prefix = prefix or ""
+    local room = width - 2 - #prefix
+    if not uname or uname == "" then
+        if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+        return prefix .. pkg
+    end
+    if #pkg + 3 + #uname <= room then
+        return prefix .. pkg .. " (" .. uname .. ")"
+    end
+    local keep = room - #pkg - 5 -- " (" + ".." + ")"
+    if keep >= 2 then
+        return prefix .. pkg .. " (" .. uname:sub(1, keep) .. "..)"
+    end
+    if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+    return prefix .. pkg
+end
+
 -- Human-readable RSS for the dashboard: "1.2 GB" / "310 MB", or "-" when the clone has
 -- no process / no reading yet. Uses the value cached by classify(), so the dashboard
 -- costs zero extra shell calls.
@@ -4659,15 +5349,22 @@ function Status.printSummary(instances)
 
     local sb = {}
     table.insert(sb, top)
-    table.insert(sb, blankRow())
     table.insert(sb, bodyRow("Instance", "Status", nil, "RSS"))
-    table.insert(sb, blankRow())
+    table.insert(sb, mid)
+
+    -- System rows first, like a status header for the whole device.
+    if progress then
+        table.insert(sb, bodyRow("System", string.format("%s [%d/%d]", progress.verb, progress.i, progress.n), C.yellow))
+    else
+        table.insert(sb, bodyRow("System", "Monitoring", C.green))
+    end
+    table.insert(sb, bodyRow("Memory", memoryLine() or "--"))
+    table.insert(sb, bodyRow("Storage", storageLine() or "--"))
     table.insert(sb, mid)
 
     local totalRssKb = 0
     if not instances or #instances == 0 then
-        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim, "-"))
-        table.insert(sb, mid)
+        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
     else
         for _, inst in ipairs(instances) do
             local id = inst.id or inst.name or "?"
@@ -4676,20 +5373,22 @@ function Status.printSummary(instances)
             local status = s and s.status or "offline"
             local ui = STATUS_UI[status] or { status, C.dim }
             local label = ui[1] or "Unknown"
+            if status == "ingame" then
+                local extra = Heartbeat.summary(inst)
+                if extra then label = label .. " " .. extra end
+            end
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
-            local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg
+            local okW, WindowLayout = pcall(require, "managers.window_layout")
+            local wv = okW and WindowLayout.lastVerify(inst.package) or nil
+            local prefix = (wv and wv.ok == false) and "[win] " or ""
+            local rowText = instanceLabel(pkg, uname and tostring(uname) or nil, LCOL, prefix)
             local rss = s and s.rssKb or -1
-            if rss and rss > 0 then totalRssKb = totalRssKb + rss end
+            if rss > 0 then totalRssKb = totalRssKb + rss end
             table.insert(sb, bodyRow(rowText, label, ui[2], rssText(rss)))
         end
-        table.insert(sb, mid)
     end
-
-    -- Footer facts: how much RAM the clones themselves hold, then the system numbers.
     table.insert(sb, bodyRow("App RAM (total)", totalRssKb > 0 and rssText(totalRssKb) or "--"))
-    table.insert(sb, bodyRow("Memory Usage", memoryLine() or "--"))
-    table.insert(sb, bodyRow("Storage Available", storageLine() or "--"))
     table.insert(sb, bot)
 
     -- Footer hint below the table.
@@ -4933,6 +5632,442 @@ function Username.prefetch(instances)
 end
 
 return Username]=]
+__ya_sources["managers.webhook"] = [[
+local Logger = require("core.logger")
+local Shell = require("utils.shell")
+
+-- Status reports to a Discord webhook.
+--
+-- Every `interval` seconds the monitor calls Webhook.tick(): one status message
+-- (device, RAM / CPU / temperature, online count, uptime / memory / CPU per clone,
+-- optional screenshot) is posted once and then EDITED in place, so the channel holds
+-- a single live status. If that message was deleted, a new one is posted. Events
+-- (engine start, kick, failed recovery) are sent as separate small messages.
+--
+-- Config:
+--   webhook = {
+--       url = "",          -- Discord webhook URL; "" = feature off (nothing runs)
+--       interval = 300,    -- seconds between status updates
+--       screenshot = true, -- attach a screenshot of the cloud phone
+--       events = true,     -- separate messages for engine start / kick / failures
+--       hideNames = true,  -- show account names as spoilers
+--   }
+--
+-- curl runs as the Termux user (not through su), so the webhook URL never appears in
+-- a root command line, and it is never written to the log.
+
+local Webhook = {}
+
+local conf = {}
+local lastReport = 0
+local firstReportAt = nil
+local warned = {}
+local eventLast = {}
+local cpuPrev = nil      -- { total, idle }
+local procPrev = {}      -- pkg -> { proc, total }
+local STATE_FILE = "data/webhook_msg.txt"
+local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
+local SHOT = TMP .. "/rejoin_ss.png"
+local PAYLOAD = TMP .. "/rejoin_webhook.json"
+local HZ = 100
+
+local function warnOnce(key, msg)
+    if warned[key] then return end
+    warned[key] = true
+    Logger.warn("Webhook: " .. msg)
+end
+
+function Webhook.configure(c)
+    local w = type(c) == "table" and type(c.webhook) == "table" and c.webhook or {}
+    conf = {
+        url = type(w.url) == "string" and w.url:gsub("%s+", "") or "",
+        interval = math.max(60, math.floor(tonumber(w.interval) or 300)),
+        screenshot = w.screenshot ~= false,
+        events = w.events ~= false,
+        hideNames = w.hideNames ~= false,
+    }
+    if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
+    lastReport = 0
+    firstReportAt = os.time() + 30
+end
+
+function Webhook.enabled()
+    return conf.url ~= nil and conf.url ~= ""
+end
+
+-- JSON string escaping.
+local function js(s)
+    s = tostring(s or "")
+    s = s:gsub('[%c"\\]', function(ch)
+        if ch == '"' then return '\\"' end
+        if ch == "\\" then return "\\\\" end
+        if ch == "\n" then return "\\n" end
+        if ch == "\r" then return "" end
+        if ch == "\t" then return "\\t" end
+        return string.format("\\u%04x", ch:byte())
+    end)
+    return '"' .. s .. '"'
+end
+Webhook._js = js
+
+local function shQuote(v)
+    return "'" .. tostring(v):gsub("'", "'\\''") .. "'"
+end
+
+-- Run curl as the Termux user. Returns http code (number or nil) and body.
+local function curl(args)
+    local cmd = "curl -s --max-time 25 -w '\\n%{http_code}' " .. args .. " </dev/null 2>/dev/null"
+    local f = io.popen(cmd)
+    if not f then return nil, "" end
+    local out = f:read("*a") or ""
+    f:close()
+    local body, code = out:match("^(.-)\n?(%d%d%d)%s*$")
+    return tonumber(code), body or out
+end
+
+local function writeFile(path, content)
+    local f = io.open(path, "w")
+    if not f then return false end
+    f:write(content)
+    f:close()
+    return true
+end
+
+local function readFile(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local s = f:read("*a")
+    f:close()
+    return s
+end
+
+local function root(cmd)
+    local ok, out = Shell.exec(cmd)
+    if not ok or not out or out == "(dry-run)" then return nil end
+    return out
+end
+
+-- System numbers ------------------------------------------------------------------
+local function cpuTotals()
+    local stat = root("cat /proc/stat")
+    if not stat then return nil end
+    local line = stat:match("^cpu%s+([^\n]+)")
+    if not line then return nil end
+    local nums = {}
+    for n in line:gmatch("%d+") do nums[#nums + 1] = tonumber(n) end
+    local total = 0
+    for _, n in ipairs(nums) do total = total + n end
+    local idle = (nums[4] or 0) + (nums[5] or 0)
+    local cores = 0
+    for _ in stat:gmatch("\ncpu%d+ ") do cores = cores + 1 end
+    return total, idle, math.max(cores, 1)
+end
+
+local function systemStats()
+    local s = {}
+    s.device = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
+    if s.device == "" then s.device = "-" end
+
+    local mem = root("cat /proc/meminfo") or ""
+    local total = tonumber(mem:match("MemTotal:%s*(%d+)"))
+    local avail = tonumber(mem:match("MemAvailable:%s*(%d+)"))
+    if total and avail and total > 0 then
+        s.ram = string.format("%dMB free (%d%%)", math.floor(avail / 1024), math.floor(avail * 100 / total))
+    else
+        s.ram = "-"
+    end
+
+    local t, idle, cores = cpuTotals()
+    s.cores = cores or 1
+    s.cpuTotal = t
+    if t and cpuPrev and t > cpuPrev.total then
+        local dt, di = t - cpuPrev.total, idle - cpuPrev.idle
+        s.cpu = string.format("%d%%", math.floor((dt - di) * 100 / dt + 0.5))
+    else
+        s.cpu = "-"
+    end
+    if t then cpuPrev = { total = t, idle = idle } end
+
+    local temps = root("cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null") or ""
+    local best
+    for n in temps:gmatch("%-?%d+") do
+        local v = tonumber(n)
+        if v and v > 1000 then v = v / 1000 end
+        if v and v > 0 and v < 150 and (not best or v > best) then best = v end
+    end
+    s.temp = best and string.format("%.1f°C", best) or "-"
+
+    s.uptime = tonumber((root("cat /proc/uptime") or ""):match("^(%d+%.?%d*)"))
+    return s
+end
+
+local function fmtDuration(sec)
+    sec = math.max(0, math.floor(sec or 0))
+    local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
+    if d > 0 then return string.format("%dd %dh", d, h) end
+    if h > 0 then return string.format("%dh %dm", h, m) end
+    return string.format("%dm", m)
+end
+
+-- Uptime and CPU of one clone's main process, from /proc/<pid>/stat.
+local function procStats(pkg, sys)
+    if type(pkg) ~= "string" or not pkg:match("^[%w_%.]+$") then return nil end
+    local pid = (root("pidof " .. pkg) or ""):match("(%d+)")
+    if not pid then return nil end
+    local stat = root("cat /proc/" .. pid .. "/stat")
+    if not stat then return nil end
+    local rest = stat:match("%)%s+(.*)$")
+    if not rest then return nil end
+    local f = {}
+    for v in rest:gmatch("%S+") do f[#f + 1] = v end
+    -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
+    local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
+    local r = {}
+    if start and sys.uptime then r.uptime = sys.uptime - start / HZ end
+    if utime and stime then
+        local proc = utime + stime
+        local prev = procPrev[pkg]
+        if prev and sys.cpuTotal and sys.cpuTotal > prev.total and proc >= prev.proc then
+            local share = (proc - prev.proc) / ((sys.cpuTotal - prev.total) / sys.cores)
+            r.cpu = string.format("%.1f%%", share * 100)
+        end
+        procPrev[pkg] = { proc = proc, total = sys.cpuTotal or 0 }
+    end
+    return r
+end
+
+-- Report body ---------------------------------------------------------------------
+local ICON = {
+    ingame = "🟢", starting = "🟡", recovery = "🟡", resetting = "🟡",
+    nologin = "⚪", kicked = "🔴", freeze = "🔴", stuck = "🔴", offline = "🔴",
+}
+
+local function buildReport(instances, sys, withImage)
+    local okS, Status = pcall(require, "managers.status")
+    local okU, Username = pcall(require, "managers.username")
+    local okH, Heartbeat = pcall(require, "managers.heartbeat")
+    local okA, APK = pcall(require, "managers.apk")
+
+    local online, offline, nologin = 0, 0, 0
+    local rows = {}
+    for _, inst in ipairs(instances or {}) do
+        local status = okS and Status.statusOf and Status.statusOf(inst.id) or "offline"
+        status = status or "offline"
+        if status == "ingame" then online = online + 1
+        elseif status == "nologin" then nologin = nologin + 1
+        else offline = offline + 1 end
+
+        local name = okU and Username.get(inst) or nil
+        if not name or tostring(name) == "" then name = inst.name or inst.package end
+        name = tostring(name)
+        if conf.hideNames then name = "||" .. name .. "||" end
+
+        local p = procStats(inst.package, sys) or {}
+        local memMb
+        local hb = okH and Heartbeat.read and Heartbeat.read(inst) or nil
+        if hb and hb.fresh and hb.mem and hb.mem > 0 then
+            memMb = hb.mem
+        elseif okA then
+            local kb = APK.getRSSinKB(inst.package)
+            if kb and kb > 0 then memMb = math.floor(kb / 1024) end
+        end
+        rows[#rows + 1] = string.format("%s %s\n└ ⏱️ %s | 💾 %s | ⚡ %s",
+            ICON[status] or "⚪", name,
+            p.uptime and fmtDuration(p.uptime) or "-",
+            memMb and (memMb .. " MB") or "-",
+            p.cpu or "-")
+    end
+
+    local now = os.time()
+    local lines = {
+        string.format("Last Updated: <t:%d:f> (<t:%d:R>)", now, now),
+        "",
+        "📱 **Device**", sys.device,
+        "",
+        "🖥️ **System Stats**",
+        "💾 RAM: " .. sys.ram,
+        "⚙️ CPU: " .. sys.cpu,
+        "🌡️ Temp: " .. sys.temp,
+        "",
+        "**Status Overview**",
+        "🟢 Online: " .. online,
+        "🔴 Offline: " .. offline,
+    }
+    if nologin > 0 then lines[#lines + 1] = "⚪ Belum login: " .. nologin end
+    lines[#lines + 1] = "🤖 Total: " .. #(instances or {})
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "**Application Details**"
+    local desc = table.concat(lines, "\n")
+    for i, r in ipairs(rows) do
+        if #desc + #r + 40 > 4000 then
+            desc = desc .. string.format("\n… +%d clone lagi", #rows - i + 1)
+            break
+        end
+        desc = desc .. "\n" .. r
+    end
+
+    local color = 5763719 -- green
+    if online == 0 then color = 15548997 elseif offline > 0 then color = 16705372 end
+    local embed = '{"title":' .. js("📊 Rejoin Status Update")
+        .. ',"description":' .. js(desc)
+        .. ',"color":' .. color
+        .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now))
+    if withImage then embed = embed .. ',"image":{"url":"attachment://rejoin_ss.png"}' end
+    embed = embed .. "}"
+    local payload = '{"embeds":[' .. embed .. ']'
+    if withImage then
+        payload = payload .. ',"attachments":[{"id":0,"filename":"rejoin_ss.png"}]'
+    else
+        payload = payload .. ',"attachments":[]'
+    end
+    return payload .. "}"
+end
+Webhook._buildReport = buildReport
+
+local function screenshot()
+    os.execute("mkdir -p " .. shQuote(TMP))
+    local out = root("screencap -p " .. shQuote(SHOT) .. " && chmod 644 " .. shQuote(SHOT) .. " && echo SS_OK")
+    if not out or not out:find("SS_OK", 1, true) then return false end
+    local f = io.open(SHOT, "rb")
+    if not f then return false end
+    local size = f:seek("end")
+    f:close()
+    return size and size > 0
+end
+
+-- Message id of the status message we keep editing.
+local function msgId()
+    local s = readFile(STATE_FILE)
+    return s and s:match("(%d+)")
+end
+
+-- The message's own "id": the "id" key of the top-level JSON object. Discord's key
+-- order is not fixed and nested objects (author, attachments, embeds) have ids too,
+-- so walk the JSON tracking depth instead of matching neighbours.
+local function parseId(body)
+    if type(body) ~= "string" then return nil end
+    local depth, i, n = 0, 1, #body
+    while i <= n do
+        local c = body:sub(i, i)
+        if c == '"' then
+            local j = i + 1
+            while j <= n do
+                local cj = body:sub(j, j)
+                if cj == "\\" then j = j + 2
+                elseif cj == '"' then break
+                else j = j + 1 end
+            end
+            if depth == 1 and body:sub(i + 1, j - 1) == "id" then
+                local v = body:match('^%s*:%s*"(%d+)"', j + 1)
+                if v then return v end
+            end
+            i = j + 1
+        elseif c == "{" or c == "[" then
+            depth = depth + 1
+            i = i + 1
+        elseif c == "}" or c == "]" then
+            depth = depth - 1
+            i = i + 1
+        else
+            i = i + 1
+        end
+    end
+    return nil
+end
+Webhook._parseId = parseId
+
+local function send(payload, withImage, method, url)
+    if not writeFile(PAYLOAD, payload) then
+        os.execute("mkdir -p " .. shQuote(TMP))
+        if not writeFile(PAYLOAD, payload) then return nil, "" end
+    end
+    local args = "-X " .. method .. " "
+    if withImage then
+        args = args .. "-F " .. shQuote("payload_json=<" .. PAYLOAD)
+            .. " -F " .. shQuote("files[0]=@" .. SHOT .. ";filename=rejoin_ss.png;type=image/png")
+    else
+        args = args .. "-H 'Content-Type: application/json' --data-binary " .. shQuote("@" .. PAYLOAD)
+    end
+    return curl(args .. " " .. shQuote(url))
+end
+
+-- Post or edit the status message now.
+-- CPU numbers need two samples. Before the very first report, take one and wait a
+-- moment, so the first report already shows CPU instead of "-".
+local function primeCpu(instances)
+    local t, idle, cores = cpuTotals()
+    if not t then return end
+    cpuPrev = { total = t, idle = idle }
+    local sys = { cpuTotal = t, cores = cores }
+    for _, inst in ipairs(instances or {}) do
+        pcall(procStats, inst.package, sys)
+    end
+    os.execute("sleep 2")
+end
+
+function Webhook.report(instances)
+    if not Webhook.enabled() then return false end
+    if not cpuPrev then primeCpu(instances) end
+    local sys = systemStats()
+    local withImage = conf.screenshot and screenshot() or false
+    local payload = buildReport(instances, sys, withImage)
+
+    local id = msgId()
+    if id then
+        local code = send(payload, withImage, "PATCH", conf.url .. "/messages/" .. id)
+        if code and code >= 200 and code < 300 then return true end
+        if code ~= 404 then
+            warnOnce("edit" .. tostring(code), "update pesan gagal (HTTP " .. tostring(code or "?") .. ")")
+            return false
+        end
+        os.remove(STATE_FILE) -- message deleted: post a new one
+    end
+    local code, body = send(payload, withImage, "POST", conf.url .. "?wait=true")
+    if not code or code < 200 or code >= 300 then
+        warnOnce("post" .. tostring(code), "kirim laporan gagal (HTTP " .. tostring(code or "?") .. ")")
+        return false
+    end
+    local newId = parseId(body)
+    if newId then
+        writeFile(STATE_FILE, newId .. "\n")
+        Logger.info("Webhook: pesan status dibuat")
+    else
+        warnOnce("noid", "id pesan tidak terbaca; laporan berikutnya jadi pesan baru")
+    end
+    return true
+end
+
+-- Called once per monitor cycle; reports when the interval has passed.
+function Webhook.tick(instances)
+    if not Webhook.enabled() then return false end
+    local now = os.time()
+    if firstReportAt and now < firstReportAt then return false end
+    if lastReport > 0 and now - lastReport < conf.interval then return false end
+    lastReport = now
+    local ok, res = pcall(Webhook.report, instances)
+    if not ok then warnOnce("err", "error: " .. tostring(res)) end
+    return ok and res
+end
+
+-- Separate event message (rate-limited per key: at most one per 60s).
+function Webhook.event(key, title, text, color)
+    if not Webhook.enabled() or not conf.events then return false end
+    local now = os.time()
+    if eventLast[key] and now - eventLast[key] < 60 then return false end
+    eventLast[key] = now
+    local payload = '{"embeds":[{"title":' .. js(title) .. ',"description":' .. js(text or "")
+        .. ',"color":' .. tostring(color or 16705372)
+        .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now)) .. '}]}'
+    local ok, code = pcall(send, payload, false, "POST", conf.url)
+    if not ok or not code or code < 200 or code >= 300 then
+        warnOnce("event" .. tostring(code), "kirim event gagal (HTTP " .. tostring(code or "?") .. ")")
+        return false
+    end
+    return true
+end
+
+return Webhook
+]]
 __ya_sources["managers.window_layout"] = [=[
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
@@ -4948,24 +6083,41 @@ local Config = require("core.config")
 --
 -- Config (all optional):
 --   windowLayout = {
---       enabled = false,   -- off by default
+--       enabled = true,    -- on in the shipped config; installer turns it on
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
 --       offsetTop = 0,     -- pixels kept free at the top of the screen
+--       overlap = 80,      -- pixels every row except the last reaches into the row
+--                          -- below it, so a small window shows the whole Roblox
+--                          -- sidebar (up to "More"). With overlap the rows are filled
+--                          -- bottom-up: windows launched later open on top, so the
+--                          -- taller upper row covers the edge of the row below.
+--                          -- 0 = plain grid, filled top-down.
 --       screenWidth = 0,   -- 0 = detect from the current display
 --       screenHeight = 0,
+--       orientation = "landscape", -- grid in landscape even if the display reads
+--                                  -- portrait (e.g. right after boot); "auto" = as read
 --   }
 --   Per instance: window = { left = 0, top = 0, right = 640, bottom = 360 } overrides
 --   the grid for that clone.
 --
 -- Best-effort: any failure is logged and the launch continues as normal.
+--
+-- Validation: after every write the four values are read back, and while a clone runs
+-- WindowLayout.verify() compares the bounds the app reports in its prefs with the grid.
+-- A window found out of place is only reported; it is put back on the clone's next
+-- launch (recovery / relaunch / boot), never by restarting a running game.
 
 local WindowLayout = {}
 
 local KEYS = { "left", "top", "right", "bottom" }
 local KEY_PREFIX = "app_cloner_current_window_"
 
-local screenCache = nil
+local screenCache = nil      -- { w, h, at }
+local SCREEN_TTL = 30
+local DEFAULT_OVERLAP = 80
+local TOLERANCE = 10          -- pixels the app may adjust a window by
+local lastVerify = {}         -- pkg -> { ok, at, actual, target }
 
 local function layoutConf()
     local ok, conf = pcall(Config.get)
@@ -4987,28 +6139,82 @@ local function shQuote(v)
     return "'" .. tostring(v):gsub("'", "'\\''") .. "'"
 end
 
--- Current display size in its current orientation (e.g. 1280x720 in landscape).
+-- Display size for the grid. Re-read every SCREEN_TTL seconds (never cached for the
+-- whole run: a read taken while the display was still portrait right after boot would
+-- otherwise skew every window until the engine restarts). The floating clones run in
+-- landscape, so the long side is the width unless orientation = "auto".
 local function screenSize(wl)
     local w, h = tonumber(wl.screenWidth), tonumber(wl.screenHeight)
     if w and h and w > 0 and h > 0 then return w, h end
-    if screenCache then return screenCache[1], screenCache[2] end
+    local now = os.time()
+    if screenCache and now - screenCache[3] < SCREEN_TTL then
+        return screenCache[1], screenCache[2]
+    end
+    local a, b
     local ok, out = Shell.exec("dumpsys window displays")
     if ok and out then
         local cw, ch = out:match("cur=(%d+)x(%d+)")
-        if cw then
-            screenCache = { tonumber(cw), tonumber(ch) }
-            return screenCache[1], screenCache[2]
-        end
+        a, b = tonumber(cw), tonumber(ch)
     end
-    ok, out = Shell.exec("wm size")
-    local pw, ph = (out or ""):match("(%d+)x(%d+)")
-    if pw then
-        -- No orientation info: the floating clones run in landscape.
-        local a, b = tonumber(pw), tonumber(ph)
-        screenCache = { math.max(a, b), math.min(a, b) }
-        return screenCache[1], screenCache[2]
+    if not a then
+        ok, out = Shell.exec("wm size")
+        local pw, ph = (out or ""):match("(%d+)x(%d+)")
+        a, b = tonumber(pw), tonumber(ph)
     end
-    return nil
+    if not a or not b then return nil end
+    if wl.orientation ~= "auto" then
+        a, b = math.max(a, b), math.min(a, b)
+    end
+    screenCache = { a, b, now }
+    return a, b
+end
+
+local function prefsFile(pkg)
+    return "/data/data/" .. pkg .. "/shared_prefs/" .. pkg .. "_preferences.xml"
+end
+
+-- The four window values currently stored in the clone's prefs, or nil.
+local function readBounds(pkg)
+    local ok, out = Shell.exec("cat " .. shQuote(prefsFile(pkg)) .. " 2>/dev/null")
+    if not ok or not out or out == "" or out == "(dry-run)" then return nil end
+    local b = {}
+    for _, k in ipairs(KEYS) do
+        local v = out:match('<int name="' .. KEY_PREFIX .. k .. '" value="(%-?%d+)"')
+        b[k] = tonumber(v)
+        if not b[k] then return nil end
+    end
+    return b
+end
+WindowLayout.readBounds = readBounds
+
+local function sameBounds(a, b)
+    if not a or not b then return false end
+    for _, k in ipairs(KEYS) do
+        if math.abs((a[k] or 0) - (b[k] or 0)) > TOLERANCE then return false end
+    end
+    return true
+end
+
+local function fmt(b)
+    if not b then return "?" end
+    return string.format("%d,%d,%d,%d", b.left, b.top, b.right, b.bottom)
+end
+WindowLayout.formatBounds = fmt
+
+-- `am force-stop` returns before every process of the package is gone, and a dying
+-- app can still flush its old window bounds. Wait until it is really stopped.
+local function waitStopped(pkg)
+    local okA, APK = pcall(require, "managers.apk")
+    if not okA then return true end
+    local okT, Timer = pcall(require, "utils.timer")
+    for attempt = 1, 4 do
+        local okR, running = pcall(APK.isRunning, pkg)
+        if okR and not running then return true end
+        if attempt == 3 then Shell.exec("am force-stop " .. pkg) end
+        if okT then Timer.sleep(1) end
+    end
+    local okR, running = pcall(APK.isRunning, pkg)
+    return okR and not running
 end
 
 -- Bounds for the clone at 1-based position `index` out of `count`.
@@ -5037,11 +6243,18 @@ function WindowLayout.boundsFor(instance, index, count)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)
     if cellW < 50 or cellH < 50 then return nil, "grid too small" end
 
+    local overlap = math.max(0, math.floor(tonumber(wl.overlap) or DEFAULT_OVERLAP))
+    if rows < 2 then overlap = 0 end
+    overlap = math.min(overlap, math.floor(cellH / 2))
+
     local i = index - 1
     local col, row = i % cols, math.floor(i / cols)
+    if overlap > 0 then row = rows - 1 - row end
     local left = col * (cellW + gap)
     local top = top0 + row * (cellH + gap)
-    return { left = left, top = top, right = left + cellW, bottom = top + cellH }
+    local bottom = top + cellH
+    if row < rows - 1 then bottom = bottom + overlap end
+    return { left = left, top = top, right = left + cellW, bottom = bottom }
 end
 
 -- Write the bounds into the clone's prefs. Call only while the clone is stopped.
@@ -5054,6 +6267,10 @@ function WindowLayout.apply(instance, index, count)
     if not b then
         Logger.warn("WindowLayout[" .. pkg .. "]: " .. tostring(err))
         return false, err
+    end
+    if not waitStopped(pkg) then
+        Logger.warn("WindowLayout[" .. pkg .. "]: app masih jalan, posisi tidak ditulis")
+        return false, "still running"
     end
 
     -- Drop any existing entries for the four keys, then add fresh ones before </map>.
@@ -5068,26 +6285,78 @@ function WindowLayout.apply(instance, index, count)
     sedArgs[#sedArgs + 1] = "-e " .. shQuote("s#</map>#" .. table.concat(entries) .. "</map>#")
     sedArgs[#sedArgs + 1] = "-e " .. shQuote("/^[[:space:]]*$/d")
 
-    local file = "/data/data/" .. pkg .. "/shared_prefs/" .. pkg .. "_preferences.xml"
+    -- Android loads <file>.bak instead of the file when a previous write was cut off,
+    -- so a leftover backup gets the same edit.
+    --
+    -- A clone that was never opened has no prefs file yet (common on a fresh device):
+    -- create an empty one with the same owner, mode and SELinux label as the app's data
+    -- directory, so the app can read and write it like its own, then edit it as usual.
+    local file = prefsFile(pkg)
     local tmp = "/data/local/tmp/rejoin_window_" .. pkg .. ".xml"
     local script = table.concat({
         "f=" .. shQuote(file) .. "; t=" .. shQuote(tmp),
-        '[ -f "$f" ] || exit 3',
-        "sed " .. table.concat(sedArgs, " ") .. ' "$f" > "$t" || exit 4',
-        'grep -q "' .. KEY_PREFIX .. 'left" "$t" || { rm -f "$t"; exit 5; }',
-        'cat "$t" > "$f"; rc=$?; rm -f "$t"; exit $rc',
+        "d=" .. shQuote("/data/data/" .. pkg) .. '; sp="$d/shared_prefs"',
+        'if [ ! -f "$f" ]; then',
+        '  [ -d "$d" ] || exit 3',
+        '  own=$(stat -c "%u:%g" "$d") || exit 6',
+        '  ctx=$(ls -Zd "$d" 2>/dev/null | awk \'{print $1}\')',
+        '  if [ ! -d "$sp" ]; then mkdir "$sp" && chown "$own" "$sp" && chmod 771 "$sp" || exit 6; fi',
+        '  printf "%s\\n%s\\n%s\\n" "<?xml version=\'1.0\' encoding=\'utf-8\' standalone=\'yes\' ?>" "<map>" "</map>" > "$f" || exit 6',
+        '  chown "$own" "$f" && chmod 660 "$f" || exit 6',
+        '  case "$ctx" in *:*) chcon "$ctx" "$sp" "$f" 2>/dev/null ;; esac',
+        '  echo CREATED',
+        'fi',
+        "edit() {",
+        "  sed " .. table.concat(sedArgs, " ") .. ' "$1" > "$t" || return 4',
+        '  grep -q "' .. KEY_PREFIX .. 'left" "$t" || { rm -f "$t"; return 5; }',
+        '  cat "$t" > "$1"; rc=$?; rm -f "$t"; return $rc',
+        "}",
+        'edit "$f" || exit $?',
+        'if [ -f "$f.bak" ]; then edit "$f.bak" || exit $?; fi',
+        "exit 0",
     }, "\n")
     -- Shell.exec prefixes `timeout`; run the compound script as one command.
     local ok, out, code = Shell.exec("sh -c " .. shQuote(script))
     if not ok then
-        local reason = code == 3 and "prefs file not found (open the clone once first)"
+        local reason = code == 3 and "app data folder not found (clone not installed?)"
+            or code == 6 and "could not create prefs file"
             or ("write failed (code " .. tostring(code) .. ") " .. tostring(out or ""))
         Logger.warn("WindowLayout[" .. pkg .. "]: " .. reason)
         return false, reason
     end
+    if out and out:find("CREATED", 1, true) then
+        Logger.info("WindowLayout[" .. pkg .. "]: file setting jendela dibuat (clone belum pernah dibuka)")
+    end
+    local stored = readBounds(pkg)
+    if not sameBounds(stored, b) then
+        Logger.warn(string.format("[WINDOW] %s: tulis %s tapi terbaca %s", pkg, fmt(b), fmt(stored)))
+        return false, "read-back mismatch"
+    end
     Logger.info(string.format("WindowLayout[%s]: window #%d/%d -> left=%d top=%d right=%d bottom=%d",
         pkg, index or 1, count or 1, b.left, b.top, b.right, b.bottom))
+    lastVerify[pkg] = nil
     return true
+end
+
+-- Compare the bounds the running app keeps in its prefs with this clone's grid slot.
+-- Returns true | false, actual, target | nil (feature off, or nothing to compare yet).
+function WindowLayout.verify(instance)
+    if not WindowLayout.isEnabled() then return nil end
+    local pkg = instance and instance.package
+    if not validPackage(pkg) then return nil end
+    local index, count = WindowLayout.slotOf(instance)
+    local target = WindowLayout.boundsFor(instance, index, count)
+    local actual = readBounds(pkg)
+    if not target or not actual then return nil end
+    local ok = sameBounds(actual, target)
+    lastVerify[pkg] = { ok = ok, at = os.time(), actual = actual, target = target }
+    if ok then return true end
+    return false, actual, target
+end
+
+-- Last verify() result for the dashboard (no I/O).
+function WindowLayout.lastVerify(pkg)
+    return lastVerify[pkg]
 end
 
 -- Position of `instance` in the configured list (by package), and the list size.
@@ -5119,6 +6388,132 @@ function WindowLayout.applyForInstance(instance)
 end
 
 return WindowLayout
+]=]
+__ya_sources["scripts.rejoin_heartbeat"] = [=[
+-- REJOIN_HEARTBEAT v1
+-- Installed automatically by rejoin into the executor's autoexecute folder.
+-- Edits here are overwritten: change the settings in rejoin (Settings > 13) instead.
+--
+-- Every few seconds it writes this account's in-game status to
+--   <workspace>/rejoin/hb_<username>.txt
+-- so rejoin knows the clone is really in a game, and reacts at once to a kick or
+-- disconnect. The optional saver mode lowers CPU/GPU/memory use.
+
+local CFG = --[[REJOIN_CFG]]{
+    interval = 10,
+    folder = "rejoin",
+    saver = false,
+    disable3d = true,
+    fpsCap = 15,
+    lowGraphics = true,
+    mute = true,
+}--[[/REJOIN_CFG]]
+
+local env = (getgenv and getgenv()) or _G
+if env.__rejoin_heartbeat then return end
+env.__rejoin_heartbeat = true
+
+local function safe(f, ...)
+    local ok, r = pcall(f, ...)
+    if ok then return r end
+    return nil
+end
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
+local Stats = game:GetService("Stats")
+
+local lp = Players.LocalPlayer
+while not lp do
+    task.wait(1)
+    lp = Players.LocalPlayer
+end
+
+-- Saver mode ---------------------------------------------------------------
+if CFG.saver then
+    if CFG.disable3d then
+        safe(function() RunService:Set3dRenderingEnabled(false) end)
+    end
+    if CFG.fpsCap and CFG.fpsCap > 0 and setfpscap then
+        safe(setfpscap, CFG.fpsCap)
+    end
+    if CFG.lowGraphics then
+        safe(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+        safe(function()
+            UserSettings():GetService("UserGameSettings").SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+        end)
+    end
+    if CFG.mute then
+        safe(function() UserSettings():GetService("UserGameSettings").MasterVolume = 0 end)
+    end
+end
+
+-- Kick / disconnect detection ------------------------------------------------
+local state, reason = "ingame", ""
+
+local function checkError()
+    local msg = safe(function() return GuiService:GetErrorMessage() end)
+    if msg and msg ~= "" then
+        state = "kicked"
+        reason = msg
+    end
+end
+
+safe(function() GuiService.ErrorMessageChanged:Connect(checkError) end)
+task.spawn(function()
+    safe(function()
+        local prompt = game:GetService("CoreGui"):WaitForChild("RobloxPromptGui", 30)
+        local overlay = prompt and prompt:WaitForChild("promptOverlay", 30)
+        if overlay then
+            overlay.ChildAdded:Connect(function(child)
+                if child.Name == "ErrorPrompt" then
+                    state = "kicked"
+                    task.wait(1)
+                    checkError()
+                end
+            end)
+        end
+    end)
+end)
+
+-- Heartbeat file -------------------------------------------------------------
+local frames = 0
+RunService.Heartbeat:Connect(function() frames = frames + 1 end)
+
+if makefolder and isfolder and not safe(isfolder, CFG.folder) then
+    safe(makefolder, CFG.folder)
+end
+local path = CFG.folder .. "/hb_" .. string.lower(lp.Name) .. ".txt"
+
+local last = os.clock()
+local function write()
+    local now = os.clock()
+    local fps = math.floor(frames / math.max(now - last, 0.001) + 0.5)
+    frames, last = 0, now
+    local ping = safe(function() return lp:GetNetworkPing() end) or 0
+    local mem = safe(function() return Stats:GetTotalMemoryUsageMb() end) or 0
+    local lines = {
+        "name=" .. lp.Name,
+        "userid=" .. tostring(lp.UserId),
+        "placeid=" .. tostring(game.PlaceId),
+        "jobid=" .. tostring(game.JobId),
+        "time=" .. tostring(os.time()),
+        "state=" .. state,
+        "reason=" .. (tostring(reason):gsub("[\r\n=]", " ")),
+        "fps=" .. tostring(fps),
+        "ping=" .. tostring(math.floor(ping * 1000)),
+        "mem=" .. tostring(math.floor(mem)),
+    }
+    if writefile then safe(writefile, path, table.concat(lines, "\n")) end
+end
+
+while true do
+    write()
+    task.wait(CFG.interval)
+end
 ]=]
 __ya_sources["utils.android"] = [[
 local Logger = require("core.logger")
@@ -5723,6 +7118,8 @@ local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
 local doctorFlag = false
+local installHeartbeatFlag = false
+local enableWindowLayoutFlag = false
 for i = 1, #args do
     local a = args[i]
     if a == "--headless" or a == "--no-interactive" then headless = true end
@@ -5731,6 +7128,8 @@ for i = 1, #args do
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
     if a == "--doctor" then doctorFlag = true end
+    if a == "--install-heartbeat" then installHeartbeatFlag = true end
+    if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then
@@ -5804,6 +7203,28 @@ if doctorFlag then
     os.exit(0)
 end
 
+-- One-shot (installer): switch the floating window grid on in the user's config.
+if enableWindowLayoutFlag then
+    local c = Config.get() or {}
+    c.windowLayout = type(c.windowLayout) == "table" and c.windowLayout or {}
+    if c.windowLayout.enabled == true then
+        print("OK: auto atur jendela sudah nyala")
+        os.exit(0)
+    end
+    c.windowLayout.enabled = true
+    local saved, err = Config.save(c)
+    print(saved and "OK: auto atur jendela dinyalakan" or ("GAGAL: " .. tostring(err)))
+    os.exit(saved and 0 or 1)
+end
+
+-- One-shot: (re)install the in-game heartbeat script into the Delta autoexecute folder.
+if installHeartbeatFlag then
+    local Heartbeat = require("managers.heartbeat")
+    local hbOk, hbMsg = Heartbeat.install()
+    print((hbOk and "OK: " or "GAGAL: ") .. tostring(hbMsg))
+    os.exit(hbOk and 0 or 1)
+end
+
 -- Headless mode: optionally start monitor immediately
 if headless and startMonitorFlag then
     Logger.info("Headless mode: starting monitor")
@@ -5829,7 +7250,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -5866,6 +7287,10 @@ while true do
         local UninstallCLI = require("core.uninstall_cli")
         UninstallCLI.run()
     elseif choice == "8" then
+        require("core.webhook_cli").run()
+    elseif choice == "9" then
+        require("core.display_cli").run()
+    elseif choice == "10" then
         print("Exiting main")
         break
     else

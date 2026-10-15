@@ -121,7 +121,7 @@ function CLI.run()
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            print("(Jendela, heartbeat & mode hemat: Main Menu 11. Discord webhook: Main Menu 10.)")
+            print("(Jendela, heartbeat & mode hemat: Main Menu 9. Discord webhook: Main Menu 8.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

@@ -74,7 +74,7 @@ return {
     -- force-stop) and at most once per noLoginCooldown seconds.
     relaunchNoLogin = true,
     -- Status reports to a Discord webhook (one message kept up to date + event
-    -- messages). Empty url = off. Set it in Main Menu 10) Discord Webhook.
+    -- messages). Empty url = off. Set it in Main Menu 8) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,

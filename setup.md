@@ -58,7 +58,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Perlu | Perintah |
 |---|---|
 | Update manual tanpa reboot | `sh ~/rejoin/update.sh` |
-| Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
+| Stop engine yang jalan dari boot | `kill $(cat /sdcard/yanamin/data/monitor.pid)` |
 | Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
 | Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
 | Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
@@ -66,14 +66,40 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 
 *Mau pakai menu manual saat engine boot sedang jalan? Stop engine boot dulu (perintah di atas), kalau tidak muncul pesan `engine lain masih jalan`.*
 
-## 🛠️ Troubleshooting
+## 📁 Semua data disimpan di `/sdcard/yanamin`
+
+Konfigurasi dan seluruh log menetap di **satu folder** — gampang dibaca dari file manager, di-backup, atau dihapus total:
+
+```
+/sdcard/yanamin/config/config.lua      konfigurasi (instance, setting)
+/sdcard/yanamin/data/rejoin.log        log utama
+/sdcard/yanamin/data/launch.log        diagnostik per siklus launch/monitor
+/sdcard/yanamin/data/monitor.pid       lock: hanya satu engine yang boleh jalan
+/sdcard/yanamin/data/boot.log          log Termux:Boot
+```
+
+*Butuh izin storage — kalau belum, jalankan `termux-setup-storage` lalu ulangi. Tanpa itu loader berhenti dengan pesan, bukan diam-diam menaruh data di tempat lain.*
+*Path relatif di config (`logPath`, `launchLogPath`) dihitung dari folder ini. Lokasi lain bisa dipakai lewat env `YANAMIN_HOME`.*
+
+## 🔁 Step 7 (opsional): Auto-start saat boot
+
+1. Pasang aplikasi **Termux:Boot** dari sumber yang **sama** dengan Termux kamu (F-Droid ↔ F-Droid, GitHub ↔ GitHub).
+2. Jalankan loader, pilih **menu `6) Auto-boot (Termux:Boot)`** → `1) Install / update script boot`.
+3. **Buka aplikasi Termux:Boot sekali**, lalu reboot. Engine jalan otomatis tanpa jendela Termux.
+
+*Note: cek `3) Lihat 10 baris terakhir boot.log` kalau clone tidak terbuka setelah reboot.*
+
+## 🗑️ Step 8 (opsional): Uninstall
+
+Menu **`7) Uninstall yanamin`** menghapus semuanya dalam satu langkah (setelah mengetik `HAPUS`): script auto-boot, seluruh data root `/sdcard/yanamin`, dan file loader itu sendiri. Data app/clone + script AutoExecute tidak pernah disentuh.
 | Masalah | Solusi |
 |---|---|
 | `CANNOT LINK EXECUTABLE ... libcurl` | `apt update && apt full-upgrade -y`, lalu ulangi install |
 | `apt update` gagal / 404 | `termux-change-repo` → **Mirror group** → **Mirrors in Asia**, lalu ulangi |
-| Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
-| Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |
-| Jendela floating tidak di grid | `grep WINDOW ~/rejoin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
+| Reboot tapi clone tidak terbuka | `cat /sdcard/yanamin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
+| Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" /sdcard/yanamin/data/rejoin.log \| tail -40` |
+| Jendela floating tidak di grid | `grep WINDOW /sdcard/yanamin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
+| Loader berhenti di awal | izin storage belum diberikan → `termux-setup-storage`, lalu ulangi |
 | Heartbeat Delta tidak jalan | `ls /sdcard/Delta/Workspace/rejoin/` harus ada `hb_<username>.txt` setelah masuk game (Delta harus sudah di-key) |
 | Terminal nyangkut / Ctrl+C tidak mempan | `stty sane` |
 | Notification bar hilang (Redfinger) | `su -c "cmd statusbar expand-notifications"` |

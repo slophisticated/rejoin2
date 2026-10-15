@@ -25,6 +25,10 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const ENTRY_FILE = "main.lua";
 const TEMPLATE_FILE = "config/template.lua";
+// Not reachable through require(): managers/heartbeat.lua reads this file from disk at
+// runtime, so the bundle has to carry it explicitly or the single-file loader cannot
+// install the heartbeat script at all.
+const HEARTBEAT_SCRIPT_FILE = "scripts/rejoin_heartbeat.lua";
 const OUT_FILE = path.join(ROOT, "yanamin.lua");
 const REPO_URL = "https://github.com/apengjers/rejoin";
 
@@ -95,6 +99,16 @@ if (templateSrc === null) {
   throw new Error("missing " + TEMPLATE_FILE);
 }
 modules.set(toModuleName(TEMPLATE_FILE), { rel: TEMPLATE_FILE, src: templateSrc });
+
+// Same story for the heartbeat script that gets copied into the executor folder.
+const heartbeatSrc = readSource(HEARTBEAT_SCRIPT_FILE);
+if (heartbeatSrc === null) {
+  throw new Error("missing " + HEARTBEAT_SCRIPT_FILE);
+}
+modules.set(toModuleName(HEARTBEAT_SCRIPT_FILE), {
+  rel: HEARTBEAT_SCRIPT_FILE,
+  src: heartbeatSrc,
+});
 
 /* ---------------------------------------------------------------------------
  * 2. Bundle-only patches
@@ -218,11 +232,26 @@ if (/\]=*\]/.test(SUPERVISOR_SH)) {
   throw new Error("supervisor template contains a long-bracket terminator");
 }
 
+const HEARTBEAT_ANCHOR = `local function scriptSource()
+    local here = (debug.getinfo(1, "S").source or ""):match("^@(.*)/managers/[^/]+$") or "."
+    return File.read(here .. "/scripts/rejoin_heartbeat.lua") or File.read("scripts/rejoin_heartbeat.lua")
+end`;
+
+const HEARTBEAT_PATCH = `local function scriptSource()
+    local here = (debug.getinfo(1, "S").source or ""):match("^@(.*)/managers/[^/]+$") or "."
+    local fromDisk = File.read(here .. "/scripts/rejoin_heartbeat.lua") or File.read("scripts/rejoin_heartbeat.lua")
+    if fromDisk then return fromDisk end
+    -- yanamin bundle: no scripts/ folder next to the loader, use the embedded copy.
+    return __ya_source("scripts.rejoin_heartbeat")
+end`;
+
 for (const [name, mod] of modules) {
   if (name === toModuleName("core/config.lua")) {
     mod.src = mustReplace(mod.src, CONFIG_ANCHOR, CONFIG_PATCH, "core/config.lua template fallback");
   } else if (name === toModuleName("core/setup.lua")) {
     mod.src = mustReplace(mod.src, SETUP_ANCHOR, SETUP_PATCH, "core/setup.lua template fallback");
+  } else if (name === toModuleName("managers/heartbeat.lua")) {
+    mod.src = mustReplace(mod.src, HEARTBEAT_ANCHOR, HEARTBEAT_PATCH, "managers/heartbeat.lua embedded script");
   }
 }
 

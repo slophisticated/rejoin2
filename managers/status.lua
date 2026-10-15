@@ -427,6 +427,20 @@ local function instanceLabel(pkg, uname, width, prefix)
     return prefix .. pkg
 end
 
+-- Human-readable RSS for the dashboard: "1.2 GB" / "310 MB", or "-" when the clone has
+-- no process / no reading yet. Uses the value cached by classify(), so the dashboard
+-- costs zero extra shell calls.
+local function rssText(rssKb)
+    if not rssKb or rssKb < 0 then return "-" end
+    if rssKb >= 1024 * 1024 then
+        return string.format("%.1f GB", rssKb / (1024 * 1024))
+    end
+    if rssKb >= 1024 then
+        return string.format("%d MB", math.floor(rssKb / 1024))
+    end
+    return string.format("%d kB", math.floor(rssKb))
+end
+
 function Status.printSummary(instances)
     local LCOL = 33   -- width of the left (Instance) column
     local RCOL = 23   -- width of the status column
@@ -459,7 +473,7 @@ function Status.printSummary(instances)
 
     local sb = {}
     table.insert(sb, top)
-    table.insert(sb, bodyRow("Instance", "Status"))
+    table.insert(sb, bodyRow("Instance", "Status", nil, "RSS"))
     table.insert(sb, mid)
 
     -- System rows first, like a status header for the whole device.
@@ -493,9 +507,12 @@ function Status.printSummary(instances)
             local wv = okW and WindowLayout.lastVerify(inst.package) or nil
             local prefix = (wv and wv.ok == false) and "[win] " or ""
             local rowText = instanceLabel(pkg, uname and tostring(uname) or nil, LCOL, prefix)
-            table.insert(sb, bodyRow(rowText, label, ui[2]))
+            local rss = s and s.rssKb or -1
+            if rss > 0 then totalRssKb = totalRssKb + rss end
+            table.insert(sb, bodyRow(rowText, label, ui[2], rssText(rss)))
         end
     end
+    table.insert(sb, bodyRow("App RAM (total)", totalRssKb > 0 and rssText(totalRssKb) or "--"))
     table.insert(sb, bot)
 
     -- Footer hint below the table.
