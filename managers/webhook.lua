@@ -50,6 +50,7 @@ function Webhook.configure(c)
         screenshot = w.screenshot ~= false,
         events = w.events ~= false,
         hideNames = w.hideNames ~= false,
+        deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
     if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
     lastReport = 0
@@ -128,10 +129,26 @@ local function cpuTotals()
     return total, idle, math.max(cores, 1)
 end
 
+local modelCache = nil
+local function model()
+    if not modelCache then
+        modelCache = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
+        if modelCache == "" then modelCache = "-" end
+    end
+    return modelCache
+end
+
+-- Name shown in every message: the one set in Menu 10 (the Redfinger name lives on
+-- Redfinger's servers, not inside Android), else the device model.
+function Webhook.deviceLabel()
+    if conf.deviceName and conf.deviceName ~= "" then return conf.deviceName end
+    return model()
+end
+
 local function systemStats()
     local s = {}
-    s.device = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
-    if s.device == "" then s.device = "-" end
+    s.device = model()
+    if conf.deviceName and conf.deviceName ~= "" then s.device = conf.deviceName .. " (" .. s.device .. ")" end
 
     local mem = root("cat /proc/meminfo") or ""
     local total = tonumber(mem:match("MemTotal:%s*(%d+)"))
@@ -273,7 +290,7 @@ local function buildReport(instances, sys, withImage)
 
     local color = 5763719 -- green
     if online == 0 then color = 15548997 elseif offline > 0 then color = 16705372 end
-    local embed = '{"title":' .. js("📊 Rejoin Status Update")
+    local embed = '{"title":' .. js("📊 Rejoin Status — " .. Webhook.deviceLabel())
         .. ',"description":' .. js(desc)
         .. ',"color":' .. color
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now))
@@ -414,13 +431,14 @@ function Webhook.tick(instances)
     return ok and res
 end
 
--- Separate event message (rate-limited per key: at most one per 60s).
+-- Separate event message, e.g. Delta asking for a key (rate-limited per key: at most
+-- one per 60s).
 function Webhook.event(key, title, text, color)
     if not Webhook.enabled() or not conf.events then return false end
     local now = os.time()
     if eventLast[key] and now - eventLast[key] < 60 then return false end
     eventLast[key] = now
-    local payload = '{"embeds":[{"title":' .. js(title) .. ',"description":' .. js(text or "")
+    local payload = '{"embeds":[{"title":' .. js(title .. " — " .. Webhook.deviceLabel()) .. ',"description":' .. js(text or "")
         .. ',"color":' .. tostring(color or 16705372)
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now)) .. '}]}'
     local ok, code = pcall(send, payload, false, "POST", conf.url)

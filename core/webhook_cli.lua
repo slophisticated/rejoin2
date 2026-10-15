@@ -32,9 +32,11 @@ function CLI.run()
         print("  1) URL webhook          [" .. (hasUrl and "diset" or "kosong") .. "]")
         print("  2) Interval laporan     [" .. tostring(wh.interval or 300) .. " detik]")
         print("  3) Screenshot           [" .. onoff(wh.screenshot ~= false) .. "]")
-        print("  4) Notif kejadian       [" .. onoff(wh.events ~= false) .. "]")
+        print("  4) Notif Delta minta key [" .. onoff(wh.events ~= false) .. "]")
         print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
         print("  6) Kirim tes sekarang")
+        local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
+        print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -69,7 +71,7 @@ function CLI.run()
             save(conf)
         elseif choice == "4" then
             wh.events = not (wh.events ~= false)
-            print("Notif kejadian: " .. onoff(wh.events))
+            print("Notif Delta minta key: " .. onoff(wh.events))
             save(conf)
         elseif choice == "5" then
             wh.hideNames = not (wh.hideNames ~= false)
@@ -90,6 +92,18 @@ function CLI.run()
                 else
                     print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
                 end
+            end
+        elseif choice == "7" then
+            local v = prompt("Nama device (mis. nama di Redfinger; '-' = hapus): ")
+            v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if v == "-" then
+                wh.deviceName = ""
+                save(conf)
+            elseif v == "" then
+                print("Tidak diubah.")
+            else
+                wh.deviceName = v:sub(1, 60)
+                save(conf)
             end
         else
             print("Pilihan tidak dikenal.")

@@ -76,9 +76,12 @@ return {
         url = "",
         interval = 300,
         screenshot = true,
-        events = true,
+        events = true,      -- separate message when Delta asks for a key
         hideNames = true,
+        deviceName = "",    -- shown in every message; "" = device model
     },
+    -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,

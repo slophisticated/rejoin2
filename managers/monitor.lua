@@ -7,6 +7,7 @@ local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
+local DeltaKey = require("managers.delta_key")
 
 local Monitor = {}
 local running = false
@@ -152,9 +153,26 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
         pcall(function() return Optimizer.applyForInstance(inst) end)
     else
         Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
-        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
     end
     return true
+end
+
+-- Delta key: one status for the whole device (shared Delta folder). Notify once each
+-- time the license entry disappears; nothing when it comes back.
+local keyState = nil
+local function checkKey()
+    local present = DeltaKey.present()
+    if present == nil or present == keyState then return end
+    local was = keyState
+    keyState = present
+    if present then
+        if was == false then Logger.info("[KEY] key Delta aktif lagi") end
+        return
+    end
+    Logger.warn("[KEY] file license Delta hilang (" .. tostring(DeltaKey.path()) .. "): Delta minta key")
+    Webhook.event("key", "🔑 Delta minta key",
+        "File license Delta hilang. Script (heartbeat, autoexecute) tidak jalan sampai key dimasukkan lagi.",
+        16705372)
 end
 
 local function checkWindow(inst)
@@ -413,9 +431,6 @@ function Monitor.start(conf, opts)
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
-                    if why and why:find("^kicked") then
-                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
-                    end
                 end
             end
 
@@ -451,7 +466,6 @@ function Monitor.start(conf, opts)
                         pcall(function() return Optimizer.applyForInstance(inst) end)
                     else
                         Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
-                        Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
                         ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
                     end
                     Status.endRecovery(id)
@@ -478,6 +492,7 @@ function Monitor.start(conf, opts)
 
         if running and cycle % windowEvery == 0 then
             for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+            pcall(checkKey)
         end
 
         Timer.sleepInterruptible(interval, function() return not running end)

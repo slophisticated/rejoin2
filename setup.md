@@ -48,7 +48,7 @@ cd ~/rejoin && lua main.lua
    - Auto atur jendela floating (grid) — sudah **nyala** dari installer. Baris atas numpuk 80 px ke baris bawah biar menu Roblox sampai *More* kelihatan (pilihan `9`, 0 = grid biasa)
    - Heartbeat Delta (status dari dalam game, langsung rejoin kalau ke-kick)
    - Mode hemat (render 3D mati, FPS dibatasi, grafik rendah) + batas FPS
-4. **Discord Webhook** (opsional) — menu `10`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot.
+4. **Discord Webhook** (opsional) — menu `10`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), isi `7) Nama device` (mis. nama di Redfinger, biar tiap device kebedain), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot; notif terpisah hanya kalau **Delta minta key** (file license di folder Delta hilang).
 5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
 *Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya dibuka.*
 
@@ -74,6 +74,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
 | Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |
 | Jendela floating tidak di grid | `grep WINDOW ~/rejoin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
+| Notif key tidak pernah muncul | `grep KEY ~/rejoin/data/rejoin.log` — harus ada baris `file license Delta: <path>`. Tidak ketemu → isi `deltaLicensePath` di `config/config.lua` |
 | Heartbeat Delta tidak jalan | `ls /sdcard/Delta/Workspace/rejoin/` harus ada `hb_<username>.txt` setelah masuk game (Delta harus sudah di-key) |
 | Terminal nyangkut / Ctrl+C tidak mempan | `stty sane` |
 | Notification bar hilang (Redfinger) | `su -c "cmd statusbar expand-notifications"` |

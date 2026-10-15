@@ -39,9 +39,12 @@ return {
         url = "",
         interval = 300,    -- detik antar laporan
         screenshot = true, -- sertakan screenshot layar
-        events = true,     -- pesan terpisah saat engine mulai / ke-kick / recovery gagal
+        events = true,     -- pesan terpisah kalau Delta minta key (file license hilang)
         hideNames = true,  -- nama akun disembunyikan (spoiler)
+        deviceName = "",   -- nama device di tiap pesan (mis. nama di Redfinger); "" = model
     },
+    -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 11) Jendela & Mode Hemat.
