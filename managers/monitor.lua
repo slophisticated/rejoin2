@@ -338,10 +338,16 @@ function Monitor.start(conf, opts)
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
+    -- Instances that need recovery in this cycle. At most one is actually recovered
+    -- per cycle (see the bottom of the loop) so a slow recovery never blocks the
+    -- status checks or the dashboard of the other clones.
+    local pendingRecovery = {}
+
     local cycle = 0
     local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
         cycle = cycle + 1
+        pendingRecovery = {}
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
@@ -427,28 +433,13 @@ function Monitor.start(conf, opts)
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
-                    setRecovering(id, true)
-                    Status.beginRecovery(id)
-                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    local p_ok, recovered = pcall(function()
-                        return recoveryManager.checkAndRecover(inst)
-                    end)
-                    if not p_ok then
-                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
-                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    elseif recovered then
-                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
-                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
-                        pcall(function() return Optimizer.applyForInstance(inst) end)
-                    else
-                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
-                        Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
-                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
-                    end
-                    Status.endRecovery(id)
-                    setRecovering(id, false)
+                    -- Queue it instead of recovering inline. Recovery can take up to
+                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
+                    -- inside the status loop froze the dashboard AND stopped every other
+                    -- clone from being checked for that whole time. At most one queued
+                    -- instance is recovered per cycle (see below), so the monitor stays
+                    -- responsive and the rest is picked up on the following cycles.
+                    pendingRecovery[#pendingRecovery + 1] = inst
                 end
             end
 
@@ -493,6 +484,7 @@ function Monitor.start(conf, opts)
                 pcall(function() return Optimizer.applyForInstance(inst) end)
             else
                 Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
                 ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
             end
             Status.endRecovery(id)
@@ -502,7 +494,7 @@ function Monitor.start(conf, opts)
         -- Re-tune everything periodically: a clone can get a new pid without us
         -- restarting it (e.g. the app restarts itself), which drops its priorities back
         -- to the default. Cheap enough at this cadence (a few shell calls per clone).
-        if OPT_REFRESH_CYCLES > 0 and cycles % OPT_REFRESH_CYCLES == 0 and running then
+        if OPT_REFRESH_CYCLES > 0 and cycle % OPT_REFRESH_CYCLES == 0 and running then
             pcall(function()
                 local tuned = Optimizer.applyAll()
                 if tuned and tuned > 0 then
