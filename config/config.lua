@@ -29,13 +29,44 @@ return {
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,
+    -- Clone yang belum login dibiarkan di layar login, tapi kalau TERTUTUP (FC /
+    -- proses mati / jendela hilang) dibuka lagi pelan-pelan (tanpa force-stop),
+    -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
+    relaunchNoLogin = true,
+    -- Laporan status ke Discord webhook (1 pesan yang terus di-update + notif kejadian).
+    -- url kosong = mati. Isi lewat Main Menu 10) Discord Webhook.
+    webhook = {
+        url = "",
+        interval = 300,    -- detik antar laporan
+        screenshot = true, -- sertakan screenshot layar
+        events = true,     -- pesan terpisah saat engine mulai / ke-kick / recovery gagal
+        hideNames = true,  -- nama akun disembunyikan (spoiler)
+    },
+    noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
-    -- sebelum dibuka). Default MATI; nyalakan lewat Settings > 13.
+    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 11) Jendela & Mode Hemat.
     windowLayout = {
-        enabled = false,
+        enabled = true,
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)
         gap = 0,       -- jarak antar jendela (pixel)
         offsetTop = 0, -- ruang kosong di atas layar (pixel)
+        overlap = 80,  -- baris atas lebih tinggi sekian pixel (numpuk baris bawah) biar menu Roblox sampai More kelihatan; 0 = grid biasa
+    },
+    -- Heartbeat Delta: rejoin memasang script ke folder Autoexecute Delta. Dari dalam
+    -- game script lapor status (in-game / ke-kick, fps, memori); ke-kick = langsung
+    -- rejoin. saver = mode hemat (render 3D mati, FPS dibatasi, grafik rendah, mute).
+    heartbeat = {
+        enabled = true,
+        interval = 10,
+        staleAfter = 90,
+        workspacePath = "", -- "" = otomatis (folder Workspace di sebelah Autoexecute)
+        saver = {
+            enabled = false,
+            disable3d = true,
+            fpsCap = 15,
+            lowGraphics = true,
+            mute = true,
+        },
     },
     -- Cek login: token .ROBLOSECURITY diverifikasi ke Roblox pakai curl. Token yang
     -- ditolak (HTTP 401) = dianggap logout -> status NoLogin, tidak di-force-stop.

@@ -1,4 +1,6 @@
 data/monitor.pid
 data/boot.log
 data/boot.log.old
-./debug_probe.lua
+data/no-auto-update
+data/.migrated-*
+data/webhook_msg.txt

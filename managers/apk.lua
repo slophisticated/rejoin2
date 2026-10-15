@@ -239,6 +239,26 @@ function APKManager.getRSSinKB(packageName)
     return -1
 end
 
+-- Does the package have a window on screen? A force-closed clone can leave a stub
+-- process alive with no window at all. Window lines in `dumpsys window windows` look
+-- like "Window{a1b2c3 u0 com.pkg/com.pkg.Activity}" (or "... u0 com.pkg}" for a
+-- floating window titled with the package).
+-- Returns true / false, or nil when the dump could not be read (caller: don't guess).
+function APKManager.hasWindow(packageName)
+    if not packageName or packageName == "" then return nil end
+    local pkg = packageName:gsub("['\" ]", "")
+    local ok, out = Shell.exec("dumpsys window windows")
+    if not ok or not out or out == "" or out == "(dry-run)" then return nil end
+    if not out:find("Window{", 1, true) then return nil end
+    local esc = pkg:gsub("%p", "%%%0")
+    for line in out:gmatch("[^\r\n]+") do
+        if line:find("Window{", 1, true) and line:match(" u%d+ " .. esc .. "[/}%s]") then
+            return true
+        end
+    end
+    return false
+end
+
 function APKManager.isActive(packageName)
     if not packageName or packageName == "" then return false end
     if not APKManager.isRunning(packageName) then return false end

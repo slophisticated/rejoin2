@@ -13,16 +13,13 @@
 # (no Termux window opens). This is equivalent to choosing "1) Launch All + Monitor":
 # launch all clones, then keep monitoring until the process is stopped.
 #
-# Everything this script does is logged to $DATA_ROOT/data/boot.log
-# (/sdcard/yanamin/data/boot.log by default), so a boot that "does nothing" can
-# be diagnosed.
-# BOOT_DELAY (seconds, default 30) gives Android, root and the network time to come
+# Everything this script does is logged to <repo>/data/boot.log (or ~/rejoin-boot.log
+# when the repo folder is missing), so a boot that "does nothing" can be diagnosed.
+# BOOT_DELAY (seconds, default 10) gives Android, root and the network time to come
 # up before the clones are launched.
 
 REJOIN_DIR=${REJOIN_DIR:-"$HOME/rejoin"}
-# Data root: the engine keeps config + logs here (YANAMIN_HOME overrides).
-DATA_ROOT=${YANAMIN_HOME:-"/sdcard/yanamin"}
-BOOT_DELAY=${BOOT_DELAY:-30}
+BOOT_DELAY=${BOOT_DELAY:-10}
 # If the engine crashes it is restarted after RESTART_DELAY seconds, at most
 # MAX_RESTARTS times in a row (a clean stop or `kill` is not restarted).
 RESTART_DELAY=${RESTART_DELAY:-30}
@@ -38,6 +35,13 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$BOOT_LOG"; }
 log "boot script started (dir=$REJOIN_DIR, delay=${BOOT_DELAY}s)"
 
 # Keep the CPU awake so Android does not suspend the engine after boot.
+# Let Termux run in the background without the "always run in background?" dialog
+# (the wake lock below would otherwise ask for it). Best-effort; device_setup.sh does
+# the same for all Termux apps.
+if su -c "dumpsys deviceidle whitelist +com.termux" </dev/null >/dev/null 2>&1; then
+    log "termux whitelisted from battery optimization"
+fi
+
 if command -v termux-wake-lock >/dev/null 2>&1; then
     termux-wake-lock </dev/null && log "wake lock taken"
 fi

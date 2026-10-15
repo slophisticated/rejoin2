@@ -1,111 +1,81 @@
-## 📝 Installation Guide
+## 📝 Rejoin Installation Guide
 
-## 🛠️ Step 1: Enable Freeform Windows
-1. **Enable Developer Options:** Settings > About Phone > Tap Build Number 7 times.
-2. **Enable Flags:** Go to System > Developer Options > Under Apps, enable:
-   - ✅ Enable freeform windows
-   - ✅ Force activities to be resizable
-   - ✅ Enable non-resizable in multi-window
-3. **Reboot your device.**
-
-## ⚡ Step 2: Configure Root & Termux
-1. Enable **Magisk** (or **KernelSU**) and **LSPosed** or **Root Permission** (RF).
-2. Open **Magisk/Kitsune/Root Permission** > **Superuser** > Ensure **Termux** is granted root access.
-*Note:  If you cannot find the Termux app in Magisk/Kitsune or KernelSU, skip this step and proceed to the next step.*
-
-## 📦 Step 3: Termux Setup
-Run this single command in Termux ([Download Termux](https://f-droid.org/packages/com.termux/)):
+## ⚡ Step 1: Root, Termux & Termux:Boot
+1. **Root** harus aktif (**Magisk** / **KernelSU**). Buka **Superuser** → pastikan **Termux** diizinkan.
+2. Install **[Termux](https://f-droid.org/packages/com.termux/)** dan **[Termux:Boot](https://f-droid.org/packages/com.termux.boot/)** dari **sumber yang sama** (dua-duanya F-Droid, atau dua-duanya GitHub).
+   *Termux:Boot itu aplikasi (APK), bukan paket — `pkg install termux-boot` memang selalu gagal.*
+3. Buka **Termux**, lalu izinkan akses storage (dibutuhkan untuk folder Delta):
 💻 Desktop Copy:
 ```bash
-termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install -y lua53 tsu python figlet android-tools sqlite && pip install pyfiglet rich
+termux-setup-storage
 ```
 📱 Mobile Copy:
-`termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install -y lua53 tsu python figlet android-tools sqlite && pip install pyfiglet rich`
-*Grant storage permission when prompted and type “y” if asked.*
+`termux-setup-storage`
+*Pilih **Izinkan** saat diminta.*
 
-## 📥 Step 4: Install Loader (Latest Version)
-
-Loader Rejoin sekarang **satu file** (`yanamin.lua`) — engine, supervisor terminal,
-template config, dan sistem key sudah jadi satu. Cukup satu baris curl, tanpa
-unduh repo.
-
-**Android 10:**
+## 📦 Step 2: Install (1 perintah)
 💻 Desktop Copy:
 ```bash
-curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
+curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh
 ```
 📱 Mobile Copy:
-`curl -L -o /sdcard/download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua`
+`curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh`
 
-**Android 12+:**
+Tunggu sampai muncul **SELESAI**. Installer mengerjakan 8 langkah dan menandai tiap langkah `[OK]` / `[!!]`:
+1. Paket Termux (`lua53 sqlite curl git`)
+2. Perintah `lua`
+3. Cek root
+4. Download Rejoin ke `~/rejoin` (config lama tetap dipakai kalau install ulang)
+5. **Setting device otomatis** + auto atur jendela floating (grid) dinyalakan: animasi mati, Developer options (*Force allow apps on external*, *Force activities to be resizable*, *Enable freeform windows*, *Enable non-resizable in multi-window*), Smallest width 600dp, izin Termux jalan di background (dialog *"always run in background"* tidak muncul lagi) — plus script heartbeat ke folder Autoexecute Delta
+6. Cek clone di config terpasang di device
+7. Script auto-start + auto-update saat boot
+8. Aktifkan Termux:Boot (layar Termux:Boot bisa terbuka sendiri — kembali saja ke Termux)
+
+*Ada `[!!]`? Ikuti petunjuk di baris itu, lalu jalankan perintah install lagi (aman diulang). Kalau `[!!]` di langkah 8: tap ikon Termux:Boot sekali, lalu install lagi.*
+*Setelah selesai, **reboot sekali** supaya freeform/resizable aktif.*
+
+## 🚀 Step 3: Run & Setup
 💻 Desktop Copy:
 ```bash
-curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua
+cd ~/rejoin && lua main.lua
 ```
 📱 Mobile Copy:
-`curl -L -o /sdcard/Download/yanamin.lua https://raw.githubusercontent.com/apengjers/rejoin/main/yanamin.lua`
+`cd ~/rejoin && lua main.lua`
 
-## 🚀 Step 5: Run & Setup
-1. Execute
-**Android 10:**
-💻 Desktop Copy:
-```bash
-lua /sdcard/download/yanamin.lua
-```
-📱 Mobile Copy:
-`lua /sdcard/download/yanamin.lua`
+1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + link game / Private Server tiap clone.
+2. **Jeda launch** — menu `3` → `13` (`launchSettleDelay`, default 20 dtk: waktu masuk game sebelum clone berikutnya), lalu `15) Save and Exit`.
+3. **Jendela & Mode Hemat** — menu `11` (pilih nomor, langsung tersimpan):
+   - Auto atur jendela floating (grid) — sudah **nyala** dari installer. Baris atas numpuk 80 px ke baris bawah biar menu Roblox sampai *More* kelihatan (pilihan `9`, 0 = grid biasa)
+   - Heartbeat Delta (status dari dalam game, langsung rejoin kalau ke-kick)
+   - Mode hemat (render 3D mati, FPS dibatasi, grafik rendah) + batas FPS
+4. **Discord Webhook** (opsional) — menu `10`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot.
+5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
+*Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai masuk game.*
 
-**Android 12+:**
-💻 Desktop Copy:
-```bash
-lua /sdcard/Download/yanamin.lua
-```
-📱 Mobile Copy:
-`lua /sdcard/Download/yanamin.lua`
+## 🔁 Auto Start & Update
+Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan sendiri (±10 detik setelah boot, tanpa jendela Termux). Config kamu tidak tertimpa.
 
-2. Setup
-**Select Packages:** Press **Enter** to auto-detect Roblox. (*If it is not detected, type manual. To find the Roblox package name:* <#1442135281569628241> )
-**Final Settings:** Configure delay and Private Server URL.
-*Note: Grant Root permissions when prompted.*
+| Perlu | Perintah |
+|---|---|
+| Update manual tanpa reboot | `sh ~/rejoin/update.sh` |
+| Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
+| Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
+| Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
+| Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
+| Install ulang (config tetap) | perintah di Step 2 |
 
-## 🔁 Step 6 (opsional): Auto-start saat boot
+*Mau pakai menu manual saat engine boot sedang jalan? Stop engine boot dulu (perintah di atas), kalau tidak muncul pesan `engine lain masih jalan`.*
 
-1. Pasang aplikasi **Termux:Boot** dari sumber yang **sama** dengan Termux kamu (F-Droid ↔ F-Droid, GitHub ↔ GitHub).
-2. Jalankan loader, pilih **menu `6) Auto-boot (Termux:Boot)`** → `1) Install / update script boot`.
-3. **Buka aplikasi Termux:Boot sekali**, lalu reboot. Engine jalan otomatis tanpa jendela Termux.
-
-*Note: cek `3) Lihat 10 baris terakhir boot.log` kalau clone tidak terbuka setelah reboot.*
-
-——————
-## 📁 Semua data disimpan di `/sdcard/yanamin`
-
-Konfigurasi dan seluruh log disimpan di satu folder supaya gampang dibaca & dihapus:
-
-```
-/sdcard/yanamin/config/config.lua     konfigurasi (instance, setting)
-/sdcard/yanamin/data/rejoin.log       log utama
-/sdcard/yanamin/data/boot.log         log Termux:Boot
-```
-
-*Butuh izin storage — kalau belum, jalankan `termux-setup-storage` lalu ulangi. Tanpa itu loader berhenti dengan pesan, bukan diam-diam menaruh data di tempat lain.*
-*Hapus semua (auto-boot + config + data + file loader) dari menu `7) Uninstall yanamin`.*
-
-——————
-*To reset the config settings, delete the generated config and run again — the loader recreates it from its built-in template.*
-**Android 10:**
-💻 Desktop Copy:
-```bash
-rm -f /sdcard/download/config/config.lua
-```
-📱 Mobile Copy:
-`rm -f /sdcard/download/config/config.lua`
-
-**Android 12+:**
-💻 Desktop Copy:
-```bash
-rm -f /sdcard/Download/config/config.lua
-```
-📱 Mobile Copy:
-`rm -f /sdcard/Download/config/config.lua`
+## 🛠️ Troubleshooting
+| Masalah | Solusi |
+|---|---|
+| `CANNOT LINK EXECUTABLE ... libcurl` | `apt update && apt full-upgrade -y`, lalu ulangi install |
+| `apt update` gagal / 404 | `termux-change-repo` → **Mirror group** → **Mirrors in Asia**, lalu ulangi |
+| Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
+| Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |
+| Jendela floating tidak di grid | `grep WINDOW ~/rejoin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
+| Heartbeat Delta tidak jalan | `ls /sdcard/Delta/Workspace/rejoin/` harus ada `hb_<username>.txt` setelah masuk game (Delta harus sudah di-key) |
+| Terminal nyangkut / Ctrl+C tidak mempan | `stty sane` |
+| Notification bar hilang (Redfinger) | `su -c "cmd statusbar expand-notifications"` |
 
 *Note: Grant Root permissions when prompted.*

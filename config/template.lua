@@ -69,15 +69,47 @@ return {
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.
     launchEmptyDelay = 5,
+    -- A clone without an account is left alone on its login screen, but if it CLOSED
+    -- (force close: process gone or no window left) it is opened again, gently (no
+    -- force-stop) and at most once per noLoginCooldown seconds.
+    relaunchNoLogin = true,
+    -- Status reports to a Discord webhook (one message kept up to date + event
+    -- messages). Empty url = off. Set it in Main Menu 10) Discord Webhook.
+    webhook = {
+        url = "",
+        interval = 300,
+        screenshot = true,
+        events = true,
+        hideNames = true,
+    },
+    noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
-    -- right before launch. Off by default. columns = 0 picks automatically.
+    -- right before launch. On by default. columns = 0 picks automatically.
     -- A clone can override its spot with window = { left=, top=, right=, bottom= }.
     windowLayout = {
-        enabled = false,
+        enabled = true,
         columns = 0,
         gap = 0,
         offsetTop = 0,
+        overlap = 80,
+    },
+    -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
+    -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
+    -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
+    -- low graphics, mute). Without a heartbeat the old RSS checks are used.
+    heartbeat = {
+        enabled = true,
+        interval = 10,
+        staleAfter = 90,
+        workspacePath = "",
+        saver = {
+            enabled = false,
+            disable3d = true,
+            fpsCap = 15,
+            lowGraphics = true,
+            mute = true,
+        },
     },
     -- Login check: the .ROBLOSECURITY token on disk is verified against Roblox with curl
     -- (users.roblox.com/v1/users/authenticated). A rejected token (HTTP 401) counts as

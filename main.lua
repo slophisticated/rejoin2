@@ -46,6 +46,8 @@ local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
 local doctorFlag = false
+local installHeartbeatFlag = false
+local enableWindowLayoutFlag = false
 for i = 1, #args do
     local a = args[i]
     if a == "--headless" or a == "--no-interactive" then headless = true end
@@ -54,6 +56,8 @@ for i = 1, #args do
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
     if a == "--doctor" then doctorFlag = true end
+    if a == "--install-heartbeat" then installHeartbeatFlag = true end
+    if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then
@@ -127,6 +131,28 @@ if doctorFlag then
     os.exit(0)
 end
 
+-- One-shot (installer): switch the floating window grid on in the user's config.
+if enableWindowLayoutFlag then
+    local c = Config.get() or {}
+    c.windowLayout = type(c.windowLayout) == "table" and c.windowLayout or {}
+    if c.windowLayout.enabled == true then
+        print("OK: auto atur jendela sudah nyala")
+        os.exit(0)
+    end
+    c.windowLayout.enabled = true
+    local saved, err = Config.save(c)
+    print(saved and "OK: auto atur jendela dinyalakan" or ("GAGAL: " .. tostring(err)))
+    os.exit(saved and 0 or 1)
+end
+
+-- One-shot: (re)install the in-game heartbeat script into the Delta autoexecute folder.
+if installHeartbeatFlag then
+    local Heartbeat = require("managers.heartbeat")
+    local hbOk, hbMsg = Heartbeat.install()
+    print((hbOk and "OK: " or "GAGAL: ") .. tostring(hbMsg))
+    os.exit(hbOk and 0 or 1)
+end
+
 -- Headless mode: optionally start monitor immediately
 if headless and startMonitorFlag then
     Logger.info("Headless mode: starting monitor")
@@ -152,7 +178,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Exit\n 10) Discord Webhook\n 11) Jendela & Mode Hemat\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -191,6 +217,10 @@ while true do
     elseif choice == "8" then
         print("Exiting main")
         break
+    elseif choice == "10" then
+        require("core.webhook_cli").run()
+    elseif choice == "11" then
+        require("core.display_cli").run()
     else
         print("Unknown choice")
     end

@@ -3,6 +3,7 @@ local APK = require("managers.apk")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local Shell = require("utils.shell")
+local Heartbeat = require("managers.heartbeat")
 
 local Status = {}
 
@@ -25,6 +26,11 @@ function Status.configure(conf)
     freezeTimeout = tonumber(conf.freezeTimeout) or 300
     gracePeriod = tonumber(conf.gracePeriod) or 30
     anrEnabled = conf.anrCheckEnabled ~= false -- default true
+end
+
+-- Current status string of an instance (for reports), or nil.
+function Status.statusOf(id)
+    return states[id] and states[id].status or nil
 end
 
 function Status.reset()
@@ -155,7 +161,7 @@ classify = function(instance)
         -- that exists but stays below the threshold means its UI is gone.
         local okP, resP = pcall(function() return APK.isRunning(pkg) end)
         procExists = okP and resP
-        local okA, resA = pcall(function() return APK.isActive(pkg) end)
+        local okA, resA = pcall(function() return Heartbeat.isUp(instance, APK) end)
         active = okA and resA
     end
     local rssKb = pkg and APK.getRSSinKB(pkg) or -1
@@ -169,6 +175,18 @@ classify = function(instance)
         s.anrSeen = nil
         s.forceRunning = nil
         return s.status
+    end
+
+    -- The in-game script reported a kick/disconnect: show it plainly (the monitor
+    -- recovers the clone right away).
+    if not active and procExists then
+        local alive, why = Heartbeat.alive(instance)
+        if alive == false and why and why:find("^kicked") then
+            s.status = "kicked"
+            s.stuckSince = nil
+            s.healthySince = nil
+            return s.status
+        end
     end
 
     if not active then
@@ -279,6 +297,7 @@ local STATUS_UI = {
     starting = { "Starting", C.blue },
     offline  = { "Offline",  C.dim },
     nologin  = { "NoLogin",  C.dim },
+    kicked   = { "Kicked",   C.red },
 }
 
 -- Best-effort memory + storage readout, cached to avoid shell cost every cycle.
@@ -376,18 +395,36 @@ local function blankCell(width)
     return string.rep(" ", width)
 end
 
--- Human-readable RSS for the dashboard: "1.2 GB" / "310 MB", or "-" when the clone has
--- no process / no reading yet. Uses the value cached by classify(), so the dashboard
--- costs zero extra shell calls.
-local function rssText(rssKb)
-    if not rssKb or rssKb < 0 then return "-" end
-    if rssKb >= 1024 * 1024 then
-        return string.format("%.1f GB", rssKb / (1024 * 1024))
+-- What the monitor is doing right now, shown in the "System" row:
+-- nil = idle (monitoring), or { verb = "Checking" | "Launching", i, n }.
+local progress = nil
+
+function Status.setProgress(i, n, verb)
+    if i and n then
+        progress = { verb = verb or "Checking", i = i, n = n }
+    else
+        progress = nil
     end
-    if rssKb >= 1024 then
-        return string.format("%d MB", math.floor(rssKb / 1024))
+end
+
+-- "package (username)" squeezed into `width` columns: the username is shortened
+-- with ".." first so the package (what identifies the clone) stays readable.
+local function instanceLabel(pkg, uname, width, prefix)
+    prefix = prefix or ""
+    local room = width - 2 - #prefix
+    if not uname or uname == "" then
+        if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+        return prefix .. pkg
     end
-    return string.format("%d kB", math.floor(rssKb))
+    if #pkg + 3 + #uname <= room then
+        return prefix .. pkg .. " (" .. uname .. ")"
+    end
+    local keep = room - #pkg - 5 -- " (" + ".." + ")"
+    if keep >= 2 then
+        return prefix .. pkg .. " (" .. uname:sub(1, keep) .. "..)"
+    end
+    if #pkg > room then pkg = pkg:sub(1, room - 2) .. ".." end
+    return prefix .. pkg
 end
 
 function Status.printSummary(instances)
@@ -422,15 +459,22 @@ function Status.printSummary(instances)
 
     local sb = {}
     table.insert(sb, top)
-    table.insert(sb, blankRow())
-    table.insert(sb, bodyRow("Instance", "Status", nil, "RSS"))
-    table.insert(sb, blankRow())
+    table.insert(sb, bodyRow("Instance", "Status"))
+    table.insert(sb, mid)
+
+    -- System rows first, like a status header for the whole device.
+    if progress then
+        table.insert(sb, bodyRow("System", string.format("%s [%d/%d]", progress.verb, progress.i, progress.n), C.yellow))
+    else
+        table.insert(sb, bodyRow("System", "Monitoring", C.green))
+    end
+    table.insert(sb, bodyRow("Memory", memoryLine() or "--"))
+    table.insert(sb, bodyRow("Storage", storageLine() or "--"))
     table.insert(sb, mid)
 
     local totalRssKb = 0
     if not instances or #instances == 0 then
-        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim, "-"))
-        table.insert(sb, mid)
+        table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
     else
         for _, inst in ipairs(instances) do
             local id = inst.id or inst.name or "?"
@@ -439,20 +483,19 @@ function Status.printSummary(instances)
             local status = s and s.status or "offline"
             local ui = STATUS_UI[status] or { status, C.dim }
             local label = ui[1] or "Unknown"
+            if status == "ingame" then
+                local extra = Heartbeat.summary(inst)
+                if extra then label = label .. " " .. extra end
+            end
             local uname = nil
             pcall(function() uname = Username.get(inst) end)
-            local rowText = uname and (pkg .. " (" .. tostring(uname) .. ")") or pkg
-            local rss = s and s.rssKb or -1
-            if rss and rss > 0 then totalRssKb = totalRssKb + rss end
-            table.insert(sb, bodyRow(rowText, label, ui[2], rssText(rss)))
+            local okW, WindowLayout = pcall(require, "managers.window_layout")
+            local wv = okW and WindowLayout.lastVerify(inst.package) or nil
+            local prefix = (wv and wv.ok == false) and "[win] " or ""
+            local rowText = instanceLabel(pkg, uname and tostring(uname) or nil, LCOL, prefix)
+            table.insert(sb, bodyRow(rowText, label, ui[2]))
         end
-        table.insert(sb, mid)
     end
-
-    -- Footer facts: how much RAM the clones themselves hold, then the system numbers.
-    table.insert(sb, bodyRow("App RAM (total)", totalRssKb > 0 and rssText(totalRssKb) or "--"))
-    table.insert(sb, bodyRow("Memory Usage", memoryLine() or "--"))
-    table.insert(sb, bodyRow("Storage Available", storageLine() or "--"))
     table.insert(sb, bot)
 
     -- Footer hint below the table.

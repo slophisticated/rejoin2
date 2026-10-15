@@ -4,6 +4,9 @@ local Status = require("managers.status")
 local Auth = require("managers.auth")
 local Username = require("managers.username")
 local ProbeLog = require("utils.probe_log")
+local Heartbeat = require("managers.heartbeat")
+local WindowLayout = require("managers.window_layout")
+local Webhook = require("managers.webhook")
 
 local Monitor = {}
 local running = false
@@ -114,6 +117,70 @@ end
 --   launchEmptyDelay   - seconds to wait after a clone with no account, before the next
 -- Every clone is launched. One that reads as not logged in only gets a short pause
 -- instead of the full wait, since it will sit on the login screen with low RSS.
+-- Floating window check (window grid on): compare each running clone's window with
+-- its grid slot. Only reported (log on change + dashboard mark); the position is
+-- rewritten on the clone's next launch, never by restarting a running game.
+local windowState = {} -- pkg -> true (in place) / false (off grid)
+local monitorConf = {}
+
+-- A clone without a logged-in account is left alone while it sits on the login
+-- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
+-- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
+-- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
+local noLoginLast = {} -- pkg -> os.time() of the last reopen
+
+local function reopenNoLoginIfClosed(inst, id, name, pkg)
+    if monitorConf.relaunchNoLogin == false or not pkg then return false end
+    local okR, alive = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR then return false end
+    local why
+    if not alive then
+        why = "proses mati"
+    else
+        local okW, has = pcall(function() return apkManager.hasWindow(pkg) end)
+        if okW and has == false then why = "tanpa jendela" end
+    end
+    if not why then return false end
+    local cooldown = tonumber(monitorConf.noLoginCooldown) or 120
+    local now = os.time()
+    if noLoginLast[pkg] and now - noLoginLast[pkg] < cooldown then return false end
+    if isRecovering(id) then return false end
+    noLoginLast[pkg] = now
+
+    Logger.info(string.format("[NOLOGIN] %s tertutup (%s); dibuka lagi", name, why))
+    setRecovering(id, true)
+    Status.beginRecovery(id)
+    local okL, launched = pcall(function() return recoveryManager.reopenNoLogin(inst) end)
+    Status.endRecovery(id)
+    setRecovering(id, false)
+    if okL and launched then
+        pcall(function() return Optimizer.applyForInstance(inst) end)
+    else
+        Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
+        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
+    end
+    return true
+end
+
+local function checkWindow(inst)
+    if not WindowLayout.isEnabled() then return end
+    local pkg = inst and inst.package
+    if not pkg then return end
+    local okR, runningNow = pcall(function() return apkManager.isRunning(pkg) end)
+    if not okR or not runningNow then return end
+    local okV, res, actual, target = pcall(WindowLayout.verify, inst)
+    if not okV or res == nil then return end
+    if windowState[pkg] == res then return end
+    windowState[pkg] = res
+    local name = tostring(inst.name or pkg)
+    if res then
+        Logger.info(string.format("[WINDOW] %s posisi OK", name))
+    else
+        Logger.warn(string.format("[WINDOW] %s meleset (sekarang %s; target %s) -> dibetulkan saat relaunch berikutnya",
+            name, WindowLayout.formatBounds(actual), WindowLayout.formatBounds(target)))
+    end
+end
+
 local function runSequentialLaunch(conf)
     local instances = instanceManager.getAll()
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
@@ -127,6 +194,7 @@ local function runSequentialLaunch(conf)
 
     for i, inst in ipairs(instances) do
         if not running then break end
+        Status.setProgress(i, #instances, "Launching")
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
@@ -155,7 +223,7 @@ local function runSequentialLaunch(conf)
 
             local function isActiveNow()
                 if not pkg then return false end
-                local okA, resA = pcall(function() return apkManager.isActive(pkg) end)
+                local okA, resA = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 return okA and resA
             end
 
@@ -186,9 +254,15 @@ local function runSequentialLaunch(conf)
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
                     break
                 end
+                -- The in-game heartbeat proves it already joined: no need to wait longer.
+                if Heartbeat.alive(inst) == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
+                    break
+                end
             end
 
             Status.endStarting(id)
+            if launched then checkWindow(inst) end
             -- New process got a new pid during this launch: deprioritize it now.
             pcall(function() return Optimizer.applyForInstance(inst) end)
             ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds settled=%ds",
@@ -202,6 +276,9 @@ end
 
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
+    monitorConf = type(conf) == "table" and conf or {}
+    Webhook.configure(monitorConf)
+    noLoginLast = {}
     instanceManager = require("managers.instance")
     recoveryManager = require("managers.recovery")
     apkManager = require("managers.apk")
@@ -243,6 +320,8 @@ function Monitor.start(conf, opts)
         end
     end)
     installSignalHandler()
+    local hbOk, hbMsg = Heartbeat.install()
+    if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
     -- Full-screen dashboard: hide console log lines while monitoring so they don't push
     -- the dashboard around (log lines still go to the log file).
     Logger.setConsoleVisible(false)
@@ -254,22 +333,20 @@ function Monitor.start(conf, opts)
     -- dashboard (Starting -> Running) before the monitoring loop takes over.
     if opts.autoLaunch then
         runSequentialLaunch(conf)
+        Status.setProgress(nil)
         -- one full refresh so the "starting" override is cleared and statuses settle
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
-    -- Instances that need recovery in this cycle. At most one is actually recovered
-    -- per cycle (see the bottom of the loop) so a slow recovery never blocks the
-    -- status checks or the dashboard of the other clones.
-    local pendingRecovery = {}
-    local cycles = 0
-
+    local cycle = 0
+    local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
-        cycles = cycles + 1
-        pendingRecovery = {}
+        cycle = cycle + 1
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
+            Status.setProgress(i, #instances, "Checking")
+            if i > 1 then Status.printSummary(instances) end
             local id = inst.id or i
             local name = tostring(inst.name or id)
             local pkg = inst.package
@@ -322,8 +399,17 @@ function Monitor.start(conf, opts)
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has
                 -- ~1 GB while a force-close stub is only ~188 MB.
-                local ok, res = pcall(function() return apkManager.isActive(pkg) end)
+                -- An in-game heartbeat (when the Delta script runs) decides first: a kick or
+                -- a stopped heartbeat is unhealthy even with plenty of RSS.
+                local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                if not healthy then
+                    local _, why = Heartbeat.alive(inst)
+                    if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
+                    if why and why:find("^kicked") then
+                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
+                    end
+                end
             end
 
             if healthy then
@@ -334,17 +420,35 @@ function Monitor.start(conf, opts)
                 -- expected while it sits on the login screen). Never force-recover it,
                 -- regardless of the transient status shown.
                 if status == "nologin" or Auth.isLoggedIn(inst) == false then
-                    Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    -- On the login screen: leave it. Closed: reopen gently (see above).
+                    if not reopenNoLoginIfClosed(inst, id, name, pkg) then
+                        Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))
+                    end
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- Queue it instead of recovering inline. Recovery can take up to
-                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
-                    -- inside the status loop froze the dashboard AND stopped every other
-                    -- clone from being checked for that whole time. At most one queued
-                    -- instance is recovered per cycle (see below), so the monitor stays
-                    -- responsive and the rest is picked up on the following cycles.
-                    pendingRecovery[#pendingRecovery + 1] = inst
+                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
+                    setRecovering(id, true)
+                    Status.beginRecovery(id)
+                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    local p_ok, recovered = pcall(function()
+                        return recoveryManager.checkAndRecover(inst)
+                    end)
+                    if not p_ok then
+                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    elseif recovered then
+                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                        pcall(function() return Optimizer.applyForInstance(inst) end)
+                    else
+                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                        Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
+                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    end
+                    Status.endRecovery(id)
+                    setRecovering(id, false)
                 end
             end
 
@@ -357,7 +461,9 @@ function Monitor.start(conf, opts)
         end
 
         -- Print the per-instance status table for the user to see.
+        Status.setProgress(nil)
         Status.printSummary(instances)
+        Webhook.tick(instances)
 
         -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
         -- next cycle, so the dashboard above already shows the full picture and no other
@@ -408,6 +514,10 @@ function Monitor.start(conf, opts)
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.
         os.execute("stty isig 2>/dev/null")
+
+        if running and cycle % windowEvery == 0 then
+            for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+        end
 
         Timer.sleepInterruptible(interval, function() return not running end)
     end

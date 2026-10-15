@@ -30,6 +30,14 @@ local function printSettings(conf)
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
     print("  windowLayout.enabled (auto atur jendela) = " .. tostring(wl.enabled == true)
         .. ", columns = " .. tostring(wl.columns or 0) .. ", gap = " .. tostring(wl.gap or 0))
+    local wh = type(conf.webhook) == "table" and conf.webhook or {}
+    print("  webhook = " .. ((type(wh.url) == "string" and wh.url ~= "") and "diset" or "kosong")
+        .. ", interval = " .. tostring(wh.interval or 300) .. ", screenshot = " .. tostring(wh.screenshot ~= false))
+    local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
+    local sv = type(hb.saver) == "table" and hb.saver or {}
+    print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
+        .. ", mode hemat = " .. tostring(sv.enabled == true)
+        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati = " .. tostring(sv.disable3d ~= false))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
@@ -113,24 +121,7 @@ function CLI.run()
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            -- Floating window grid (managers/window_layout.lua), applied while a clone
-            -- is stopped right before it is launched.
-            conf.windowLayout = type(conf.windowLayout) == "table" and conf.windowLayout or {}
-            local wl = conf.windowLayout
-            local cur = wl.enabled == true and "y" or "n"
-            local yn = prompt("Auto atur jendela floating jadi grid? (y/n): [" .. cur .. "] ")
-            if yn and yn:match("^%s*[yY]") then wl.enabled = true
-            elseif yn and yn:match("^%s*[nN]") then wl.enabled = false end
-            if wl.enabled then
-                local v = prompt("Jumlah kolom grid (0 = otomatis): [" .. tostring(wl.columns or 0) .. "] ")
-                local n = tonumber(v)
-                if n and n >= 0 then wl.columns = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-                v = prompt("Jarak antar jendela (pixel): [" .. tostring(wl.gap or 0) .. "] ")
-                n = tonumber(v)
-                if n and n >= 0 then wl.gap = math.floor(n)
-                elseif v and not v:match("^%s*$") then print("Invalid number") end
-            end
+            print("(Jendela, heartbeat & mode hemat: Main Menu 11. Discord webhook: Main Menu 10.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then
