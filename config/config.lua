@@ -20,10 +20,12 @@ return {
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
     -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
-    -- launchWaitTimeout detik), tunggu launchSettleDelay detik biar masuk game,
-    -- baru clone berikutnya. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
+    -- launchWaitTimeout detik), lalu tunggu sampai MASUK GAME (heartbeat Delta, maks
+    -- launchJoinTimeout detik) baru clone berikutnya. Tanpa heartbeat: jeda tetap
+    -- launchSettleDelay detik. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchJoinTimeout = 120,
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,

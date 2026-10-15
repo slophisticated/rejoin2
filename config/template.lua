@@ -51,13 +51,17 @@ return {
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
     -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
-    -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
-    -- clone 2, and so on. A clone that is not logged in is opened but not waited for.
+    -- is running (RSS >= minRss), wait until it is in game, then clone 2, and so on.
+    -- A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
+    -- launchJoinTimeout:  with the Delta heartbeat: max wait (s) for the clone to be in
+    --                     game. A clone that never sends one switches the rest of that
+    --                     Launch All to launchSettleDelay.
+    -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchJoinTimeout = 120,
     launchSettleDelay = 20,
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.

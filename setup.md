@@ -43,14 +43,14 @@ cd ~/rejoin && lua main.lua
 `cd ~/rejoin && lua main.lua`
 
 1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + link game / Private Server tiap clone.
-2. **Jeda launch** — menu `3` → `13` (`launchSettleDelay`, default 20 dtk: waktu masuk game sebelum clone berikutnya), lalu `15) Save and Exit`.
+2. **Jeda launch** — menu `3` → `13`: `launchJoinTimeout` (default 120 dtk: maks tunggu clone **masuk game** lewat heartbeat Delta sebelum clone berikutnya) dan `launchSettleDelay` (20 dtk, dipakai kalau heartbeat tidak ada), lalu `15) Save and Exit`.
 3. **Jendela & Mode Hemat** — menu `11` (pilih nomor, langsung tersimpan):
    - Auto atur jendela floating (grid) — sudah **nyala** dari installer. Baris atas numpuk 80 px ke baris bawah biar menu Roblox sampai *More* kelihatan (pilihan `9`, 0 = grid biasa)
    - Heartbeat Delta (status dari dalam game, langsung rejoin kalau ke-kick)
    - Mode hemat (render 3D mati, FPS dibatasi, grafik rendah) + batas FPS
 4. **Discord Webhook** (opsional) — menu `10`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot.
 5. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
-*Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai masuk game.*
+*Clone yang belum login dibuka tapi tidak ditunggu; yang sudah login ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya dibuka.*
 
 ## 🔁 Auto Start & Update
 Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan sendiri (±10 detik setelah boot, tanpa jendela Termux). Config kamu tidak tertimpa.

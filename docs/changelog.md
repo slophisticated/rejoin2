@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Launch All benar-benar menunggu clone masuk game**: dulu clone berikutnya dibuka setelah jeda tetap `launchSettleDelay` (20 dtk) sejak proses jalan — di device lambat clone sebelumnya masih loading, jadi kelihatan dibuka barengan. Sekarang dengan heartbeat Delta, tiap clone ditunggu sampai heartbeat-nya muncul (in game) maks `launchJoinTimeout` (baru, default 120 dtk; Settings `13`). Lanjut lebih cepat kalau proses mati atau ke-kick. Kalau satu clone tidak pernah mengirim heartbeat (Delta belum key / script tidak jalan), sisa Launch All itu kembali ke jeda `launchSettleDelay`. Heartbeat dimatikan = perilaku lama.
+
 - **Webhook: notif "Rejoin engine mulai" dihapus** (cuma spam tiap engine start/boot). Notif kick, recovery gagal dan clone belum login gagal dibuka tetap ada.
 
 - **Grid: baris atas lebih tinggi (numpuk)**: `windowLayout.overlap` (default 80 px) memanjangkan jendela di semua baris kecuali baris terakhir, jadi sidebar Roblox sampai *More* kelihatan tanpa mengubah density. Baris diisi dari bawah (clone pertama di baris bawah), karena jendela yang dibuka belakangan tampil di depan, jadi baris atas menutup tepi atas baris bawah. Diatur di Main Menu `11` → `9`; `0` = grid biasa (diisi dari atas seperti dulu). Clone yang dibuka ulang sendirian (recovery) bisa muncul di depan sampai Launch All berikutnya.

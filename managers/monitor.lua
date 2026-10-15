@@ -185,6 +185,12 @@ local function runSequentialLaunch(conf)
     if settle < 0 then settle = 0 end
     local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
     if emptyDelay < 0 then emptyDelay = 0 end
+    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 120
+    if joinTimeout < 0 then joinTimeout = 0 end
+    -- With the Delta heartbeat, wait until each clone is really in game before the next
+    -- one starts. Turned off for the rest of this Launch All once a clone never sends
+    -- one (Delta without key / script not running): then the fixed settle delay is used.
+    local hbWorking = Heartbeat.isEnabled() and joinTimeout > 0
     local function stopped() return not running end
 
     for i, inst in ipairs(instances) do
@@ -238,22 +244,37 @@ local function runSequentialLaunch(conf)
                 if running then Status.printSummary(instanceManager.getAll()) end
             end
 
-            -- 2) Give it time to load into the game before starting the next clone.
+            -- 2) Give it time to load into the game before starting the next clone:
+            --    until its heartbeat says in game (up to launchJoinTimeout), or without a
+            --    heartbeat a fixed launchSettleDelay.
             local settled = 0
-            while active and running and settled < settle do
-                local step = math.min(poll, settle - settled)
+            local limit = hbWorking and joinTimeout or settle
+            local sawHeartbeat = false
+            while active and running and settled < limit do
+                local alive, why = Heartbeat.alive(inst)
+                if alive == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat, %ds); next clone", name, waited + settled))
+                    sawHeartbeat = true
+                    break
+                elseif alive == false and tostring(why):find("^kicked") then
+                    Logger.warn(string.format("Monitor: %s %s while joining; moving on", name, tostring(why)))
+                    sawHeartbeat = true
+                    break
+                end
+                local step = math.min(poll, limit - settled)
                 Timer.sleepInterruptible(step, stopped)
                 settled = settled + step
                 if running then Status.printSummary(instanceManager.getAll()) end
                 if not isActiveNow() then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
+                    sawHeartbeat = true -- not the heartbeat's fault
                     break
                 end
-                -- The in-game heartbeat proves it already joined: no need to wait longer.
-                if Heartbeat.alive(inst) == true then
-                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
-                    break
-                end
+            end
+            if hbWorking and active and running and not sawHeartbeat then
+                hbWorking = false
+                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?); sisa clone pakai jeda launchSettleDelay %ds",
+                    name, joinTimeout, settle))
             end
 
             Status.endStarting(id)
