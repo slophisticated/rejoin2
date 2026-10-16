@@ -2,6 +2,22 @@ local InstanceManager = {}
 
 local instances = {}
 
+local function normalizePackage(packageName)
+    if type(packageName) ~= "string" then return "" end
+    return packageName:match("^%s*(.-)%s*$"):lower()
+end
+
+local function packageAlreadyExists(packageName, exceptId)
+    local normalized = normalizePackage(packageName)
+    if normalized == "" then return false end
+    for _, inst in ipairs(instances) do
+        if inst.id ~= exceptId and normalizePackage(inst.package) == normalized then
+            return true
+        end
+    end
+    return false
+end
+
 -- Load instances from provided config table.
 -- Iterates with pairs() (not ipairs) and normalizes both integer and string keys, so
 -- instances survive a reload even if a previous save wrote string keys like "1".
@@ -43,6 +59,7 @@ end
 
 function InstanceManager.add(instance)
     instance = instance or {}
+    if packageAlreadyExists(instance.package) then return false, "duplicate_package" end
     -- compute next id
     local maxid = 0
     for _, v in ipairs(instances) do
@@ -60,6 +77,9 @@ function InstanceManager.update(id, updates)
     id = tonumber(id)
     local inst = InstanceManager.findById(id)
     if not inst then return false, "not_found" end
+    if updates.package ~= nil and packageAlreadyExists(updates.package, id) then
+        return false, "duplicate_package"
+    end
     for k, v in pairs(updates) do inst[k] = v end
     local ok, err = persist()
     if not ok then return false, err end

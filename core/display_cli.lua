@@ -14,6 +14,10 @@ end
 
 local function onoff(v) return v and "nyala" or "mati" end
 
+local function render3dIsOff(hb, sv)
+    return hb.enabled ~= false and sv.enabled == true and sv.disable3d ~= false
+end
+
 local function save(conf)
     local ok, err = Config.save(conf)
     print(ok and "Tersimpan." or ("Gagal menyimpan: " .. tostring(err)))
@@ -48,7 +52,7 @@ function CLI.run()
         print("  4) Heartbeat Delta          [" .. onoff(hb.enabled ~= false) .. "]")
         print("  5) Mode hemat               [" .. onoff(sv.enabled == true) .. "]")
         print("  6) Batas FPS (mode hemat)   [" .. tostring(sv.fpsCap or 15) .. "]")
-        print("  7) Render 3D mati           [" .. (sv.disable3d ~= false and "ya" or "tidak") .. "]")
+        print("  7) Render 3D mati (efektif)  [" .. (render3dIsOff(hb, sv) and "ya" or "tidak") .. "]")
         print("  8) Pasang ulang script heartbeat sekarang")
         print("  9) Baris atas numpuk ke bawah [" .. tostring(wl.overlap or 80) .. " px, 0 = grid biasa]")
         print("  0) Kembali")
@@ -85,7 +89,9 @@ function CLI.run()
             if n then sv.fpsCap = n; save(conf) end
         elseif choice == "7" then
             sv.disable3d = not (sv.disable3d ~= false)
-            print("Render 3D mati: " .. (sv.disable3d and "ya" or "tidak"))
+            print("Render 3D mati (efektif): " .. (render3dIsOff(hb, sv) and "ya" or "tidak"))
+            if sv.enabled ~= true then print("Mode hemat mati, jadi render 3D tetap aktif saat ini.") end
+            if hb.enabled == false then print("Heartbeat Delta mati, jadi pengaturan ini belum diterapkan.") end
             save(conf)
         elseif choice == "8" then
             local Heartbeat = require("managers.heartbeat")

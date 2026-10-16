@@ -43,8 +43,8 @@ return {
         hideNames = true,  -- nama akun disembunyikan (spoiler)
         deviceName = "",   -- Label Device Name di judul/body laporan; "" = model device
     },
-    -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
-    deltaLicensePath = "",
+    -- File license Delta yang menandakan key masih aktif.
+    deltaLicensePath = "/sdcard/delta/internal/cache/license",
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 10) Jendela & Mode Hemat.
@@ -52,7 +52,7 @@ return {
         enabled = true,
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)
         gap = 0,       -- jarak antar jendela (pixel)
-        offsetTop = 0, -- ruang kosong di atas layar (pixel)
+        offsetTop = 0, -- margin tambahan (pixel); grid otomatis tetap menghindari status bar
         overlap = 80,  -- baris atas lebih tinggi sekian pixel (numpuk baris bawah) biar menu Roblox sampai More kelihatan; 0 = grid biasa
     },
     -- Heartbeat Delta: rejoin memasang script ke folder Autoexecute Delta. Dari dalam

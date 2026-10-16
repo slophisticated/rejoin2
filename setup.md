@@ -42,7 +42,7 @@ cd ~/rejoin && lua main.lua
 📱 Mobile Copy:
 `cd ~/rejoin && lua main.lua`
 
-1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + link game / Private Server tiap clone.
+1. **Instances** — menu `2`: sesuaikan package clone (mis. `com.apengjers.v3`) + isi link game / Private Server untuk tiap clone (wajib).
 2. **Jeda launch** — menu `3` → `13`: `launchJoinTimeout` (default 240 dtk: maks tunggu clone **masuk game** lewat heartbeat Delta sebelum clone berikutnya) dan `launchSettleDelay` (20 dtk, dipakai kalau heartbeat tidak ada), lalu `15) Save and Exit`.
 3. **Jendela & Mode Hemat** — menu `10` (pilih nomor, langsung tersimpan):
    - Auto atur jendela floating (grid) — sudah **nyala** dari installer. Baris atas numpuk 80 px ke baris bawah biar menu Roblox sampai *More* kelihatan (pilihan `9`, 0 = grid biasa)
@@ -75,7 +75,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
 | Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |
 | Jendela floating tidak di grid | `grep WINDOW ~/rejoin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
-| Notif key tidak pernah muncul | `grep KEY ~/rejoin/data/rejoin.log` — harus ada baris `file license Delta: <path>`. Tidak ketemu → isi `deltaLicensePath` di `config/config.lua` |
+| Notif key tidak pernah muncul | Pastikan `/sdcard/delta/internal/cache` ada dan webhook aktif; Rejoin memantau `/sdcard/delta/internal/cache/license`. Isi `deltaLicensePath` di `config/config.lua` hanya jika build Delta menyimpan file di lokasi lain. |
 | Heartbeat Delta tidak jalan | `ls /sdcard/Delta/Workspace/rejoin/` harus ada `hb_<username>.txt` setelah masuk game (Delta harus sudah di-key) |
 | Terminal nyangkut / Ctrl+C tidak mempan | `stty sane` |
 | Notification bar hilang (Redfinger) | `su -c "cmd statusbar expand-notifications"` |

@@ -80,8 +80,8 @@ return {
         hideNames = true,
         deviceName = "",    -- Label Device Name in report title/body; "" = device model
     },
-    -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
-    deltaLicensePath = "",
+    -- Delta license file used to detect when Delta asks for a key.
+    deltaLicensePath = "/sdcard/delta/internal/cache/license",
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
@@ -91,7 +91,7 @@ return {
         enabled = true,
         columns = 0,
         gap = 0,
-        offsetTop = 0,
+        offsetTop = 0,       -- extra top margin; auto grid still reserves the Android status bar
         overlap = 80,
     },
     -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta

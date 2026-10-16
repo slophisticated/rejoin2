@@ -36,9 +36,10 @@ local function printSettings(conf)
         .. ", interval = " .. tostring(wh.interval or 300) .. ", screenshot = " .. tostring(wh.screenshot ~= false))
     local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
     local sv = type(hb.saver) == "table" and hb.saver or {}
+    local render3dOff = hb.enabled ~= false and sv.enabled == true and sv.disable3d ~= false
     print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
         .. ", mode hemat = " .. tostring(sv.enabled == true)
-        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati = " .. tostring(sv.disable3d ~= false))
+        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati (efektif) = " .. tostring(render3dOff))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 

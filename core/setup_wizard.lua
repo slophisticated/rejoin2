@@ -11,6 +11,16 @@ local function prompt(msg)
     return io.read()
 end
 
+local function promptGameUrl()
+    while true do
+        local input = prompt("Game / Private Server URL (wajib): ")
+        if input == nil then return nil end
+        local value = input:match("^%s*(.-)%s*$")
+        if value ~= "" then return value end
+        print("Link game atau private server wajib diisi.")
+    end
+end
+
 -- Decide whether a package looks like a Roblox app / clone.
 -- Priority:
 --   1) resolve-activity: the launchable component point to a Roblox-class app
@@ -120,8 +130,8 @@ function Wizard.run()
                 local defaultName = pkg
                 local name = prompt(string.format("Name for %s (press Enter for '%s'): ", pkg, defaultName)) or ""
                 if name == "" then name = defaultName end
-                local server = prompt("Private Server URL (or blank): ") or ""
-                if server == "" then server = nil end
+                local server = promptGameUrl()
+                if not server then return false, "interrupted" end
                 table.insert(conf.instances, { id = id, name = name, package = pkg, privateServer = server })
                 print(string.format("Added instance %s (%s)", name, pkg))
             end
@@ -146,8 +156,8 @@ function Wizard.run()
             local id = nextId()
             local name = prompt("Instance name (press Enter to use package as name): ") or ""
             if name == "" then name = pkg end
-            local server = prompt("Private Server URL (optional): ") or ""
-            if server == "" then server = nil end
+            local server = promptGameUrl()
+            if not server then return false, "interrupted" end
             table.insert(conf.instances, { id = id, name = name, package = pkg, privateServer = server })
             print(string.format("Added instance %s (%s)", name, pkg))
         end

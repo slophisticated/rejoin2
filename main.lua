@@ -78,16 +78,6 @@ local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
 if not ok then
     Logger.error("Failed to ensure config: " .. tostring(created_or_err))
-else
-    if created_or_err == true and not skipWizard and not headless then
-        -- config was just created from template; run the interactive setup wizard
-        local Wizard = require("core.setup_wizard")
-        local wok, werr = Wizard.run()
-        if not wok then
-            Logger.warn("Setup wizard did not complete: " .. tostring(werr))
-            Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
-        end
-    end
 end
 
 local Config = require("core.config")
@@ -96,6 +86,30 @@ local Config = require("core.config")
 local conf = Config.get() or {}
 if conf.logPath then
     Logger.setLogPath(conf.logPath)
+end
+
+-- Root is required for process discovery, app control, and recovery. Fail before
+-- setup prompts or the main menu if root is disabled or Magisk/SuperSU denies it.
+if not dryRun then
+    local Shell = require("utils.shell")
+    local rootOk, rootErr = Shell.rootAvailable()
+    if not rootOk then
+        local msg = "Root tidak aktif atau izin su ditolak. Aktifkan akses root dan pastikan useRoot = true di config/config.lua, lalu jalankan ulang."
+        Logger.error(msg .. " (" .. tostring(rootErr) .. ")")
+        print("\n[FATAL] " .. msg)
+        os.exit(1)
+    end
+end
+
+if ok and created_or_err == true and not skipWizard and not headless then
+    -- config was just created from template; run the interactive setup wizard
+    -- only after confirming that the required root access is available.
+    local Wizard = require("core.setup_wizard")
+    local wok, werr = Wizard.run()
+    if not wok then
+        Logger.warn("Setup wizard did not complete: " .. tostring(werr))
+        Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
+    end
 end
 
 local data = conf

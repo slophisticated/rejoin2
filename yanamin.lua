@@ -509,7 +509,7 @@ return Config]]
 __ya_sources["core.display_cli"] = [[
 local Config = require("core.config")
 
--- Main Menu 9: floating window grid, Delta heartbeat and saver mode.
+-- Main Menu 10: floating window grid, Delta heartbeat and saver mode.
 -- Pick one item at a time; every change is saved right away. Displayed values follow
 -- the same defaults as the modules that use them (window_layout / heartbeat).
 
@@ -522,6 +522,10 @@ local function prompt(msg)
 end
 
 local function onoff(v) return v and "nyala" or "mati" end
+
+local function render3dIsOff(hb, sv)
+    return hb.enabled ~= false and sv.enabled == true and sv.disable3d ~= false
+end
 
 local function save(conf)
     local ok, err = Config.save(conf)
@@ -557,7 +561,7 @@ function CLI.run()
         print("  4) Heartbeat Delta          [" .. onoff(hb.enabled ~= false) .. "]")
         print("  5) Mode hemat               [" .. onoff(sv.enabled == true) .. "]")
         print("  6) Batas FPS (mode hemat)   [" .. tostring(sv.fpsCap or 15) .. "]")
-        print("  7) Render 3D mati           [" .. (sv.disable3d ~= false and "ya" or "tidak") .. "]")
+        print("  7) Render 3D mati (efektif)  [" .. (render3dIsOff(hb, sv) and "ya" or "tidak") .. "]")
         print("  8) Pasang ulang script heartbeat sekarang")
         print("  9) Baris atas numpuk ke bawah [" .. tostring(wl.overlap or 80) .. " px, 0 = grid biasa]")
         print("  0) Kembali")
@@ -594,7 +598,9 @@ function CLI.run()
             if n then sv.fpsCap = n; save(conf) end
         elseif choice == "7" then
             sv.disable3d = not (sv.disable3d ~= false)
-            print("Render 3D mati: " .. (sv.disable3d and "ya" or "tidak"))
+            print("Render 3D mati (efektif): " .. (render3dIsOff(hb, sv) and "ya" or "tidak"))
+            if sv.enabled ~= true then print("Mode hemat mati, jadi render 3D tetap aktif saat ini.") end
+            if hb.enabled == false then print("Heartbeat Delta mati, jadi pengaturan ini belum diterapkan.") end
             save(conf)
         elseif choice == "8" then
             local Heartbeat = require("managers.heartbeat")
@@ -809,6 +815,9 @@ return CLI
 __ya_sources["core.instances_cli"] = [[
 local Logger = require("core.logger")
 local InstanceManager = require("managers.instance")
+local Config = require("core.config")
+local Shell = require("utils.shell")
+local APK = require("managers.apk")
 
 local CLI = {}
 
@@ -816,6 +825,16 @@ local function prompt(msg)
     io.write(msg)
     io.flush()
     return io.read()
+end
+
+local function promptGameUrl()
+    while true do
+        local input = prompt("Game / Private Server URL (wajib): ")
+        if input == nil then return nil end
+        local value = input:match("^%s*(.-)%s*$")
+        if value ~= "" then return value end
+        print("Link game atau private server wajib diisi.")
+    end
 end
 
 local function printInstances()
@@ -830,6 +849,109 @@ local function printInstances()
     end
 end
 
+local function packageConfigured(packageName)
+    local normalized = tostring(packageName or ""):match("^%s*(.-)%s*$"):lower()
+    for _, inst in ipairs(InstanceManager.getAll()) do
+        if tostring(inst.package or ""):match("^%s*(.-)%s*$"):lower() == normalized then
+            return true
+        end
+    end
+    return false
+end
+
+local function detectRobloxPackages()
+    local conf = Config.get() or {}
+    local prefix = type(conf.clonePackagePrefix) == "string" and conf.clonePackagePrefix:lower() or ""
+    local ok, out = Shell.exec("pm list packages")
+    if not ok or not out or out == "(dry-run)" then return nil, "Tidak bisa membaca daftar package Android." end
+
+    local found, seen = {}, {}
+    for line in out:gmatch("[^\r\n]+") do
+        local pkg = line:match("package:(%S+)")
+        if pkg and not seen[pkg] then
+            local match = pkg:lower():find("roblox", 1, true) ~= nil
+                or (prefix ~= "" and pkg:lower():find(prefix, 1, true) == 1)
+            if not match then
+                local component = APK.resolveLaunchComponent(pkg)
+                match = component and component:lower():find("roblox", 1, true) ~= nil
+            end
+            if match then
+                seen[pkg] = true
+                found[#found + 1] = pkg
+            end
+        end
+    end
+    table.sort(found)
+    return found
+end
+
+local function addWithPreview(pkg)
+    if packageConfigured(pkg) then
+        print("Package sudah terdaftar sebagai instance: " .. pkg)
+        return
+    end
+    local name = prompt("Instance name (Enter = " .. pkg .. "): ") or ""
+    name = name:match("^%s*(.-)%s*$")
+    if name == "" then name = pkg end
+    local server = promptGameUrl()
+    if not server then print("Add dibatalkan."); return end
+
+    print("\nPreview instance:")
+    print("  Name: " .. name)
+    print("  Package: " .. pkg)
+    print("  Game / Private Server URL: " .. server)
+    local confirm = prompt("Save this instance? [y/N]: ") or ""
+    if confirm:lower():match("^%s*y") then
+        local ok, res = InstanceManager.add({ name = name, package = pkg, privateServer = server })
+        if ok then print("Added instance id=" .. tostring(res.id)) else print("Failed to add: " .. tostring(res)) end
+    else
+        print("Not saved.")
+    end
+end
+
+local function addInstance()
+    print("\nAdd Instance:\n  1) Auto Detect Roblox\n  2) Manual Input\n  0) Cancel")
+    local mode = (prompt("Choose a mode: ") or ""):match("^%s*(.-)%s*$")
+    if mode == "0" or mode == "" then return end
+
+    if mode == "2" then
+        local pkg = (prompt("Package name (e.g. com.roblox.client): ") or ""):match("^%s*(.-)%s*$")
+        if pkg == "" then print("Package is required.") else addWithPreview(pkg) end
+        return
+    end
+    if mode ~= "1" then print("Unknown mode."); return end
+
+    local packages, err = detectRobloxPackages()
+    if not packages then print(err); return end
+    local available = {}
+    for _, pkg in ipairs(packages) do
+        if packageConfigured(pkg) then
+            print("Skip package yang sudah terdaftar: " .. pkg)
+        else
+            available[#available + 1] = pkg
+        end
+    end
+    packages = available
+    if #packages == 0 then print("Tidak ada package baru untuk ditambahkan. Coba Manual Input jika perlu."); return end
+
+    print("Detected Roblox packages:")
+    for i, pkg in ipairs(packages) do print(string.format("  %d) %s", i, pkg)) end
+    local selection = (prompt("Select package indices (e.g. 1,2) or 'all': ") or ""):lower()
+    selection = selection:match("^%s*(.-)%s*$")
+    local indices, seen = {}, {}
+    if selection == "all" or selection == "a" then
+        for i = 1, #packages do indices[#indices + 1] = i end
+    else
+        for value in selection:gmatch("%d+") do
+            local i = tonumber(value)
+            if i and packages[i] and not seen[i] then indices[#indices + 1] = i; seen[i] = true end
+        end
+    end
+    if #indices == 0 then print("No valid package selected."); return end
+
+    for _, i in ipairs(indices) do addWithPreview(packages[i]) end
+end
+
 function CLI.run()
     while true do
         print("\nInstances Manager:\n  1) List instances\n  2) Add instance\n  3) Edit instance\n  4) Delete instance\n  5) Exit\n")
@@ -838,16 +960,7 @@ function CLI.run()
         if choice == "1" then
             printInstances()
         elseif choice == "2" then
-            local pkg = prompt("Package name (e.g. com.roblox.client): ") or ""
-            pkg = pkg:match("^%s*(.-)%s*$")
-            if pkg == "" then print("Package is required.") else
-                local name = prompt("Instance name (press Enter to use package): ") or ""
-                if name == "" then name = pkg end
-                local server = prompt("Private Server URL (optional): ") or ""
-                if server == "" then server = nil end
-                local ok, res = InstanceManager.add({ name = name, package = pkg, privateServer = server })
-                if ok then print("Added instance id=" .. tostring(res.id)) else print("Failed to add: " .. tostring(res)) end
-            end
+            addInstance()
         elseif choice == "3" then
             local id = prompt("Instance id to edit: ") or ""
             id = tonumber(id)
@@ -1276,6 +1389,7 @@ local function printSettings(conf)
     print("  anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
     print("  launchWaitInterval = " .. tostring(conf.launchWaitInterval))
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
+    print("  launchJoinTimeout = " .. tostring(conf.launchJoinTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
     print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
@@ -1286,15 +1400,16 @@ local function printSettings(conf)
         .. ", interval = " .. tostring(wh.interval or 300) .. ", screenshot = " .. tostring(wh.screenshot ~= false))
     local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
     local sv = type(hb.saver) == "table" and hb.saver or {}
+    local render3dOff = hb.enabled ~= false and sv.enabled == true and sv.disable3d ~= false
     print("  heartbeat.enabled = " .. tostring(hb.enabled ~= false)
         .. ", mode hemat = " .. tostring(sv.enabled == true)
-        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati = " .. tostring(sv.disable3d ~= false))
+        .. ", fpsCap = " .. tostring(sv.fpsCap or 15) .. ", render3D mati (efektif) = " .. tostring(render3dOff))
     print("  useRoot = " .. tostring(conf.useRoot == nil and true or conf.useRoot))
 end
 
 function CLI.run()
     local conf = Config.get() or {}
-    conf.monitorInterval = conf.monitorInterval or 8
+    conf.monitorInterval = conf.monitorInterval or 5
     conf.recoveryDelay = conf.recoveryDelay or 3
     conf.recoveryRetries = conf.recoveryRetries or 3
     conf.checkTimeout = conf.checkTimeout or 15
@@ -1309,6 +1424,7 @@ function CLI.run()
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
+    conf.launchJoinTimeout = conf.launchJoinTimeout or 240
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
@@ -1320,7 +1436,7 @@ function CLI.run()
         if choice == "1" then
             printSettings(conf)
         elseif choice == "2" then
-            local v = prompt("monitorInterval (detik antar siklus monitor, default 8): [" .. tostring(conf.monitorInterval) .. "] ")
+            local v = prompt("monitorInterval (seconds): [" .. tostring(conf.monitorInterval) .. "] ")
             local n = tonumber(v)
             if n then conf.monitorInterval = n else print("Invalid number") end
         elseif choice == "3" then
@@ -1360,7 +1476,7 @@ function CLI.run()
             print("anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
         elseif choice == "13" then
             -- Launch All opens clones one by one: wait until the clone is running, then
-            -- wait launchSettleDelay for it to load the game, then start the next one.
+            -- until it is in game (heartbeat, launchJoinTimeout) or launchSettleDelay.
             print("Launch All membuka clone satu per satu. Kosongkan untuk tetap pakai nilai lama.")
             local function askNumber(key, label, allowZero)
                 local v = prompt(label .. ": [" .. tostring(conf[key]) .. "] ")
@@ -1368,11 +1484,12 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchSettleDelay", "Jeda setelah Roblox jalan, sebelum clone berikutnya (detik, waktu masuk game)", true)
+            askNumber("launchJoinTimeout", "Maks tunggu clone MASUK GAME sebelum clone berikutnya (detik, pakai heartbeat Delta; 0 = mati)", true)
+            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat tidak ada (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            print("(Jendela, heartbeat & mode hemat: Main Menu 9. Discord webhook: Main Menu 8.)")
+            print("(Jendela, heartbeat & mode hemat: Main Menu 10. Discord webhook: Main Menu 9.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then
@@ -1414,7 +1531,8 @@ function CLI.run()
     end
 end
 
-return CLI]]
+return CLI
+]]
 __ya_sources["core.setup"] = [[
 local File = require("utils.file")
 local Logger = require("core.logger")
@@ -1471,6 +1589,16 @@ local function prompt(msg)
     io.write(msg)
     io.flush()
     return io.read()
+end
+
+local function promptGameUrl()
+    while true do
+        local input = prompt("Game / Private Server URL (wajib): ")
+        if input == nil then return nil end
+        local value = input:match("^%s*(.-)%s*$")
+        if value ~= "" then return value end
+        print("Link game atau private server wajib diisi.")
+    end
 end
 
 -- Decide whether a package looks like a Roblox app / clone.
@@ -1538,16 +1666,7 @@ function Wizard.run()
     choice = choice:match("^%s*(.-)%s*$")
 
     local conf = Config.get() or {}
-    -- Start from an EMPTY list. The packaged template ships one example instance
-    -- (com.roblox.client) that is almost never a real clone on this device, and
-    -- keeping it leaves a phantom instance in the monitor that can never run.
-    -- The wizard is a first-run "build my instance list" flow, so old entries go.
-    local previous = 0
-    for _ in pairs(conf.instances or {}) do previous = previous + 1 end
-    conf.instances = {}
-    if previous > 0 then
-        print(("Menghapus %d instance lama dari config (termasuk contoh dari template)."):format(previous))
-    end
+    conf.instances = conf.instances or {}
 
     -- find next available id (pairs + normalization, so string keys don't break it)
     local function nextId()
@@ -1591,8 +1710,8 @@ function Wizard.run()
                 local defaultName = pkg
                 local name = prompt(string.format("Name for %s (press Enter for '%s'): ", pkg, defaultName)) or ""
                 if name == "" then name = defaultName end
-                local server = prompt("Private Server URL (or blank): ") or ""
-                if server == "" then server = nil end
+                local server = promptGameUrl()
+                if not server then return false, "interrupted" end
                 table.insert(conf.instances, { id = id, name = name, package = pkg, privateServer = server })
                 print(string.format("Added instance %s (%s)", name, pkg))
             end
@@ -1604,7 +1723,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Instances imported and saved to " .. require("core.paths").config())
+        print("Setup complete. Instances imported and saved to config/config.lua")
         return true
 
     else
@@ -1617,8 +1736,8 @@ function Wizard.run()
             local id = nextId()
             local name = prompt("Instance name (press Enter to use package as name): ") or ""
             if name == "" then name = pkg end
-            local server = prompt("Private Server URL (optional): ") or ""
-            if server == "" then server = nil end
+            local server = promptGameUrl()
+            if not server then return false, "interrupted" end
             table.insert(conf.instances, { id = id, name = name, package = pkg, privateServer = server })
             print(string.format("Added instance %s (%s)", name, pkg))
         end
@@ -1634,7 +1753,7 @@ function Wizard.run()
             return false, serr
         end
 
-        print("Setup complete. Configuration saved to " .. require("core.paths").config())
+        print("Setup complete. Configuration saved to config/config.lua")
         return true
     end
 end
@@ -3802,6 +3921,22 @@ local InstanceManager = {}
 
 local instances = {}
 
+local function normalizePackage(packageName)
+    if type(packageName) ~= "string" then return "" end
+    return packageName:match("^%s*(.-)%s*$"):lower()
+end
+
+local function packageAlreadyExists(packageName, exceptId)
+    local normalized = normalizePackage(packageName)
+    if normalized == "" then return false end
+    for _, inst in ipairs(instances) do
+        if inst.id ~= exceptId and normalizePackage(inst.package) == normalized then
+            return true
+        end
+    end
+    return false
+end
+
 -- Load instances from provided config table.
 -- Iterates with pairs() (not ipairs) and normalizes both integer and string keys, so
 -- instances survive a reload even if a previous save wrote string keys like "1".
@@ -3870,6 +4005,7 @@ end
 
 function InstanceManager.add(instance)
     instance = instance or {}
+    if packageAlreadyExists(instance.package) then return false, "duplicate_package" end
     -- compute next id
     local maxid = 0
     for _, v in ipairs(instances) do
@@ -3887,6 +4023,9 @@ function InstanceManager.update(id, updates)
     id = tonumber(id)
     local inst = InstanceManager.findById(id)
     if not inst then return false, "not_found" end
+    if updates.package ~= nil and packageAlreadyExists(updates.package, id) then
+        return false, "duplicate_package"
+    end
     for k, v in pairs(updates) do inst[k] = v end
     local ok, err = persist()
     if not ok then return false, err end
@@ -3917,6 +4056,7 @@ local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
+local Shell = require("utils.shell")
 
 local Monitor = {}
 local running = false
@@ -3926,6 +4066,27 @@ local instanceManager = nil
 local recoveryManager = nil
 local apkManager = nil
 local Optimizer = nil
+
+-- Delta stores the shared key license separately from its Autoexecute folder.
+local keyState
+local function checkDeltaKey()
+    local path = "/sdcard/delta/internal/cache/license"
+    local parent = "/sdcard/delta/internal/cache"
+    local cmd = "if [ -e '" .. path .. "' ]; then echo KEY_YES; elif [ -d '" .. parent .. "' ]; then echo KEY_NO; else echo KEY_UNKNOWN; fi"
+    local ok, out = Shell.exec(cmd)
+    if not ok or not out or out:find("KEY_UNKNOWN", 1, true) then return end
+    local present = out:find("KEY_YES", 1, true) ~= nil
+    if present == keyState then return end
+    local was = keyState
+    keyState = present
+    if not present then
+        Logger.warn("[KEY] file license Delta hilang (" .. path .. "): Delta minta key")
+        Webhook.event("key", "🔑 Delta minta key",
+            "File license Delta hilang di " .. path .. ". Delta perlu di-key ulang.", 16705372)
+    elseif was == false then
+        Logger.info("[KEY] key Delta aktif lagi")
+    end
+end
 
 -- How often (in monitor cycles) to re-apply renice/ionice to every instance. 60 cycles
 -- is roughly every 5-8 minutes, enough to catch clones whose pid changed behind our back
@@ -4364,6 +4525,7 @@ function Monitor.start(conf, opts)
         -- Print the per-instance status table for the user to see.
         Status.setProgress(nil)
         Status.printSummary(instances)
+        pcall(checkDeltaKey)
         Webhook.tick(instances)
 
         -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
@@ -6095,7 +6257,7 @@ local Config = require("core.config")
 --       enabled = true,    -- on in the shipped config; installer turns it on
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
---       offsetTop = 0,     -- pixels kept free at the top of the screen
+--       offsetTop = 0,     -- extra top margin; auto grid still avoids the Android status bar
 --       overlap = 80,      -- pixels every row except the last reaches into the row
 --                          -- below it, so a small window shows the whole Roblox
 --                          -- sidebar (up to "More"). With overlap the rows are filled
@@ -6124,6 +6286,8 @@ local KEY_PREFIX = "app_cloner_current_window_"
 
 local screenCache = nil      -- { w, h, at }
 local SCREEN_TTL = 30
+local topInsetCache = nil    -- { px, at }
+local TOP_INSET_TTL = 30
 local DEFAULT_OVERLAP = 80
 local TOLERANCE = 10          -- pixels the app may adjust a window by
 local lastVerify = {}         -- pkg -> { ok, at, actual, target }
@@ -6176,6 +6340,52 @@ local function screenSize(wl)
     end
     screenCache = { a, b, now }
     return a, b
+end
+
+-- Find the top system-bar/cutout area so a grid that uses offsetTop=0 still
+-- starts below Android's notification bar. Prefer the actual StatusBar window
+-- frame; fall back to stable insets, then 24dp at the device density.
+local function systemTopInset()
+    local now = os.time()
+    if topInsetCache and now - topInsetCache[2] < TOP_INSET_TTL then
+        return topInsetCache[1]
+    end
+
+    local inset = 0
+    local ok, out = Shell.exec("dumpsys window windows")
+    if ok and out and out ~= "(dry-run)" then
+        local start = out:find("Window #%d+[^\r\n]-StatusBar")
+        if start then
+            local nextWindow = out:find("\nWindow #", start + 1, true)
+            local block = out:sub(start, nextWindow or (start + 1800))
+            for line in block:gmatch("[^\r\n]+") do
+                local l, t, r, b = line:match("[Ff]rame=%[(-?%d+),%s*(-?%d+)%]%[(-?%d+),%s*(-?%d+)%]")
+                l, t, r, b = tonumber(l), tonumber(t), tonumber(r), tonumber(b)
+                if l and t == 0 and r and b and b > 0 and (r - l) >= b then
+                    inset = math.max(inset, b)
+                end
+            end
+        end
+    end
+
+    if inset == 0 then
+        ok, out = Shell.exec("dumpsys window displays")
+        if ok and out and out ~= "(dry-run)" then
+            local stable = tonumber(out:match("mStableInsets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            local cutout = tonumber(out:match("DisplayCutout%{insets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            inset = math.max(stable or 0, cutout or 0)
+        end
+    end
+
+    if inset == 0 then
+        ok, out = Shell.exec("wm density")
+        local density = ok and tonumber((out or ""):match("density:%s*(%d+)")) or nil
+        inset = density and math.floor(24 * density / 160 + 0.5) or 24
+    end
+
+    inset = math.max(0, math.floor(inset)) + 2 -- small safety margin for app-cloner rounding
+    topInsetCache = { inset, now }
+    return inset
 end
 
 local function prefsFile(pkg)
@@ -6246,7 +6456,10 @@ function WindowLayout.boundsFor(instance, index, count)
     if cols < 1 then cols = math.ceil(math.sqrt(count)) end
     local rows = math.ceil(count / cols)
     local gap = math.max(0, math.floor(tonumber(wl.gap) or 0))
-    local top0 = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    -- offsetTop remains a user-requested margin, but zero can no longer place
+    -- windows under Android's status bar.
+    local requestedTop = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    local top0 = math.max(requestedTop, systemTopInset())
 
     local cellW = math.floor((sw - gap * (cols - 1)) / cols)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)
@@ -6884,6 +7097,16 @@ local function runWithRoot(cmd)
     return "su -c '" .. inner .. "'"
 end
 
+-- Verify that root commands are enabled and that `su` actually grants uid 0.
+-- An inactive Magisk/SuperSU grant must stop the engine before it opens menus or
+-- starts monitoring, otherwise process checks silently run with incomplete access.
+function Shell.rootAvailable()
+    if not rootEnabled() then return false, "useRoot=false" end
+    local ok, out = Shell.exec("id -u")
+    if ok and out and out:match("^%s*0%s*$") then return true end
+    return false, out or "su_failed"
+end
+
 -- Execute a command and return (ok, output). Uses io.popen to capture stdout.
 -- If runtime dry-run is enabled, log the command and return a simulated success output.
 function Shell.exec(cmd)
@@ -7162,16 +7385,6 @@ local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
 if not ok then
     Logger.error("Failed to ensure config: " .. tostring(created_or_err))
-else
-    if created_or_err == true and not skipWizard and not headless then
-        -- config was just created from template; run the interactive setup wizard
-        local Wizard = require("core.setup_wizard")
-        local wok, werr = Wizard.run()
-        if not wok then
-            Logger.warn("Setup wizard did not complete: " .. tostring(werr))
-            Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
-        end
-    end
 end
 
 local Config = require("core.config")
@@ -7180,6 +7393,30 @@ local Config = require("core.config")
 local conf = Config.get() or {}
 if conf.logPath then
     Logger.setLogPath(conf.logPath)
+end
+
+-- Root is required for process discovery, app control, and recovery. Fail before
+-- setup prompts or the main menu if root is disabled or Magisk/SuperSU denies it.
+if not dryRun then
+    local Shell = require("utils.shell")
+    local rootOk, rootErr = Shell.rootAvailable()
+    if not rootOk then
+        local msg = "Root tidak aktif atau izin su ditolak. Aktifkan akses root dan pastikan useRoot = true di config/config.lua, lalu jalankan ulang."
+        Logger.error(msg .. " (" .. tostring(rootErr) .. ")")
+        print("\n[FATAL] " .. msg)
+        os.exit(1)
+    end
+end
+
+if ok and created_or_err == true and not skipWizard and not headless then
+    -- config was just created from template; run the interactive setup wizard
+    -- only after confirming that the required root access is available.
+    local Wizard = require("core.setup_wizard")
+    local wok, werr = Wizard.run()
+    if not wok then
+        Logger.warn("Setup wizard did not complete: " .. tostring(werr))
+        Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
+    end
 end
 
 local data = conf

@@ -15,7 +15,7 @@ local Config = require("core.config")
 --       enabled = true,    -- on in the shipped config; installer turns it on
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
---       offsetTop = 0,     -- pixels kept free at the top of the screen
+--       offsetTop = 0,     -- extra top margin; auto grid still avoids the Android status bar
 --       overlap = 80,      -- pixels every row except the last reaches into the row
 --                          -- below it, so a small window shows the whole Roblox
 --                          -- sidebar (up to "More"). With overlap the rows are filled
@@ -44,6 +44,8 @@ local KEY_PREFIX = "app_cloner_current_window_"
 
 local screenCache = nil      -- { w, h, at }
 local SCREEN_TTL = 30
+local topInsetCache = nil    -- { px, at }
+local TOP_INSET_TTL = 30
 local DEFAULT_OVERLAP = 80
 local TOLERANCE = 10          -- pixels the app may adjust a window by
 local lastVerify = {}         -- pkg -> { ok, at, actual, target }
@@ -96,6 +98,52 @@ local function screenSize(wl)
     end
     screenCache = { a, b, now }
     return a, b
+end
+
+-- Find the top system-bar/cutout area so a grid that uses offsetTop=0 still
+-- starts below Android's notification bar. Prefer the actual StatusBar window
+-- frame; fall back to stable insets, then 24dp at the device density.
+local function systemTopInset()
+    local now = os.time()
+    if topInsetCache and now - topInsetCache[2] < TOP_INSET_TTL then
+        return topInsetCache[1]
+    end
+
+    local inset = 0
+    local ok, out = Shell.exec("dumpsys window windows")
+    if ok and out and out ~= "(dry-run)" then
+        local start = out:find("Window #%d+[^\r\n]-StatusBar")
+        if start then
+            local nextWindow = out:find("\nWindow #", start + 1, true)
+            local block = out:sub(start, nextWindow or (start + 1800))
+            for line in block:gmatch("[^\r\n]+") do
+                local l, t, r, b = line:match("[Ff]rame=%[(-?%d+),%s*(-?%d+)%]%[(-?%d+),%s*(-?%d+)%]")
+                l, t, r, b = tonumber(l), tonumber(t), tonumber(r), tonumber(b)
+                if l and t == 0 and r and b and b > 0 and (r - l) >= b then
+                    inset = math.max(inset, b)
+                end
+            end
+        end
+    end
+
+    if inset == 0 then
+        ok, out = Shell.exec("dumpsys window displays")
+        if ok and out and out ~= "(dry-run)" then
+            local stable = tonumber(out:match("mStableInsets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            local cutout = tonumber(out:match("DisplayCutout%{insets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            inset = math.max(stable or 0, cutout or 0)
+        end
+    end
+
+    if inset == 0 then
+        ok, out = Shell.exec("wm density")
+        local density = ok and tonumber((out or ""):match("density:%s*(%d+)")) or nil
+        inset = density and math.floor(24 * density / 160 + 0.5) or 24
+    end
+
+    inset = math.max(0, math.floor(inset)) + 2 -- small safety margin for app-cloner rounding
+    topInsetCache = { inset, now }
+    return inset
 end
 
 local function prefsFile(pkg)
@@ -166,7 +214,10 @@ function WindowLayout.boundsFor(instance, index, count)
     if cols < 1 then cols = math.ceil(math.sqrt(count)) end
     local rows = math.ceil(count / cols)
     local gap = math.max(0, math.floor(tonumber(wl.gap) or 0))
-    local top0 = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    -- offsetTop remains a user-requested margin, but zero can no longer place
+    -- windows under Android's status bar.
+    local requestedTop = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    local top0 = math.max(requestedTop, systemTopInset())
 
     local cellW = math.floor((sw - gap * (cols - 1)) / cols)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)
