@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Update log: 2 kotak + kirim otomatis saat push**: pesan dibagi jadi 2 container (judul/version/notes, lalu isi section). Workflow `.github/workflows/update-log.yml` jalan saat push ke `main` yang menyentuh `tools/update_logs/**`; `tools/send_new_update_logs.sh` mengirim file log yang baru atau yang `version`-nya berubah (edit tanpa ganti version tidak dikirim ulang). URL dari secret repo `UPDATE_LOG_WEBHOOK`; tanpa secret workflow tetap sukses tanpa mengirim.
+
 - **Update log jadi pesan components**: `tools/update_log.lua --send` sekarang mengirim lewat webhook sebagai pesan Components V2 (`?with_components=true`, flag 32768): satu container dengan garis warna (`color`), judul `# Rejoin Update Logs`, mention, Version + Developer Notes, lalu tiap bagian (`### Added` dst.) dipisah separator. Field `place` dihapus dari template. Kalau Discord menolak format components (HTTP 4xx), teks yang sama dikirim sebagai pesan biasa.
 
 - **Generator update log**: `tools/update_log.lua <file>` membuat teks update log (judul, mention, Place, Version, Developer Notes, Added `[ + ]`, Improved `[ / ]`, Fixed `[ ! ]`, Deleted `[ - ]`; bagian kosong dilewati) dari file Lua seperti `tools/update_log_template.lua`. `--send <url>` (atau env `UPDATE_LOG_WEBHOOK`) langsung mengirim ke Discord webhook, dipecah per 2000 karakter; ping role lewat `mention = "<@&ROLE_ID>"`.

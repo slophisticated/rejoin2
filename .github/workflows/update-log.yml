@@ -1,0 +1,23 @@
+name: Update log
+
+# Posts new / bumped update logs (tools/update_logs/*.lua) to Discord.
+# Needs the repository secret UPDATE_LOG_WEBHOOK (the Discord webhook link).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/update_logs/**"
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Lua
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.3
+      - name: Send update logs
+        env:
+          UPDATE_LOG_WEBHOOK: ${{ secrets.UPDATE_LOG_WEBHOOK }}
+        run: sh tools/send_new_update_logs.sh "${{ github.event.before }}" "${{ github.sha }}"
