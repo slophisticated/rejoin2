@@ -42,10 +42,8 @@ local WindowLayout = {}
 local KEYS = { "left", "top", "right", "bottom" }
 local KEY_PREFIX = "app_cloner_current_window_"
 
-local screenCache = nil      -- { w, h, at }
-local SCREEN_TTL = 30
-local topInsetCache = nil    -- { px, at }
-local TOP_INSET_TTL = 30
+local screenCache = nil      -- first detected size is held for the whole process
+local topInsetCache = nil    -- first detected inset is held for the whole process
 local DEFAULT_OVERLAP = 80
 local TOLERANCE = 10          -- pixels the app may adjust a window by
 local lastVerify = {}         -- pkg -> { ok, at, actual, target }
@@ -70,17 +68,13 @@ local function shQuote(v)
     return "'" .. tostring(v):gsub("'", "'\\''") .. "'"
 end
 
--- Display size for the grid. Re-read every SCREEN_TTL seconds (never cached for the
--- whole run: a read taken while the display was still portrait right after boot would
--- otherwise skew every window until the engine restarts). The floating clones run in
--- landscape, so the long side is the width unless orientation = "auto".
+-- Display size for the grid. Keep the first detected size for this process so Android
+-- reporting transient dimensions during rotation/window transitions cannot move later
+-- clone slots. Set screenWidth/screenHeight to pin dimensions across restarts.
 local function screenSize(wl)
     local w, h = tonumber(wl.screenWidth), tonumber(wl.screenHeight)
     if w and h and w > 0 and h > 0 then return w, h end
-    local now = os.time()
-    if screenCache and now - screenCache[3] < SCREEN_TTL then
-        return screenCache[1], screenCache[2]
-    end
+    if screenCache then return screenCache[1], screenCache[2] end
     local a, b
     local ok, out = Shell.exec("dumpsys window displays")
     if ok and out then
@@ -96,7 +90,7 @@ local function screenSize(wl)
     if wl.orientation ~= "auto" then
         a, b = math.max(a, b), math.min(a, b)
     end
-    screenCache = { a, b, now }
+    screenCache = { a, b }
     return a, b
 end
 
@@ -104,10 +98,7 @@ end
 -- starts below Android's notification bar. Prefer the actual StatusBar window
 -- frame; fall back to stable insets, then 24dp at the device density.
 local function systemTopInset()
-    local now = os.time()
-    if topInsetCache and now - topInsetCache[2] < TOP_INSET_TTL then
-        return topInsetCache[1]
-    end
+    if topInsetCache then return topInsetCache end
 
     local inset = 0
     local ok, out = Shell.exec("dumpsys window windows")
@@ -142,8 +133,8 @@ local function systemTopInset()
     end
 
     inset = math.max(0, math.floor(inset)) + 2 -- small safety margin for app-cloner rounding
-    topInsetCache = { inset, now }
-    return inset
+    topInsetCache = inset
+    return topInsetCache
 end
 
 local function prefsFile(pkg)
@@ -217,7 +208,9 @@ function WindowLayout.boundsFor(instance, index, count)
     -- offsetTop remains a user-requested margin, but zero can no longer place
     -- windows under Android's status bar.
     local requestedTop = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
-    local top0 = math.max(requestedTop, systemTopInset())
+    local fixedInset = tonumber(wl.topInset)
+    local safeInset = fixedInset and fixedInset > 0 and math.floor(fixedInset) or systemTopInset()
+    local top0 = math.max(requestedTop, safeInset)
 
     local cellW = math.floor((sw - gap * (cols - 1)) / cols)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)

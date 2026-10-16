@@ -53,6 +53,9 @@ return {
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)
         gap = 0,       -- jarak antar jendela (pixel)
         offsetTop = 0, -- margin tambahan (pixel); grid otomatis tetap menghindari status bar
+        topInset = 0,  -- 0 = deteksi sekali per sesi; angka >0 = tinggi status bar tetap (pixel)
+        screenWidth = 0,  -- 0 = deteksi sekali per sesi; isi bersama screenHeight untuk ukuran tetap
+        screenHeight = 0,
         overlap = 80,  -- baris atas lebih tinggi sekian pixel (numpuk baris bawah) biar menu Roblox sampai More kelihatan; 0 = grid biasa
     },
     -- Heartbeat Delta: rejoin memasang script ke folder Autoexecute Delta. Dari dalam

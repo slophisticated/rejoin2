@@ -92,6 +92,9 @@ return {
         columns = 0,
         gap = 0,
         offsetTop = 0,       -- extra top margin; auto grid still reserves the Android status bar
+        topInset = 0,        -- 0 = detect once per session; >0 pins the status bar height in pixels
+        screenWidth = 0,     -- 0 = detect once per session; set with screenHeight to pin the display size
+        screenHeight = 0,
         overlap = 80,
     },
     -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
