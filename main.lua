@@ -73,6 +73,9 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Everything the tool owns lives in one folder; tell the user where it is.
+require("core.paths").announce()
+
 -- Ensure configuration exists (setup will copy template -> config if needed)
 local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
@@ -102,6 +105,19 @@ local data = conf
 
 local InstanceManager = require("managers.instance")
 InstanceManager.load(Config.get())
+
+-- Warn about instances whose package is not installed on this device (e.g. a leftover
+-- placeholder from the config template). Warning only — nothing is blocked.
+local missing = InstanceManager.missingPackages()
+if #missing > 0 then
+    print("")
+    print("[WARN] Package instance ini TIDAK terpasang di device:")
+    for _, m in ipairs(missing) do
+        print(string.format("  - id=%s  %s  (%s)", tostring(m.id), tostring(m.name), tostring(m.package)))
+    end
+    print("      Buang lewat menu Instances Manager > 4) Delete, atau edit config.")
+    print("")
+end
 
 -- One-shot: environment doctor -- run on EACH device, diff outputs to find the
 -- dependency/fingerprint difference causing "inject [OK] tapi app ga login" on one
@@ -204,25 +220,19 @@ while true do
         local SettingsCLI = require("core.settings_cli")
         SettingsCLI.run()
     elseif choice == "4" then
-        local LogsCLI = require("core.logs_cli")
-        LogsCLI.run()
-    elseif choice == "5" then
-        local Monitor = require("managers.monitor")
-        print("(tekan Ctrl+C untuk berhenti monitor)")
-        Monitor.start(Config.get())
-        if Monitor.interrupted() then
-            print("Monitor stopped by Ctrl+C; exiting.")
-            os.exit(0)
-        end
-    elseif choice == "6" then
         local AutoExecuteCLI = require("core.autoexecute_cli")
         AutoExecuteCLI.run()
-    elseif choice == "7" then
+    elseif choice == "5" then
         local InjectCookieCLI = require("core.inject_cookie_cli")
         InjectCookieCLI.run()
+    elseif choice == "6" then
+        local BootCLI = require("core.boot_cli")
+        BootCLI.run()
+    elseif choice == "7" then
+        local UninstallCLI = require("core.uninstall_cli")
+        UninstallCLI.run()
     elseif choice == "8" then
-        local DumpCookiesCLI = require("core.dump_cookies_cli")
-        DumpCookiesCLI.run()
+        require("core.webhook_cli").run()
     elseif choice == "9" then
         require("core.webhook_cli").run()
     elseif choice == "10" then

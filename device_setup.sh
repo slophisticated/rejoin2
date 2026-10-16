@@ -9,8 +9,8 @@
 #   - Developer options: force allow apps on external, force activities to be
 #     resizable, enable freeform windows, enable non-resizable in multi-window
 #   - Smallest width SMALLEST_WIDTH dp (default 600), via `wm density`. A value given
-#     with SMALLEST_WIDTH=... is remembered in data/smallest_width, so reinstalls and
-#     updates keep it; --undo forgets it.
+#     with SMALLEST_WIDTH=... is remembered in <data root>/data/smallest_width, so
+#     reinstalls and updates keep it; --undo forgets it.
 # Freeform / resizable take effect after a reboot.
 #
 # Prints one "[OK]" / "[!!]" line per item. Never exits with an error, so the
@@ -20,12 +20,14 @@ MODE=apply
 [ "$1" = "--undo" ] && MODE=undo
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-SW_FILE="$DIR/data/smallest_width"
+# Data root: the engine keeps config + data here (YANAMIN_HOME overrides it).
+DATA_ROOT=${YANAMIN_HOME:-/sdcard/yanamin}
+SW_FILE="$DATA_ROOT/data/smallest_width"
 valid_sw() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 320 ] && [ "$1" -le 1600 ]; }
 SW=600
 if [ -n "$SMALLEST_WIDTH" ] && valid_sw "$SMALLEST_WIDTH"; then
     SW=$SMALLEST_WIDTH
-    [ "$MODE" = apply ] && mkdir -p "$DIR/data" && echo "$SW" > "$SW_FILE"
+    [ "$MODE" = apply ] && mkdir -p "$DATA_ROOT/data" && echo "$SW" > "$SW_FILE"
 elif [ -f "$SW_FILE" ] && valid_sw "$(cat "$SW_FILE")"; then
     SW=$(cat "$SW_FILE")
 fi

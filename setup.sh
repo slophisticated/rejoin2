@@ -73,8 +73,15 @@ else
   fi
 fi
 
-# Ensure data log file exists
-touch "$HOME/rejoin/data/rejoin.log" || true
+# The engine keeps everything it owns in one data root: /sdcard/yanamin
+# (override with YANAMIN_HOME). Create it here so the first run does not have to.
+DATA_ROOT="${YANAMIN_HOME:-/sdcard/yanamin}"
+if ! mkdir -p "$DATA_ROOT/config" "$DATA_ROOT/data" 2>/dev/null; then
+  echo "WARNING: cannot create $DATA_ROOT — run: termux-setup-storage (grant storage permission)" >&2
+  DATA_ROOT="$HOME/.yanamin"
+  mkdir -p "$DATA_ROOT/config" "$DATA_ROOT/data"
+fi
+touch "$DATA_ROOT/data/rejoin.log" || true
 
 echo "Setting file permissions (optional)"
 chmod -R u+rw "$HOME/rejoin" || true
@@ -95,12 +102,16 @@ Next steps (on device):
   lua main.lua --headless --start-monitor
 
 AutoExecute scripts are managed directly in /sdcard/Delta/Autoexecute from the
-"6) AutoExecute Manager" menu (Add/Edit/Delete write straight into that folder).
+"4) AutoExecute Manager" menu (Add/Edit/Delete write straight into that folder).
 
 lua main.lua starts its terminal supervisor automatically, so Ctrl+C stops the
 monitor. lua-posix is optional for the in-process SIGINT handler.
 
-If any commands fail, inspect the log at data/rejoin.log and share it for troubleshooting.
+Config, logs and every other file the engine owns live in one folder:
+  /sdcard/yanamin/config/config.lua
+  /sdcard/yanamin/data/rejoin.log
+If any commands fail, inspect /sdcard/yanamin/data/rejoin.log and share it for
+troubleshooting.
 
 EOF
 
