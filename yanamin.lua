@@ -149,25 +149,8 @@ return {
     -- ps/pidof/pgrep can actually see the app processes the Monitor depends on; Termux run
     -- as a normal user cannot see other apps' processes. Set false on a non-root device.
     useRoot = true,
-    instances = {
-        -- Example instance. Private Server accepts either a public game link
-        --   https://www.roblox.com/games/<placeId>/...
-        -- or a private server share link
-        --   https://www.roblox.com/share?code=...&type=Server
-        -- cookiePath (optional): path to this clone's WebView cookie DB used to detect
-        -- whether an account is already logged in. If left empty, the default
-        -- /data/data/<package>/app_webview/Default/Cookies is used. When no login is
-        -- detected the clone is treated as idle and is never force-relaunched.
-        {
-            id = 1,
-            name = "Main",
-            package = "com.roblox.client",
-            privateServer = "https://www.roblox.com/games/107778070777162/Steal-An-Egg",
-            -- (optional) path to a file whose first line is this clone's Roblox username;
-            -- when blank the monitor auto-resolves it via the Roblox API + ROBLOSECURITY cookie.
-            usernamePath = ""
-        }
-    }
+    -- Start empty; the setup wizard or Instance Manager adds installed packages.
+    instances = {}
 }
 ]]
 __ya_sources["core.autoexecute_cli"] = [[
