@@ -142,6 +142,11 @@ function Heartbeat.install()
     return true, target
 end
 
+-- os.time() of this clone's latest launch by this engine, or nil.
+function Heartbeat.launchedAt(instance)
+    return instance and instance.package and launchedAt[instance.package] or nil
+end
+
 function Heartbeat.markLaunched(instance)
     local pkg = instance and instance.package
     if pkg then

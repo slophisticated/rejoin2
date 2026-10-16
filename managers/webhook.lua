@@ -30,6 +30,8 @@ local warned = {}
 local eventLast = {}
 local cpuPrev = nil      -- { total, idle }
 local procPrev = {}      -- pkg -> { proc, total }
+local PIDS_FILE = "data/clone_pids.txt"
+local pidSeen = nil      -- pkg -> { pid, since }: when this engine first saw the pid
 local STATE_FILE = "data/webhook_msg.txt"
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
@@ -191,6 +193,39 @@ local function fmtDuration(sec)
     return string.format("%dm", m)
 end
 
+-- Runtime fallback: when /proc gives nonsense (Redfinger runs Android in a container:
+-- /proc/uptime counts from the cloud phone's boot, starttime from the host's), count
+-- from the moment the pid was first seen, or from this engine's launch of the clone.
+-- Saved in data/clone_pids.txt so an engine restart keeps counting.
+local function loadPids()
+    if pidSeen then return end
+    pidSeen = {}
+    for line in (readFile(PIDS_FILE) or ""):gmatch("[^\n]+") do
+        local pkg, pid, since = line:match("^(%S+)%s+(%d+)%s+(%d+)$")
+        if pkg then pidSeen[pkg] = { pid = pid, since = tonumber(since) } end
+    end
+end
+
+local function savePids()
+    local lines = {}
+    for pkg, e in pairs(pidSeen) do lines[#lines + 1] = pkg .. " " .. e.pid .. " " .. e.since end
+    table.sort(lines)
+    writeFile(PIDS_FILE, table.concat(lines, "\n") .. "\n")
+end
+
+local function seenSince(pkg, pid)
+    loadPids()
+    local e = pidSeen[pkg]
+    if e and e.pid == pid then return e.since end
+    local since = os.time()
+    local okH, Heartbeat = pcall(require, "managers.heartbeat")
+    local launched = okH and Heartbeat.launchedAt and Heartbeat.launchedAt({ package = pkg })
+    if launched and launched <= since and since - launched < 600 then since = launched end
+    pidSeen[pkg] = { pid = pid, since = since }
+    savePids()
+    return since
+end
+
 -- Uptime and CPU of one clone's main process, from /proc/<pid>/stat.
 local function procStats(pkg, sys)
     if type(pkg) ~= "string" or not pkg:match("^[%w_%.]+$") then return nil end
@@ -205,7 +240,13 @@ local function procStats(pkg, sys)
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
     local r = {}
-    if start and sys.uptime then r.uptime = sys.uptime - start / HZ end
+    local fromProc = (start and sys.uptime) and (sys.uptime - start / HZ) or nil
+    local since = seenSince(pkg, pid)
+    if fromProc and fromProc >= 0 and fromProc <= sys.uptime + 60 then
+        r.uptime = fromProc
+    else
+        r.uptime = os.time() - since
+    end
     if utime and stime then
         local proc = utime + stime
         local prev = procPrev[pkg]

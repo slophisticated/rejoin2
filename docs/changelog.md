@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix runtime clone di webhook selalu `0m`**: Redfinger menjalankan Android di container, jadi `/proc/uptime` (sejak cloud phone boot) dan `starttime` proses (sejak host boot) tidak sejalan; hasilnya negatif lalu jadi 0. Sekarang nilai `/proc` hanya dipakai kalau masuk akal; kalau tidak, runtime dihitung sejak pid clone pertama kali terlihat (atau sejak engine me-launch clone itu), disimpan di `data/clone_pids.txt` supaya tidak reset saat engine restart.
+
 - **Root handler**: `core/root_check.lua` mengecek `su -c id` (timeout 15 dtk, stdin /dev/null) di awal `main.lua`, sebelum setup wizard. Tanpa root → pesan petunjuk + exit 3 (menu tidak dibuka; saat boot, `termux-boot.sh` mencoba lagi tiap 30 dtk maks 5x). Dilewati untuk `--dry-run`, flag one-shot installer, dan `useRoot = false`.
 
 - **Installer membereskan upgrade paket yang terputus**: kalau `dpkg --audit` menemukan paket setengah terpasang ("dpkg was interrupted"), langkah 1 menjalankan `dpkg --configure -a` + `apt-get --fix-broken install` sebelum `apt-get update`, dan jalur cepat (skip upgrade) tidak dipakai.
