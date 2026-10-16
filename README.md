@@ -125,6 +125,8 @@ grep -E "launching|in game|heartbeat" ~/rejoin/data/rejoin.log | tail -20 # urut
 
 Riwayat perubahan: **[docs/changelog.md](docs/changelog.md)**.
 
+Ngembangin pake AI agent (opencode, dll)? Konteks project, aturan teknis, dan alur kerja ada di **[AGENTS.md](AGENTS.md)**.
+
 ---
 
 ## Struktur project
