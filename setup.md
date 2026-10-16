@@ -71,6 +71,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Masalah | Solusi |
 |---|---|
 | `CANNOT LINK EXECUTABLE ... libcurl` | `apt update && apt full-upgrade -y`, lalu ulangi install |
+| `dpkg was interrupted` / installer gagal di langkah 1 | `dpkg --configure -a && apt --fix-broken install -y`, lalu ulangi install (installer terbaru membereskannya sendiri) |
 | `apt update` gagal / 404 | `termux-change-repo` → **Mirror group** → **Mirrors in Asia**, lalu ulangi |
 | Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
 | Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |

@@ -43,6 +43,8 @@ APT_OPTS="-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confo
 # is installed and actually runs, skip the slow apt update / full-upgrade.
 # Force it anyway with: ... | FULL_UPGRADE=1 sh
 packages_ok() {
+    # A half-finished earlier upgrade (dpkg --audit lists packages) needs the apt path.
+    [ -z "$(dpkg --audit </dev/null 2>/dev/null)" ] || return 1
     for p in lua53 sqlite curl git; do
         dpkg -s "$p" </dev/null >/dev/null 2>&1 || return 1
     done
@@ -54,12 +56,25 @@ packages_ok() {
 if [ "${FULL_UPGRADE:-0}" != 1 ] && packages_ok; then
     ok "lua53 sqlite curl git sudah lengkap (upgrade paket dilewati)"
 else
+    # An earlier upgrade that was cut off ("dpkg was interrupted") blocks every apt
+    # command: finish it first. Cheap and harmless when nothing is pending.
+    if [ -n "$(dpkg --audit </dev/null 2>/dev/null)" ]; then
+        echo "  membereskan upgrade paket yang dulu terputus..."
+        dpkg --force-confdef --force-confold --configure -a </dev/null >/dev/null 2>&1
+        # shellcheck disable=SC2086
+        apt-get $APT_OPTS --fix-broken install </dev/null >/dev/null 2>&1
+        if [ -z "$(dpkg --audit </dev/null 2>/dev/null)" ]; then
+            ok "paket setengah terpasang dibereskan"
+        else
+            warn "masih ada paket setengah terpasang (lanjut)"
+        fi
+    fi
     # apt instead of pkg: pkg itself needs a working curl, which a half-upgraded
     # Termux may not have (libcurl/openssl mismatch).
     if apt-get update </dev/null >/dev/null 2>&1; then
         ok "daftar paket ter-update"
     else
-        die "apt update gagal. Jalankan: termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
+        die "apt update gagal. Jalankan: dpkg --configure -a, lalu termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
     fi
     echo "  upgrade paket (bisa beberapa menit)..."
     # shellcheck disable=SC2086
@@ -68,7 +83,7 @@ else
     if apt-get $APT_OPTS install lua53 sqlite curl git </dev/null >/dev/null 2>&1; then
         ok "lua53 sqlite curl git terpasang"
     else
-        die "gagal install lua53/sqlite/curl/git. Coba: termux-change-repo (Mirrors in Asia), lalu ulangi."
+        die "gagal install lua53/sqlite/curl/git. Coba: dpkg --configure -a && apt --fix-broken install -y, atau termux-change-repo (Mirrors in Asia), lalu ulangi."
     fi
 fi
 
