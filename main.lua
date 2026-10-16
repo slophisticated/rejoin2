@@ -73,6 +73,22 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Root handler: stop right away when Termux has no root (everything else needs it,
+-- the setup wizard's clone detection included). Skipped for --dry-run, for the
+-- installer's one-shot flags (they do not need root) and with useRoot = false.
+do
+    local okC, c = pcall(dofile, "config/config.lua")
+    local rootOff = okC and type(c) == "table" and c.useRoot == false
+    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or rootOff) then
+        local RootCheck = require("core.root_check")
+        if not RootCheck.ok() then
+            Logger.error("Root belum aktif; rejoin berhenti")
+            io.stderr:write(RootCheck.MESSAGE .. "\n")
+            os.exit(3)
+        end
+    end
+end
+
 -- Ensure configuration exists (setup will copy template -> config if needed)
 local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)

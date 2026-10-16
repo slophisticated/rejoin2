@@ -50,6 +50,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Dashboard live** dengan username tiap clone, status berwarna, FPS/RAM dari heartbeat, dan progres launch.
 - **Inject Cookie.** Masukkan token `.ROBLOSECURITY` ke clone. Token diverifikasi dulu sebelum ditulis.
 - **AutoExecute Manager.** Tambah, edit, atau hapus script di folder Autoexecute Delta langsung dari Termux.
+- **Cek root di awal.** Kalau root belum diizinkan, `lua main.lua` langsung berhenti dengan petunjuk cara mengaktifkannya.
 - **Prioritas rendah.** Clone di-`renice` / `ionice` supaya Termux dan sistem tetap responsif.
 
 ---

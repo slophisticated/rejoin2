@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Root handler**: `core/root_check.lua` mengecek `su -c id` (timeout 15 dtk, stdin /dev/null) di awal `main.lua`, sebelum setup wizard. Tanpa root → pesan petunjuk + exit 3 (menu tidak dibuka; saat boot, `termux-boot.sh` mencoba lagi tiap 30 dtk maks 5x). Dilewati untuk `--dry-run`, flag one-shot installer, dan `useRoot = false`.
+
 - **Installer membereskan upgrade paket yang terputus**: kalau `dpkg --audit` menemukan paket setengah terpasang ("dpkg was interrupted"), langkah 1 menjalankan `dpkg --configure -a` + `apt-get --fix-broken install` sebelum `apt-get update`, dan jalur cepat (skip upgrade) tidak dipakai.
 
 - **Update log: 2 kotak + kirim otomatis saat push**: pesan dibagi jadi 2 container (judul/version/notes, lalu isi section). Workflow `.github/workflows/update-log.yml` jalan saat push ke `main` yang menyentuh `tools/update_logs/**`; `tools/send_new_update_logs.sh` mengirim file log yang baru atau yang `version`-nya berubah (edit tanpa ganti version tidak dikirim ulang). URL dari secret repo `UPDATE_LOG_WEBHOOK`; tanpa secret workflow tetap sukses tanpa mengirim.
