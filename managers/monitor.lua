@@ -510,13 +510,27 @@ function Monitor.start(conf, opts)
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- Queue it instead of recovering inline. Recovery can take up to
-                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
-                    -- inside the status loop froze the dashboard AND stopped every other
-                    -- clone from being checked for that whole time. At most one queued
-                    -- instance is recovered per cycle (see below), so the monitor stays
-                    -- responsive and the rest is picked up on the following cycles.
-                    pendingRecovery[#pendingRecovery + 1] = inst
+                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
+                    setRecovering(id, true)
+                    Status.beginRecovery(id)
+                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    local p_ok, recovered = pcall(function()
+                        return recoveryManager.checkAndRecover(inst)
+                    end)
+                    if not p_ok then
+                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    elseif recovered then
+                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                        pcall(function() return Optimizer.applyForInstance(inst) end)
+                    else
+                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    end
+                    Status.endRecovery(id)
+                    setRecovering(id, false)
                 end
             end
 
