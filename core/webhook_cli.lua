@@ -36,7 +36,7 @@ function CLI.run()
         print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
         print("  6) Kirim tes sekarang")
         local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
-        print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
+        print("  7) Label Device Name    [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
         print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
@@ -95,7 +95,7 @@ function CLI.run()
                 end
             end
         elseif choice == "7" then
-            local v = prompt("Nama device (mis. nama di Redfinger; '-' = hapus): ")
+            local v = prompt("Label Device Name (mis. 01; '-' = hapus): ")
             v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
             if v == "-" then
                 wh.deviceName = ""

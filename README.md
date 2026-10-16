@@ -70,7 +70,7 @@ cd ~/rejoin && lua main.lua
 | `6` AutoExecute Manager | Kelola script Autoexecute Delta |
 | `7` Inject Cookie | Login clone pakai cookie |
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
-| `9` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama |
+| `9` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, Label Device Name, pakai pesan status lama |
 | `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
 | `0` Exit | |
 

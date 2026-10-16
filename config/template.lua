@@ -78,7 +78,7 @@ return {
         screenshot = true,
         events = true,      -- separate message when Delta asks for a key
         hideNames = true,
-        deviceName = "",    -- shown in every message; "" = device model
+        deviceName = "",    -- Label Device Name in report title/body; "" = device model
     },
     -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
     deltaLicensePath = "",

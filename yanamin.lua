@@ -107,6 +107,7 @@ return {
         screenshot = true,
         events = true,
         hideNames = true,
+        deviceName = "",
     },
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
@@ -1765,6 +1766,8 @@ function CLI.run()
         print("  4) Notif kejadian       [" .. onoff(wh.events ~= false) .. "]")
         print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
         print("  6) Kirim tes sekarang")
+        local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
+        print("  7) Label Device Name    [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -1820,6 +1823,18 @@ function CLI.run()
                 else
                     print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
                 end
+            end
+        elseif choice == "7" then
+            local v = prompt("Label Device Name (mis. 01; '-' = hapus): ")
+            v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if v == "-" then
+                wh.deviceName = ""
+                save(conf)
+            elseif v == "" then
+                print("Tidak diubah.")
+            else
+                wh.deviceName = v:sub(1, 60)
+                save(conf)
             end
         else
             print("Pilihan tidak dikenal.")
@@ -5677,6 +5692,7 @@ function Webhook.configure(c)
         screenshot = w.screenshot ~= false,
         events = w.events ~= false,
         hideNames = w.hideNames ~= false,
+        deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
     if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
     lastReport = 0
@@ -5759,6 +5775,7 @@ local function systemStats()
     local s = {}
     s.device = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
     if s.device == "" then s.device = "-" end
+    if conf.deviceName ~= "" then s.device = conf.deviceName end
 
     local mem = root("cat /proc/meminfo") or ""
     local total = tonumber(mem:match("MemTotal:%s*(%d+)"))
@@ -5874,7 +5891,7 @@ local function buildReport(instances, sys, withImage)
     local lines = {
         string.format("Last Updated: <t:%d:f> (<t:%d:R>)", now, now),
         "",
-        "📱 **Device**", sys.device,
+        "📱 **Device** - " .. sys.device,
         "",
         "🖥️ **System Stats**",
         "💾 RAM: " .. sys.ram,
@@ -5900,7 +5917,7 @@ local function buildReport(instances, sys, withImage)
 
     local color = 5763719 -- green
     if online == 0 then color = 15548997 elseif offline > 0 then color = 16705372 end
-    local embed = '{"title":' .. js("📊 Rejoin Status Update")
+    local embed = '{"title":' .. js("📊 Rejoin Status Update - " .. sys.device)
         .. ',"description":' .. js(desc)
         .. ',"color":' .. color
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now))

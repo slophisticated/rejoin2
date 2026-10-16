@@ -41,7 +41,7 @@ return {
         screenshot = true, -- sertakan screenshot layar
         events = true,     -- pesan terpisah kalau Delta minta key (file license hilang)
         hideNames = true,  -- nama akun disembunyikan (spoiler)
-        deviceName = "",   -- nama device di tiap pesan (mis. nama di Redfinger); "" = model
+        deviceName = "",   -- Label Device Name di judul/body laporan; "" = model device
     },
     -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
     deltaLicensePath = "",

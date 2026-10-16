@@ -194,8 +194,8 @@ local function model()
     return modelCache
 end
 
--- Name shown in every message: the one set in Menu 9 (the Redfinger name lives on
--- Redfinger's servers, not inside Android), else the device model.
+-- Label shown in the report title and Device line. Empty labels fall back to the
+-- Android model so existing configurations remain readable without a label.
 function Webhook.deviceLabel()
     if conf.deviceName and conf.deviceName ~= "" then return conf.deviceName end
     return model()
@@ -203,8 +203,7 @@ end
 
 local function systemStats()
     local s = {}
-    s.device = model()
-    if conf.deviceName and conf.deviceName ~= "" then s.device = conf.deviceName .. " (" .. s.device .. ")" end
+    s.device = Webhook.deviceLabel()
 
     local mem = root("cat /proc/meminfo") or ""
     local total = tonumber(mem:match("MemTotal:%s*(%d+)"))
@@ -341,7 +340,7 @@ local function buildReport(instances, sys, withImage)
     local lines = {
         string.format("Last Updated: <t:%d:f> (<t:%d:R>)", now, now),
         "",
-        "📱 **Device**", sys.device,
+        "📱 **Device** - " .. sys.device,
         "",
         "🖥️ **System Stats**",
         "💾 RAM: " .. sys.ram,
@@ -367,7 +366,7 @@ local function buildReport(instances, sys, withImage)
 
     local color = 5763719 -- green
     if online == 0 then color = 15548997 elseif offline > 0 then color = 16705372 end
-    local embed = '{"title":' .. js("📊 Rejoin Status — " .. Webhook.deviceLabel())
+    local embed = '{"title":' .. js("📊 Rejoin Status Update - " .. Webhook.deviceLabel())
         .. ',"description":' .. js(desc)
         .. ',"color":' .. color
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now))
