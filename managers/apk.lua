@@ -33,7 +33,6 @@ end
 -- Returns (success, output_or_err).
 function APKManager.launch(packageName)
     Logger.info("APKManager: launching package: " .. tostring(packageName))
-    APKManager.invalidateSnapshot()
 
     -- 1) Primary: am start MAIN/LAUNCHER targeting the package explicitly.
     local cmd = string.format("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p %s", packageName)
@@ -47,7 +46,6 @@ function APKManager.launch(packageName)
         end
         if not failed then
             Logger.info("APKManager: am start accepted for " .. tostring(packageName))
-            APKManager.invalidateSnapshot()
             return true, out
         end
     else
@@ -63,7 +61,6 @@ function APKManager.launch(packageName)
         -- monkey exits 0 even on some errors; only treat as success on injected events
         if out:find("Events injected", 1, true) then
             Logger.info("APKManager: monkey launch injected events for " .. tostring(packageName))
-            APKManager.invalidateSnapshot()
             return true, out
         end
         Logger.warn("APKManager: monkey reported an error for " .. tostring(packageName) .. ": " .. tostring(out))
@@ -77,7 +74,6 @@ function APKManager.launch(packageName)
         Logger.info("APKManager: fallback resolved launch component: " .. tostring(component))
         local ok2, out2 = Shell.exec(string.format("am start -n %s", component))
         if ok2 and out2 and out2:find("Error", 1, true) == nil then
-            APKManager.invalidateSnapshot()
             return true, out2
         end
         Logger.warn("APKManager: fallback am start failed for " .. tostring(packageName) .. ": " .. tostring(out2))
@@ -90,7 +86,6 @@ function APKManager.forceStop(packageName)
     Logger.info("APKManager: force stopping: " .. tostring(packageName))
     local cmd = string.format("am force-stop %s", packageName)
     local ok, out = Shell.exec(cmd)
-    APKManager.invalidateSnapshot()
     return ok, out
 end
 
@@ -100,61 +95,10 @@ local function escapeRegex(s)
     return s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "\\%1")
 end
 
--- ---------------------------------------------------------------------------
--- Process snapshot: ONE `ps -A` per monitor cycle instead of one per probe.
---
--- isRunning, isActive and getRSSinKB are each called once per instance per cycle, and
--- every one of them used to shell out (pidof / pgrep / ps -A). With four clones that
--- added up to ~20 `su` spawns per cycle. The snapshot parses `ps -A` once and is then
--- reused by all probes in the same cycle.
---
--- It is invalidated explicitly after launch / force-stop / recovery (see
--- APKManager.invalidateSnapshot) and also expires after SNAPSHOT_TTL, so a stale list
--- can never outlive a process change we did not initiate.
--- ---------------------------------------------------------------------------
-local SNAPSHOT_TTL = 1.5 -- seconds
-local snapshot = nil
-
-local function parseSnapshot(out)
-    local byName, order = {}, {}
-    for line in out:gmatch("[^\r\n]+") do
-        local fields = {}
-        for f in line:gmatch("%S+") do fields[#fields + 1] = f end
-        if #fields >= 9 then
-            local name = fields[#fields]
-            if name ~= "" then
-                byName[name] = { name = name, pid = fields[2], rssKb = tonumber(fields[5]) or -1 }
-                order[#order + 1] = name
-            end
-        end
-    end
-    return { byName = byName, order = order, at = os.time() }
-end
-
--- Cached process list, refreshed when older than SNAPSHOT_TTL.
--- Returns nil when `ps -A` cannot be read; callers then use their own fallback probe.
-function APKManager.snapshot()
-    if snapshot and (os.time() - snapshot.at) < SNAPSHOT_TTL then
-        return snapshot
-    end
-    local ok, out = Shell.exec("ps -A")
-    if not ok or not out or out == "(dry-run)" then
-        snapshot = nil
-        return nil
-    end
-    snapshot = parseSnapshot(out)
-    return snapshot
-end
-
--- Drop the cached process list. Call after anything that changes the process table so
--- the next probe in the same cycle reads fresh data.
-function APKManager.invalidateSnapshot()
-    snapshot = nil
-end
-
--- Check whether a package has a running process. A clone's MAIN process runs under its
--- own exact package name (e.g. com.apengjers.v3), so we match that name EXACTLY — NOT
--- sub-processes like `com.apengjers.v3:p0` (background services that keep running after
+-- Check whether a package has a running process. Tries pidof, then pgrep, then ps.
+-- Matching is anchored to the START of the process command. A clone's MAIN process runs
+-- under its own exact package name (e.g. com.apengjers.v3), so we match that name EXACTLY —
+-- NOT sub-processes like `com.apengjers.v3:p0` (background services that keep running after
 -- the UI is swiped away, which previously left `isRunning` true -> status stuck at "ingame"
 -- -> the closed app was never recovered/open again).
 -- Returns true if any method finds a matching process, false otherwise.
@@ -163,24 +107,33 @@ function APKManager.isRunning(packageName)
     local pkg = packageName:gsub("['\" ]", "")
     if pkg == "" then return false end
 
-    -- 1) Snapshot: one `ps -A` shared by every probe in this cycle.
-    local snap = APKManager.snapshot()
-    if snap and next(snap.byName) ~= nil then
-        return snap.byName[pkg] ~= nil
-    end
+    -- Match the exact main process name only (no trailing `:` sub-process).
+    local pattern = "^" .. escapeRegex(pkg) .. "$"
 
-    -- 2) Snapshot unavailable (restricted shell / unreadable ps) -> probe directly.
-    -- pidof: exact process-name match; busybox sometimes missing it.
+    -- 1) pidof (exact process-name match; busybox sometimes missing it)
     local ok, out = Shell.exec(string.format("pidof %s", pkg))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         return true
     end
 
-    -- pgrep -f with a pattern matching this clone's exact process command
-    local pattern = "^" .. escapeRegex(pkg) .. "$"
+    -- 2) pgrep -f with a pattern matching this clone's exact process command
     ok, out = Shell.exec(string.format("pgrep -f '%s'", pattern))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         return true
+    end
+
+    -- 3) ps -A fallback (compare the process COMMAND exactly, since ps lines are columnar
+    --    and the ERE pattern above would not match Lua's pattern syntax)
+    ok, out = Shell.exec("ps -A")
+    if ok and out and out ~= "(dry-run)" then
+        for line in (out or ""):gmatch("[^\r\n]+") do
+            local cmd = line:match("(%S+)$")
+            if cmd then
+                if cmd == pkg then
+                    return true
+                end
+            end
+        end
     end
 
     return false
@@ -217,14 +170,6 @@ function APKManager.getRSSinKB(packageName)
     if not packageName or packageName == "" then return -1 end
     local pkg = packageName:gsub("['\" ]", "")
     if pkg == "" then return -1 end
-    local snap = APKManager.snapshot()
-    if snap and next(snap.byName) ~= nil then
-        local entry = snap.byName[pkg]
-        if entry then return entry.rssKb end
-        return -1
-    end
-
-    -- Snapshot unavailable -> read `ps -A` directly.
     local ok, out = Shell.exec("ps -A")
     if not ok or not out or out == "(dry-run)" then return -1 end
     for line in out:gmatch("[^\r\n]+") do
@@ -276,38 +221,38 @@ end
 function APKManager.countProcess(name)
     if not name or name == "" then return 0 end
 
-    -- 1) Snapshot: count the exact process plus its `name:sub` services.
-    local snap = APKManager.snapshot()
-    if snap and next(snap.byName) ~= nil then
-        local n = 0
-        for _, entryName in ipairs(snap.order) do
-            if entryName == name or entryName:sub(1, #name + 1) == name .. ":" then
-                n = n + 1
-            end
-        end
-        return n
-    end
-
-    -- 2) Snapshot unavailable -> probe directly.
-    -- pgrep -f <name>: one PID per line; count non-empty lines (works on busybox).
+    -- 1) pgrep -f <name>: one PID per line; count non-empty lines (works on busybox).
     local ok, out = Shell.exec(string.format("pgrep -f %s", name))
-    if ok and out and out == "(dry-run)" then
-        return 1
-    end
-    if ok and out and out ~= "" then
+    if ok and out and out ~= "(dry-run)" and out ~= "" then
         local n = 0
         for _ in (out.."\n"):gmatch("[^\r\n]+") do
             n = n + 1
         end
         return n
     end
+    if ok and out and out == "(dry-run)" then
+        return 1
+    end
 
-    -- pidof <name>: a space-separated list of PIDs; count tokens.
+    -- 2) pidof <name>: a space-separated list of PIDs; count tokens.
     ok, out = Shell.exec(string.format("pidof %s", name))
     if ok and out and out ~= "" and out ~= "(dry-run)" then
         local n = 0
         for _ in (out.." "):gmatch("%S+") do
             n = n + 1
+        end
+        return n
+    end
+
+    -- 3) ps -A fallback: count lines whose COMMAND starts with the token.
+    ok, out = Shell.exec("ps -A")
+    if ok and out and out ~= "(dry-run)" then
+        local n = 0
+        for line in (out or ""):gmatch("[^\r\n]+") do
+            local cmd = line:match("(%S+)$")
+            if cmd and (cmd == name or cmd:sub(1, #name + 1) == name .. ":") then
+                n = n + 1
+            end
         end
         return n
     end

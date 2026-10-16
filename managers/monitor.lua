@@ -12,16 +12,11 @@ local DeltaKey = require("managers.delta_key")
 local Monitor = {}
 local running = false
 local interrupted = false
-local interval = 8
+local interval = 5
 local instanceManager = nil
 local recoveryManager = nil
 local apkManager = nil
 local Optimizer = nil
-
--- How often (in monitor cycles) to re-apply renice/ionice to every instance. 60 cycles
--- is roughly every 5-8 minutes, enough to catch clones whose pid changed behind our back
--- without flooding the device with shell calls.
-local OPT_REFRESH_CYCLES = 60
 
 -- Install a SIGINT handler via lua-posix so Ctrl+C stops monitoring and exits the
 -- program immediately. This is the ONLY reliable way to catch Ctrl+C in Termux: the
@@ -54,8 +49,8 @@ end
 
 -- Only one engine may drive the clones: the boot engine runs hidden in the
 -- background, and a second one started from the menu would force-stop and relaunch
--- the same clones. The running engine's pid is kept in the data root.
-local PID_FILE = require("core.paths").data("monitor.pid")
+-- the same clones. The running engine's pid is kept in data/monitor.pid.
+local PID_FILE = "data/monitor.pid"
 
 local function selfPid()
     -- The shell spawned by popen is our child, so its $PPID is this Lua process.
@@ -399,15 +394,6 @@ function Monitor.start(conf, opts)
     -- Warm the username cache once right away so the launch/dashboard draws hit the
     -- cache instead of firing a Roblox API call on every frame.
     pcall(function() Username.prefetch(instanceManager.getAll()) end)
-    -- Tune the clones that are ALREADY running: the optimizer was previously only
-    -- applied to clones this session launched/recovered, so everything started by the
-    -- boot engine (or already open when the monitor began) stayed at default priority.
-    pcall(function()
-        local tuned = Optimizer.applyAll()
-        if tuned and tuned > 0 then
-            Logger.info(string.format("Monitor: optimizer tuned %d running instance(s) at start", tuned))
-        end
-    end)
     installSignalHandler()
     local hbOk, hbMsg = Heartbeat.install()
     if not hbOk then Logger.warn("Monitor: heartbeat script not installed: " .. tostring(hbMsg)) end
@@ -427,16 +413,10 @@ function Monitor.start(conf, opts)
         if running then Status.printSummary(instanceManager.getAll()) end
     end
 
-    -- Instances that need recovery in this cycle. At most one is actually recovered
-    -- per cycle (see the bottom of the loop) so a slow recovery never blocks the
-    -- status checks or the dashboard of the other clones.
-    local pendingRecovery = {}
-
     local cycle = 0
     local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
         cycle = cycle + 1
-        pendingRecovery = {}
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do

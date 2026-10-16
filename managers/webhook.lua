@@ -42,7 +42,10 @@ local STATE_FILE_LEGACY = "data/webhook_msg.txt"
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
-local HZ = 100
+-- Linux proc stat starttime uses USER_HZ. Android devices are usually 100, but
+-- query the running environment so elapsed process time stays correct on variants.
+local HZ = nil
+
 
 -- Accept any real Discord webhook URL. The token is base64url and often contains "_",
 -- which the previous pattern ([%w%.%-]) rejected -- silently disabling the whole feature
@@ -158,6 +161,14 @@ local function root(cmd)
     return out
 end
 
+local function clockTicks()
+    if HZ then return HZ end
+    local out = root("getconf CLK_TCK 2>/dev/null")
+    HZ = tonumber(out and out:match("(%d+)") or "") or 100
+    if HZ <= 0 then HZ = 100 end
+    return HZ
+end
+
 -- System numbers ------------------------------------------------------------------
 local function cpuTotals()
     local stat = root("cat /proc/stat")
@@ -256,7 +267,17 @@ local function procStats(pkg, sys)
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
     local r = {}
-    if start and sys.uptime then r.uptime = sys.uptime - start / HZ end
+    if start and sys.uptime then
+        local elapsed = sys.uptime - start / clockTicks()
+        if elapsed > 0 then r.uptime = elapsed end
+    end
+    -- Some Android builds restrict /proc/uptime or expose a different clock
+    -- namespace to Termux and root. `etimes` is the process age in seconds and
+    -- gives the status report a useful uptime in those environments too.
+    if not r.uptime then
+        local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
+        if elapsed and elapsed > 0 then r.uptime = elapsed end
+    end
     if utime and stime then
         local proc = utime + stime
         local prev = procPrev[pkg]

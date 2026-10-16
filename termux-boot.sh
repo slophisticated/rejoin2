@@ -24,8 +24,12 @@ BOOT_DELAY=${BOOT_DELAY:-10}
 # MAX_RESTARTS times in a row (a clean stop or `kill` is not restarted).
 RESTART_DELAY=${RESTART_DELAY:-30}
 MAX_RESTARTS=${MAX_RESTARTS:-5}
-BOOT_LOG="$DATA_ROOT/data/boot.log"
-mkdir -p "$DATA_ROOT/data" 2>/dev/null || true
+if [ -f "$REJOIN_DIR/main.lua" ]; then
+    mkdir -p "$REJOIN_DIR/data" 2>/dev/null
+    BOOT_LOG="$REJOIN_DIR/data/boot.log"
+else
+    BOOT_LOG="$HOME/rejoin-boot.log"
+fi
 # Keep the log small: start a fresh one when it passes ~256 KB.
 if [ -f "$BOOT_LOG" ] && [ "$(wc -c < "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
     mv -f "$BOOT_LOG" "$BOOT_LOG.old" 2>/dev/null
@@ -48,21 +52,19 @@ fi
 
 [ -f "$REJOIN_DIR/main.lua" ] || { log "ERROR: $REJOIN_DIR/main.lua not found (set REJOIN_DIR)"; exit 1; }
 cd "$REJOIN_DIR" || { log "ERROR: cannot cd to $REJOIN_DIR"; exit 1; }
-# Interpreter may be lua, lua5.3, lua5.4 or luajit.
-LUA_BIN=$(command -v lua5.3 2>/dev/null || command -v lua 2>/dev/null || command -v lua5.4 2>/dev/null || command -v luajit 2>/dev/null || echo lua)
-[ -f "$DATA_ROOT/config/config.lua" ] || log "WARN: $DATA_ROOT/config/config.lua missing"
+command -v lua >/dev/null 2>&1 || { log "ERROR: lua not found (pkg install lua53)"; exit 1; }
+[ -f config/config.lua ] || log "WARN: config/config.lua missing"
 
 sleep "$BOOT_DELAY"
 if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
 
 # The live dashboard is useless without a window, so stdout is dropped; errors go to
-# boot.log and the engine's own log stays in the data root. stdin is /dev/null
-# because Termux:Boot gives the script no terminal. REJOIN_WRAPPER=1 runs the
-# engine directly: with no terminal there is nothing for the supervisor to own.
+# boot.log and the engine's own log stays in data/rejoin.log. stdin is /dev/null
+# because Termux:Boot gives the script no terminal.
 restarts=0
 while :; do
-    log "starting engine: main.lua --headless --start-monitor --auto-launch"
-    REJOIN_WRAPPER=1 "$LUA_BIN" main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
+    lua main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
     code=$?
     case "$code" in
         0|130|143)

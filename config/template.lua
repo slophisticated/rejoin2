@@ -3,11 +3,7 @@ return {
     -- AutoExecute is now managed DIRECTLY in the app's autoexecute folder: scripts are
     -- added/edited/deleted from the "Script Manager" menu into `appAutoExecutePath`
     -- (e.g. /sdcard/Delta/Autoexecute). No separate staging folder, no deploy step.
-    -- Seconds between monitor cycles (one cycle checks every instance once).
-    -- 8 is a sane default with several clones: cheaper on battery/CPU, and status
-    -- changes are still noticed quickly. Menu 1 is unaffected (it has its own
-    -- launchWaitInterval = 3).
-    monitorInterval = 8,
+    monitorInterval = 5,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,
@@ -15,9 +11,6 @@ return {
     -- Console log verbosity. Hidden below this level: "DEBUG" shows everything,
     -- "INFO" is the default (hides the monitor's per-probe/su debug spam).
     logLevel = "INFO",
-    -- Log utama. Path relatif dihitung dari data root (/sdcard/yanamin), jadi
-    -- "data/rejoin.log" -> /sdcard/yanamin/data/rejoin.log. Path absolut dipakai
-    -- apa adanya kalau mau log ditaruh di tempat lain.
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",

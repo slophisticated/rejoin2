@@ -1,10 +1,9 @@
 local File = require("utils.file")
 local Logger = require("core.logger")
-local Paths = require("core.paths")
 
 local Config = {}
-local configPath = Paths.config()
-local templatePath = Paths.template()
+local configPath = "config/config.lua"
+local templatePath = "config/template.lua"
 local data = nil
 
 local function loadFromFile(path)

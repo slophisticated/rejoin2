@@ -44,7 +44,7 @@ end
 
 function CLI.run()
     local conf = Config.get() or {}
-    conf.monitorInterval = conf.monitorInterval or 8
+    conf.monitorInterval = conf.monitorInterval or 5
     conf.recoveryDelay = conf.recoveryDelay or 3
     conf.recoveryRetries = conf.recoveryRetries or 3
     conf.checkTimeout = conf.checkTimeout or 15
@@ -71,7 +71,7 @@ function CLI.run()
         if choice == "1" then
             printSettings(conf)
         elseif choice == "2" then
-            local v = prompt("monitorInterval (detik antar siklus monitor, default 8): [" .. tostring(conf.monitorInterval) .. "] ")
+            local v = prompt("monitorInterval (seconds): [" .. tostring(conf.monitorInterval) .. "] ")
             local n = tonumber(v)
             if n then conf.monitorInterval = n else print("Invalid number") end
         elseif choice == "3" then
