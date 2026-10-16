@@ -579,7 +579,6 @@ function Monitor.start(conf, opts)
                 pcall(function() return Optimizer.applyForInstance(inst) end)
             else
                 Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
-                Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
                 ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
             end
             Status.endRecovery(id)

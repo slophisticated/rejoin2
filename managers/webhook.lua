@@ -244,7 +244,7 @@ end
 -- relaunch loop looks like from Discord.
 local function fmtDuration(sec)
     if not sec or sec <= 0 then return "-" end
-    sec = math.floor(sec)
+    sec = math.max(1, math.floor(sec))
     if sec < 60 then return string.format("%ddtk", sec) end
     local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
     if d > 0 then return string.format("%dd %dh", d, h) end
@@ -266,16 +266,13 @@ local function procStats(pkg, sys)
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
     local r = {}
-    if start and sys.uptime then
+    -- Prefer ps's elapsed-seconds field. Android can expose /proc/uptime and proc
+    -- starttime in different clock namespaces, making their subtraction look near 0.
+    local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
+    if elapsed and elapsed > 0 then r.uptime = elapsed end
+    if not r.uptime and start and sys.uptime then
         local elapsed = sys.uptime - start / clockTicks()
         if elapsed > 0 then r.uptime = elapsed end
-    end
-    -- Some Android builds restrict /proc/uptime or expose a different clock
-    -- namespace to Termux and root. `etimes` is the process age in seconds and
-    -- gives the status report a useful uptime in those environments too.
-    if not r.uptime then
-        local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
-        if elapsed and elapsed > 0 then r.uptime = elapsed end
     end
     if utime and stime then
         local proc = utime + stime

@@ -3903,6 +3903,7 @@ local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
+local Shell = require("utils.shell")
 
 local Monitor = {}
 local running = false
@@ -3912,6 +3913,32 @@ local instanceManager = nil
 local recoveryManager = nil
 local apkManager = nil
 local Optimizer = nil
+local monitorConf = {}
+
+-- Keep the key-required notification as the only event message. All other monitor
+-- events stay in local logs and the periodic Discord status report.
+local keyState = nil
+local function checkDeltaKey()
+    local path = type(monitorConf.deltaLicensePath) == "string" and monitorConf.deltaLicensePath:gsub("^%s*(.-)%s*$", "%1") or ""
+    if path == "" then path = "/sdcard/delta/internal/cache/license" end
+    local parent = path:match("^(.*)/[^/]+$") or "/"
+    local function q(value) return "'" .. value:gsub("'", "'\\''") .. "'" end
+    local cmd = "if [ -d " .. q(path) .. " ]; then [ -n \"$(ls -A " .. q(path) .. " 2>/dev/null)\" ] && echo KEY_YES || echo KEY_NO; "
+        .. "elif [ -s " .. q(path) .. " ]; then echo KEY_YES; "
+        .. "elif [ -d " .. q(parent) .. " ]; then echo KEY_NO; else echo KEY_UNKNOWN; fi"
+    local ok, out = Shell.exec("sh -c " .. q(cmd))
+    if not ok or not out or out:find("KEY_UNKNOWN", 1, true) then return end
+    local present = out:find("KEY_YES", 1, true) ~= nil
+    if present == keyState then return end
+    local was = keyState
+    keyState = present
+    if not present then
+        Logger.warn("[KEY] file license Delta hilang (" .. path .. "): Delta minta key")
+        Webhook.event("key", "🔑 Delta minta key", "File license Delta hilang. Delta perlu di-key ulang.", 16705372)
+    elseif was == false then
+        Logger.info("[KEY] key Delta aktif lagi")
+    end
+end
 
 -- How often (in monitor cycles) to re-apply renice/ionice to every instance. 60 cycles
 -- is roughly every 5-8 minutes, enough to catch clones whose pid changed behind our back
@@ -4017,7 +4044,6 @@ end
 -- its grid slot. Only reported (log on change + dashboard mark); the position is
 -- rewritten on the clone's next launch, never by restarting a running game.
 local windowState = {} -- pkg -> true (in place) / false (off grid)
-local monitorConf = {}
 
 -- A clone without a logged-in account is left alone while it sits on the login
 -- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
@@ -4053,7 +4079,6 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
         pcall(function() return Optimizer.applyForInstance(inst) end)
     else
         Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
-        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
     end
     return true
 end
@@ -4308,9 +4333,6 @@ function Monitor.start(conf, opts)
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
-                    if why and why:find("^kicked") then
-                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
-                    end
                 end
             end
 
@@ -4351,6 +4373,7 @@ function Monitor.start(conf, opts)
         Status.setProgress(nil)
         Status.printSummary(instances)
         Webhook.tick(instances)
+        pcall(checkDeltaKey)
 
         -- Recover AT MOST ONE queued instance per cycle. Everything else waits for the
         -- next cycle, so the dashboard above already shows the full picture and no other
@@ -4380,7 +4403,6 @@ function Monitor.start(conf, opts)
                 pcall(function() return Optimizer.applyForInstance(inst) end)
             else
                 Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
-                Webhook.event("fail:" .. tostring(pkg), "❌ Recovery gagal", name .. " gagal dibuka ulang setelah semua percobaan", 15548997)
                 ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
             end
             Status.endRecovery(id)
@@ -5662,7 +5684,7 @@ local STATE_FILE = "data/webhook_msg.txt"
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
-local HZ = 100
+local HZ = nil
 
 local function warnOnce(key, msg)
     if warned[key] then return end
@@ -5741,6 +5763,14 @@ local function root(cmd)
     return out
 end
 
+local function clockTicks()
+    if HZ then return HZ end
+    local out = root("getconf CLK_TCK 2>/dev/null")
+    HZ = tonumber(out and out:match("(%d+)") or "") or 100
+    if HZ <= 0 then HZ = 100 end
+    return HZ
+end
+
 -- System numbers ------------------------------------------------------------------
 local function cpuTotals()
     local stat = root("cat /proc/stat")
@@ -5797,7 +5827,9 @@ local function systemStats()
 end
 
 local function fmtDuration(sec)
-    sec = math.max(0, math.floor(sec or 0))
+    if not sec or sec <= 0 then return "-" end
+    sec = math.max(1, math.floor(sec))
+    if sec < 60 then return string.format("%ddtk", sec) end
     local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
     if d > 0 then return string.format("%dd %dh", d, h) end
     if h > 0 then return string.format("%dh %dm", h, m) end
@@ -5818,7 +5850,13 @@ local function procStats(pkg, sys)
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
     local r = {}
-    if start and sys.uptime then r.uptime = sys.uptime - start / HZ end
+    -- `ps etimes` avoids clock-namespace mismatches between /proc/uptime and starttime.
+    local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
+    if elapsed and elapsed > 0 then r.uptime = elapsed end
+    if not r.uptime and start and sys.uptime then
+        local procElapsed = sys.uptime - start / clockTicks()
+        if procElapsed > 0 then r.uptime = procElapsed end
+    end
     if utime and stime then
         local proc = utime + stime
         local prev = procPrev[pkg]
