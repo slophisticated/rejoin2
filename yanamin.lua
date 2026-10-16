@@ -7,7 +7,7 @@
       node tools/bundle_loader.js
 
   Source:  https://github.com/apengjers/rejoin
-  Bundled: 38 modules, entry main.lua
+  Bundled: 39 modules, entry main.lua
 
   Install (one line) and run:
 
@@ -84,13 +84,17 @@ return {
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
     -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
-    -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
-    -- clone 2, and so on. A clone that is not logged in is opened but not waited for.
+    -- is running (RSS >= minRss), wait until it is in game, then clone 2, and so on.
+    -- A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
+    -- launchJoinTimeout:  with the Delta heartbeat: max wait (s) for the clone to be in
+    --                     game. A clone that never sends one switches the rest of that
+    --                     Launch All to launchSettleDelay.
+    -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchJoinTimeout = 240,
     launchSettleDelay = 20,
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.
@@ -105,9 +109,12 @@ return {
         url = "",
         interval = 300,
         screenshot = true,
-        events = true,
+        events = true,      -- separate message when Delta asks for a key
         hideNames = true,
+        deviceName = "",    -- shown in every message; "" = device model
     },
+    -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
@@ -1275,6 +1282,7 @@ local function printSettings(conf)
     print("  anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
     print("  launchWaitInterval = " .. tostring(conf.launchWaitInterval))
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
+    print("  launchJoinTimeout = " .. tostring(conf.launchJoinTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
     print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
@@ -1308,6 +1316,7 @@ function CLI.run()
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
+    conf.launchJoinTimeout = conf.launchJoinTimeout or 240
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
@@ -1359,7 +1368,7 @@ function CLI.run()
             print("anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
         elseif choice == "13" then
             -- Launch All opens clones one by one: wait until the clone is running, then
-            -- wait launchSettleDelay for it to load the game, then start the next one.
+            -- until it is in game (heartbeat, launchJoinTimeout) or launchSettleDelay.
             print("Launch All membuka clone satu per satu. Kosongkan untuk tetap pakai nilai lama.")
             local function askNumber(key, label, allowZero)
                 local v = prompt(label .. ": [" .. tostring(conf[key]) .. "] ")
@@ -1367,7 +1376,8 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchSettleDelay", "Jeda setelah Roblox jalan, sebelum clone berikutnya (detik, waktu masuk game)", true)
+            askNumber("launchJoinTimeout", "Maks tunggu clone MASUK GAME sebelum clone berikutnya (detik, pakai heartbeat Delta; 0 = mati)", true)
+            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat tidak ada (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
@@ -1730,7 +1740,7 @@ return CLI]]
 __ya_sources["core.webhook_cli"] = [[
 local Config = require("core.config")
 
--- Main Menu 10: Discord webhook status reports (managers/webhook.lua).
+-- Main Menu 8: Discord webhook status reports (managers/webhook.lua).
 -- Pick one item at a time; every change is saved right away.
 
 local CLI = {}
@@ -1762,9 +1772,12 @@ function CLI.run()
         print("  1) URL webhook          [" .. (hasUrl and "diset" or "kosong") .. "]")
         print("  2) Interval laporan     [" .. tostring(wh.interval or 300) .. " detik]")
         print("  3) Screenshot           [" .. onoff(wh.screenshot ~= false) .. "]")
-        print("  4) Notif kejadian       [" .. onoff(wh.events ~= false) .. "]")
+        print("  4) Notif Delta minta key [" .. onoff(wh.events ~= false) .. "]")
         print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
         print("  6) Kirim tes sekarang")
+        local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
+        print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
+        print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -1799,7 +1812,7 @@ function CLI.run()
             save(conf)
         elseif choice == "4" then
             wh.events = not (wh.events ~= false)
-            print("Notif kejadian: " .. onoff(wh.events))
+            print("Notif Delta minta key: " .. onoff(wh.events))
             save(conf)
         elseif choice == "5" then
             wh.hideNames = not (wh.hideNames ~= false)
@@ -1819,6 +1832,43 @@ function CLI.run()
                     print("Terkirim. Cek channel Discord.")
                 else
                     print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                end
+            end
+        elseif choice == "7" then
+            local v = prompt("Nama device (mis. nama di Redfinger; '-' = hapus): ")
+            v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if v == "-" then
+                wh.deviceName = ""
+                save(conf)
+            elseif v == "" then
+                print("Tidak diubah.")
+            else
+                wh.deviceName = v:sub(1, 60)
+                save(conf)
+            end
+        elseif choice == "8" then
+            if not hasUrl then
+                print("Isi URL webhook dulu (pilihan 1), harus sama dengan device lama.")
+            else
+                print("Discord: klik kanan pesan status lama > Copy Message Link (atau Copy Message ID).")
+                local v = prompt("Link / ID pesan: ")
+                local Webhook = require("managers.webhook")
+                Webhook.configure(conf)
+                local id, err = Webhook.useMessage(v)
+                if not id then
+                    print(err)
+                else
+                    print("Mengedit pesan itu sekarang...")
+                    local okI, Instances = pcall(require, "managers.instance")
+                    local list = okI and Instances.getAll and Instances.getAll() or {}
+                    local ok, res = pcall(Webhook.report, list)
+                    if not (ok and res) then
+                        print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                    elseif Webhook.messageId() == id then
+                        print("Berhasil: pesan lama sekarang di-update oleh device ini.")
+                    else
+                        print("Pesan itu tidak bisa diedit (sudah dihapus atau dari webhook lain); dibuat pesan baru.")
+                    end
                 end
             end
         else
@@ -3383,6 +3433,89 @@ end
 
 return CookieInjector
 ]]
+__ya_sources["managers.delta_key"] = [[
+local Logger = require("core.logger")
+local Config = require("core.config")
+local File = require("utils.file")
+local Shell = require("utils.shell")
+
+-- Is Delta's key still there?
+--
+-- Delta keeps its key in an entry named like "license" inside its folder (the parent
+-- of appAutoExecutePath, e.g. /sdcard/Delta). When the key runs out the entry is gone
+-- and every clone shows the key screen again. The folder is shared by all clones, so
+-- this is one status for the whole device.
+--
+-- Config (optional): deltaLicensePath = "" -- "" = find it automatically.
+-- The path found once is remembered in data/delta_license_path.txt, so a key that is
+-- already gone when the engine starts (e.g. after a reboot) is still noticed.
+
+local DeltaKey = {}
+
+local REMEMBER = "data/delta_license_path.txt"
+local cached = nil
+local warnedMissing = false
+
+local function q(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
+
+local function deltaDir()
+    local ok, c = pcall(Config.get)
+    c = ok and type(c) == "table" and c or {}
+    local ae = type(c.appAutoExecutePath) == "string" and c.appAutoExecutePath:gsub("/+$", "") or ""
+    if ae == "" then return nil, c end
+    return (ae:match("^(.*)/[^/]+$") or ae), c
+end
+
+-- Path of the license entry, or nil when it was never seen.
+function DeltaKey.path()
+    local dir, c = deltaDir()
+    local forced = type(c.deltaLicensePath) == "string" and c.deltaLicensePath:gsub("%s+$", "") or ""
+    if forced ~= "" then return forced end
+    if cached then return cached end
+    if dir then
+        local ok, out = Shell.exec("ls -a " .. q(dir) .. " 2>/dev/null")
+        for name in tostring(ok and out or ""):gmatch("[^\r\n]+") do
+            if name:lower():find("license", 1, true) then
+                cached = dir .. "/" .. name
+                if File.read(REMEMBER) ~= cached then
+                    File.write(REMEMBER, cached)
+                    Logger.info("[KEY] file license Delta: " .. cached)
+                end
+                return cached
+            end
+        end
+    end
+    local remembered = (File.read(REMEMBER) or ""):gsub("%s+$", "")
+    if remembered ~= "" then
+        cached = remembered
+        return cached
+    end
+    if not warnedMissing then
+        warnedMissing = true
+        Logger.info("[KEY] file license Delta belum ditemukan di " .. tostring(dir) .. " (cek key dilewati)")
+    end
+    return nil
+end
+
+-- true = key there (non-empty file, or folder with something in it), false = gone or
+-- empty, nil = unknown (no path known / Delta folder unreadable).
+function DeltaKey.present()
+    local dir = deltaDir()
+    local p = DeltaKey.path()
+    if not p then return nil end
+    local cmd = "if [ -d " .. q(p) .. " ]; then [ -n \"$(ls -A " .. q(p) .. " 2>/dev/null)\" ] && echo KEY_YES || echo KEY_NO; "
+        .. "elif [ -s " .. q(p) .. " ]; then echo KEY_YES; "
+        .. "elif [ -d " .. q(dir or "/") .. " ]; then echo KEY_NO; else echo KEY_UNKNOWN; fi"
+    -- Shell.exec prefixes a timeout, so a compound command needs its own sh -c.
+    local ok, out = Shell.exec("sh -c " .. q(cmd))
+    out = ok and out or ""
+    if out:find("KEY_YES", 1, true) then return true end
+    if out:find("KEY_NO", 1, true) then return false end
+    return nil
+end
+
+return DeltaKey
+]]
 __ya_sources["managers.doctor"] = [[
 -- Environment doctor: emit a compare-friendly KEY=value report of everything that can
 -- differ BETWEEN devices and cause "inject [OK] tapi app ga login" on one device but
@@ -3902,6 +4035,7 @@ local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
+local DeltaKey = require("managers.delta_key")
 
 local Monitor = {}
 local running = false
@@ -4052,9 +4186,26 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
         pcall(function() return Optimizer.applyForInstance(inst) end)
     else
         Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
-        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
     end
     return true
+end
+
+-- Delta key: one status for the whole device (shared Delta folder). Notify once each
+-- time the license entry disappears; nothing when it comes back.
+local keyState = nil
+local function checkKey()
+    local present = DeltaKey.present()
+    if present == nil or present == keyState then return end
+    local was = keyState
+    keyState = present
+    if present then
+        if was == false then Logger.info("[KEY] key Delta aktif lagi") end
+        return
+    end
+    Logger.warn("[KEY] file license Delta hilang (" .. tostring(DeltaKey.path()) .. "): Delta minta key")
+    Webhook.event("key", "🔑 Delta minta key",
+        "File license Delta hilang. Script (heartbeat, autoexecute) tidak jalan sampai key dimasukkan lagi.",
+        16705372)
 end
 
 local function checkWindow(inst)
@@ -4077,7 +4228,24 @@ local function checkWindow(inst)
 end
 
 local function runSequentialLaunch(conf)
-    local instances = instanceManager.getAll()
+    -- Logged-in clones first (each waited for until in game), clones without an account
+    -- last; within each group the Menu 2 order. Unknown login counts as logged in.
+    -- Window slots follow the Menu 2 order, so positions do not change.
+    local instances, later, names, laterNames = {}, {}, {}, {}
+    for _, inst in ipairs(instanceManager.getAll()) do
+        local okL, li = pcall(Auth.isLoggedIn, inst)
+        local label = tostring(inst.name or inst.id or "?")
+        if okL and li == false then
+            later[#later + 1] = inst
+            laterNames[#laterNames + 1] = label
+        else
+            instances[#instances + 1] = inst
+            names[#names + 1] = label
+        end
+    end
+    for _, inst in ipairs(later) do instances[#instances + 1] = inst end
+    Logger.info("Monitor: urutan launch: " .. (#names > 0 and table.concat(names, ", ") or "-")
+        .. (#laterNames > 0 and (" | belum login: " .. table.concat(laterNames, ", ")) or ""))
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
     local poll = tonumber(conf and conf.launchWaitInterval) or 3
     if poll <= 0 then poll = 3 end
@@ -4085,6 +4253,12 @@ local function runSequentialLaunch(conf)
     if settle < 0 then settle = 0 end
     local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
     if emptyDelay < 0 then emptyDelay = 0 end
+    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 240
+    if joinTimeout < 0 then joinTimeout = 0 end
+    -- With the Delta heartbeat, wait until each clone is really in game before the next
+    -- one starts. Turned off for the rest of this Launch All once a clone never sends
+    -- one (Delta without key / script not running): then the fixed settle delay is used.
+    local hbWorking = Heartbeat.isEnabled() and joinTimeout > 0
     local function stopped() return not running end
 
     for i, inst in ipairs(instances) do
@@ -4138,22 +4312,37 @@ local function runSequentialLaunch(conf)
                 if running then Status.printSummary(instanceManager.getAll()) end
             end
 
-            -- 2) Give it time to load into the game before starting the next clone.
+            -- 2) Give it time to load into the game before starting the next clone:
+            --    until its heartbeat says in game (up to launchJoinTimeout), or without a
+            --    heartbeat a fixed launchSettleDelay.
             local settled = 0
-            while active and running and settled < settle do
-                local step = math.min(poll, settle - settled)
+            local limit = hbWorking and joinTimeout or settle
+            local sawHeartbeat = false
+            while active and running and settled < limit do
+                local alive, why = Heartbeat.alive(inst)
+                if alive == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat, %ds); next clone", name, waited + settled))
+                    sawHeartbeat = true
+                    break
+                elseif alive == false and tostring(why):find("^kicked") then
+                    Logger.warn(string.format("Monitor: %s %s while joining; moving on", name, tostring(why)))
+                    sawHeartbeat = true
+                    break
+                end
+                local step = math.min(poll, limit - settled)
                 Timer.sleepInterruptible(step, stopped)
                 settled = settled + step
                 if running then Status.printSummary(instanceManager.getAll()) end
                 if not isActiveNow() then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
+                    sawHeartbeat = true -- not the heartbeat's fault
                     break
                 end
-                -- The in-game heartbeat proves it already joined: no need to wait longer.
-                if Heartbeat.alive(inst) == true then
-                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
-                    break
-                end
+            end
+            if hbWorking and active and running and not sawHeartbeat then
+                hbWorking = false
+                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?); sisa clone pakai jeda launchSettleDelay %ds",
+                    name, joinTimeout, settle))
             end
 
             Status.endStarting(id)
@@ -4307,9 +4496,6 @@ function Monitor.start(conf, opts)
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
-                    if why and why:find("^kicked") then
-                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
-                    end
                 end
             end
 
@@ -4404,6 +4590,7 @@ function Monitor.start(conf, opts)
 
         if running and cycle % windowEvery == 0 then
             for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+            pcall(checkKey)
         end
 
         Timer.sleepInterruptible(interval, function() return not running end)
@@ -5677,6 +5864,7 @@ function Webhook.configure(c)
         screenshot = w.screenshot ~= false,
         events = w.events ~= false,
         hideNames = w.hideNames ~= false,
+        deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
     if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
     lastReport = 0
@@ -5755,10 +5943,26 @@ local function cpuTotals()
     return total, idle, math.max(cores, 1)
 end
 
+local modelCache = nil
+local function model()
+    if not modelCache then
+        modelCache = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
+        if modelCache == "" then modelCache = "-" end
+    end
+    return modelCache
+end
+
+-- Name shown in every message: the one set in Menu 9 (the Redfinger name lives on
+-- Redfinger's servers, not inside Android), else the device model.
+function Webhook.deviceLabel()
+    if conf.deviceName and conf.deviceName ~= "" then return conf.deviceName end
+    return model()
+end
+
 local function systemStats()
     local s = {}
-    s.device = (root("getprop ro.product.model") or ""):gsub("%s+$", "")
-    if s.device == "" then s.device = "-" end
+    s.device = model()
+    if conf.deviceName and conf.deviceName ~= "" then s.device = conf.deviceName .. " (" .. s.device .. ")" end
 
     local mem = root("cat /proc/meminfo") or ""
     local total = tonumber(mem:match("MemTotal:%s*(%d+)"))
@@ -5900,7 +6104,7 @@ local function buildReport(instances, sys, withImage)
 
     local color = 5763719 -- green
     if online == 0 then color = 15548997 elseif offline > 0 then color = 16705372 end
-    local embed = '{"title":' .. js("📊 Rejoin Status Update")
+    local embed = '{"title":' .. js("📊 Rejoin Status — " .. Webhook.deviceLabel())
         .. ',"description":' .. js(desc)
         .. ',"color":' .. color
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now))
@@ -5931,6 +6135,22 @@ end
 local function msgId()
     local s = readFile(STATE_FILE)
     return s and s:match("(%d+)")
+end
+
+function Webhook.messageId() return msgId() end
+
+-- Keep editing an existing status message (e.g. the one an old / replaced device left
+-- behind) instead of posting a new one. Takes a message link
+-- (https://discord.com/channels/<guild>/<channel>/<message>) or a bare message id.
+function Webhook.useMessage(input)
+    local id
+    for digits in tostring(input or ""):gmatch("%d+") do
+        if #digits >= 15 and #digits <= 22 then id = digits end
+    end
+    if not id then return nil, "link / ID pesan tidak valid" end
+    writeFile(STATE_FILE, id .. "\n")
+    Logger.info("Webhook: pakai pesan status yang sudah ada")
+    return id
 end
 
 -- The message's own "id": the "id" key of the top-level JSON object. Discord's key
@@ -6041,13 +6261,14 @@ function Webhook.tick(instances)
     return ok and res
 end
 
--- Separate event message (rate-limited per key: at most one per 60s).
+-- Separate event message, e.g. Delta asking for a key (rate-limited per key: at most
+-- one per 60s).
 function Webhook.event(key, title, text, color)
     if not Webhook.enabled() or not conf.events then return false end
     local now = os.time()
     if eventLast[key] and now - eventLast[key] < 60 then return false end
     eventLast[key] = now
-    local payload = '{"embeds":[{"title":' .. js(title) .. ',"description":' .. js(text or "")
+    local payload = '{"embeds":[{"title":' .. js(title .. " — " .. Webhook.deviceLabel()) .. ',"description":' .. js(text or "")
         .. ',"color":' .. tostring(color or 16705372)
         .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now)) .. '}]}'
     local ok, code = pcall(send, payload, false, "POST", conf.url)
@@ -6382,7 +6603,7 @@ end
 return WindowLayout
 ]=]
 __ya_sources["scripts.rejoin_heartbeat"] = [=[
--- REJOIN_HEARTBEAT v1
+-- REJOIN_HEARTBEAT v2
 -- Installed automatically by rejoin into the executor's autoexecute folder.
 -- Edits here are overwritten: change the settings in rejoin (Settings > 13) instead.
 --
@@ -6470,6 +6691,31 @@ task.spawn(function()
         end
     end)
 end)
+
+-- Wait until the game has really finished loading -----------------------------
+-- game.Loaded fires before the character spawns and while the game is still
+-- downloading assets. rejoin starts the next clone once the first heartbeat shows
+-- up, so only write it when the character exists and the asset queue stayed empty
+-- for a few seconds (each capped, so a game with a menu or endless streaming still
+-- gets a heartbeat). A kick during loading is reported at once.
+local ContentProvider = game:GetService("ContentProvider")
+local function waitFor(cond, maxSeconds)
+    local t = 0
+    while t < maxSeconds and state ~= "kicked" and not cond() do
+        task.wait(1)
+        t = t + 1
+    end
+end
+waitFor(function()
+    local ch = lp.Character
+    return ch ~= nil and ch:FindFirstChild("HumanoidRootPart") ~= nil
+end, 90)
+local idle = 0
+waitFor(function()
+    local q = safe(function() return ContentProvider.RequestQueueSize end) or 0
+    idle = (q == 0) and idle + 1 or 0
+    return idle >= 5
+end, 90)
 
 -- Heartbeat file -------------------------------------------------------------
 local frames = 0
@@ -7241,8 +7487,25 @@ local function prompt(msg)
     return line
 end
 
+-- One info line above the menu: version, and whether this device was set up with the
+-- one-command installer (its boot script carries a marker) / starts on boot.
+local function installInfo()
+    local p = io.popen("git rev-parse --short HEAD 2>/dev/null")
+    local hash = p and (p:read("*l") or "") or ""
+    if p then p:close() end
+    if hash == "" then hash = "-" end
+    local home = os.getenv("HOME") or ""
+    local f = io.open(home .. "/.termux/boot/start-rejoin.sh", "r")
+    local boot = f and (f:read("*a") or "") or nil
+    if f then f:close() end
+    local instant = boot and boot:find("Generated by rejoin install.sh", 1, true) ~= nil
+    return string.format("Rejoin %s | install instan: %s | auto-start boot: %s",
+        hash, instant and "ya" or "tidak", boot and "ya" or "tidak")
+end
+local infoLine = installInfo()
+
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\n' .. infoLine .. '\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then

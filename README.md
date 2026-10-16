@@ -36,6 +36,35 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ---
 
+## ⚡ Alternatif: loader 1 file (tanpa download repo)
+
+Engine juga dibundel jadi **satu file `yanamin.lua`** (dibangkitkan `node tools/bundle_loader.js` dari source yang sama). Supervisor terminal dan template config ikut tertanam di dalam file itu, jadi cukup satu baris `curl` lalu jalankan:
+
+```sh
+curl -L -o /sdcard/Download/yanamin.lua <URL-loader-publik>/yanamin.lua
+lua /sdcard/Download/yanamin.lua
+```
+
+Android 12+ memakai `/sdcard/Download`, Android 11 ke bawah `/sdcard/download`. Menunya sama persis dengan mode install (Auto-boot menu 6, Uninstall menu 7) dan data root-nya juga sama. Patch bundel hanya diterapkan ke artifact hasil build — file sumber di repo tidak berubah.
+
+---
+
+## 📁 Data root: `/sdcard/yanamin`
+
+Semua data yang dimiliki tool ini ada di satu folder, jadi gampang di-backup, dibaca, atau dihapus:
+
+| Path | Isi |
+|---|---|
+| `/sdcard/yanamin/config/config.lua` | konfigurasi (instance, setting) |
+| `/sdcard/yanamin/data/rejoin.log` | log utama |
+| `/sdcard/yanamin/data/launch.log` | diagnostik per siklus launch/monitor |
+| `/sdcard/yanamin/data/monitor.pid` | lock: hanya satu engine yang boleh jalan |
+| `/sdcard/yanamin/data/boot.log` | log Termux:Boot |
+
+*Path relatif di config (`logPath`, `launchLogPath`) dihitung dari folder ini; lokasi lain bisa dipakai lewat env `YANAMIN_HOME`.* Kalau folder ini tidak bisa ditulis, engine **berhenti dengan pesan** agar `termux-setup-storage` memberi izin storage — bukan diam-diam menulis ke tempat lain.
+
+---
+
 ## Fitur
 
 - **Launch All berurutan.** Clone dibuka satu per satu. Clone berikutnya baru dibuka setelah clone sebelumnya **benar-benar masuk game**: karakter sudah spawn dan aset selesai dimuat (lewat heartbeat Delta). Clone yang **sudah login dibuka duluan** (urut sesuai Menu 2), clone yang belum login dibuka **paling akhir** dengan jeda 5 detik.
@@ -43,7 +72,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Heartbeat Delta.** Script di Autoexecute Delta melaporkan status dari dalam game: in-game atau ke-kick, FPS, ping, dan memori. Kalau ke-kick, langsung rejoin tanpa menunggu.
 - **Mode hemat.** Render 3D mati, FPS dibatasi, grafik paling rendah, suara mati. CPU dan RAM per clone turun banyak.
 - **Auto atur jendela.** Jendela floating clone disusun jadi grid (4 clone → 2×2). Baris atas sedikit lebih tinggi supaya menu Roblox kelihatan sampai *More*. Posisi dicek terus.
-- **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 9).
+- **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 8).
 - **Cek login.** Akun diverifikasi ke Roblox. Clone yang belum login **tidak pernah di-force-stop**, tapi dibuka lagi kalau tertutup.
 - **Auto start + auto update saat boot** lewat Termux:Boot, tanpa jendela Termux. Config tidak tertimpa.
 - **Setting device otomatis.** Animasi, freeform, smallest width, dan izin background diatur sekali dari installer.
@@ -65,16 +94,15 @@ cd ~/rejoin && lua main.lua
 | `1` Launch All + Monitor | Buka semua clone berurutan, lalu pantau |
 | `2` Instances Manager | Package clone + link game / private server |
 | `3` Settings | Pengaturan umum; `13` = jeda launch (`launchJoinTimeout`, `launchSettleDelay`, dst.) |
-| `4` View Logs | Lihat `data/rejoin.log` |
-| `5` Start Monitor | Pantau saja, tanpa launch |
-| `6` AutoExecute Manager | Kelola script Autoexecute Delta |
-| `7` Inject Cookie | Login clone pakai cookie |
-| `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
-| `9` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama |
-| `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
-| `0` Exit | |
+| `4` AutoExecute Manager | Kelola script Autoexecute Delta |
+| `5` Inject Cookie | Login clone pakai cookie |
+| `6` Auto-boot (Termux:Boot) | Pasang / hapus / lihat log script boot |
+| `7` Uninstall yanamin | Hapus script boot + data root + file loader (butuh ketik `HAPUS`) |
+| `8` Discord Webhook | URL, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama |
+| `9` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
+| `10` Exit | |
 
-Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.
+Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 8 dan 9 langsung tersimpan.
 
 ---
 
@@ -84,15 +112,15 @@ Baris paling atas menu menampilkan versi, apakah device di-install pakai cara in
 |---|---|
 | Update manual tanpa reboot | `sh ~/rejoin/update.sh` |
 | Cek versi | `git -C ~/rejoin log --oneline -1` |
-| Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
-| Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
+| Stop engine yang jalan dari boot | `kill $(cat /sdcard/yanamin/data/monitor.pid)` |
+| Matikan auto-update | `touch /sdcard/yanamin/data/no-auto-update` |
 | Matikan auto-start saat boot | `rm ~/.termux/boot/start-rejoin.sh` (install ulang untuk menyalakan lagi) |
 | Setting device ulang / kembalikan ke bawaan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` |
 | Ganti smallest width (angka diingat) | `SMALLEST_WIDTH=700 sh ~/rejoin/device_setup.sh` |
 | Bikin / kirim update log script (template: `tools/update_log_template.lua`) | `lua tools/update_log.lua <file> [--send <webhook_url>]` |
 | Jalan tanpa menu (seperti boot) | `cd ~/rejoin && lua main.lua --headless --start-monitor --auto-launch` |
 
-Hanya satu engine yang boleh jalan. Kalau engine dari boot masih aktif dan kamu buka menu `1` / `5`, muncul pesan `engine lain masih jalan`. Stop dulu engine boot-nya dengan perintah di atas.
+Hanya satu engine yang boleh jalan. Kalau engine dari boot masih aktif dan kamu buka menu `1`, muncul pesan `engine lain masih jalan`. Stop dulu engine boot-nya dengan perintah di atas.
 
 ---
 
@@ -117,9 +145,9 @@ Link game publik otomatis diubah ke deep link supaya langsung join. Link private
 Tabel lengkap ada di **[setup.md](setup.md)** (bagian Troubleshooting). Log yang paling sering dipakai:
 
 ```sh
-cat ~/rejoin/data/boot.log                                               # boot / auto-update
-grep -E "\[LOGIN\]|\[STATUS\]" ~/rejoin/data/rejoin.log | tail -40       # status & login
-grep -E "launching|in game|heartbeat" ~/rejoin/data/rejoin.log | tail -20 # urutan Launch All
+cat /sdcard/yanamin/data/boot.log                                               # boot / auto-update
+grep -E "\[LOGIN\]|\[STATUS\]" /sdcard/yanamin/data/rejoin.log | tail -40       # status & login
+grep -E "launching|in game|heartbeat" /sdcard/yanamin/data/rejoin.log | tail -20 # urutan Launch All
 ```
 
 Riwayat perubahan: **[docs/changelog.md](docs/changelog.md)**.
@@ -130,6 +158,7 @@ Riwayat perubahan: **[docs/changelog.md](docs/changelog.md)**.
 
 ```
 rejoin/
+├── yanamin.lua          # loader 1 file (hasil build, ikut dipakai user)
 ├── main.lua            # entry point + main menu
 ├── install.sh          # installer 1 perintah
 ├── update.sh           # auto-update (dipanggil saat boot)
@@ -140,9 +169,12 @@ rejoin/
 ├── core/               # menu & config
 ├── managers/           # monitor, recovery, heartbeat, webhook, window_layout, auth, ...
 ├── scripts/            # rejoin_heartbeat.lua (dipasang ke Autoexecute Delta)
+├── tools/              # build bundel + generator update log
 ├── utils/              # shell, file, timer, ...
-└── data/               # log & status runtime (rejoin.log, boot.log, monitor.pid)
+└── tools/bundle_loader.js   # build yanamin.lua dari source di repo
 ```
+
+Data runtime tidak ada di dalam repo: semuanya ditulis ke data root `/sdcard/yanamin`.
 
 ---
 
