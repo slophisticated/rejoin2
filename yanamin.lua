@@ -1791,7 +1791,7 @@ function CLI.run()
                 save(conf)
             elseif v == "" then
                 print("Tidak diubah.")
-            elseif v:match("^https://[%w%.%-]+/api/webhooks/") then
+            elseif v:match("^https://[%w%.%-%_]+/api/webhooks/%S+$") then
                 wh.url = v
                 save(conf)
             else
@@ -4136,6 +4136,31 @@ local function setRecovering(id, val)
     if val then recovering[id] = true else recovering[id] = nil end
 end
 
+-- When WE launched (or relaunched) a clone, and how long it may load before the health
+-- check is allowed to call it unhealthy.
+--
+-- Health is read from the real process state (RSS >= minRss), but a Roblox clone that
+-- just started sits well below that for a while. Without this grace the monitor read the
+-- clone it had just launched as "not healthy" and queued it for recovery, which
+-- force-stopped it again: a relaunch loop with the uptime stuck at 0m and the CPU pegged
+-- by constant `am force-stop` / `am start` / `su` calls. Only our own launches get the
+-- grace; a clone the user (or Android) closed is still detected right away.
+local launchedAt = {} -- id -> os.time() of our last launch / relaunch
+local startGrace = 60 -- seconds; raised from config gracePeriod in Monitor.start
+
+local function markLaunch(id)
+    if id ~= nil then launchedAt[id] = os.time() end
+end
+
+-- Is the clone still inside its post-launch grace window?
+local function loading(id)
+    local at = launchedAt[id]
+    if not at then return false, 0 end
+    local left = startGrace - (os.time() - at)
+    if left > 0 then return true, left end
+    return false, 0
+end
+
 -- Menu 1 flow: launch the clones ONE AT A TIME, showing the live dashboard the whole
 -- time. Each instance flips to Starting, gets force-stopped + joined, and the next one
 -- only starts after this one is really RUNNING (RSS >= minRss, i.e. isActive) and has
@@ -4276,6 +4301,9 @@ local function runSequentialLaunch(conf)
         do
             local p_ok, l_ok = pcall(function() return recoveryManager.launchAndJoin(inst) end)
             local launched = p_ok and l_ok
+            -- Start the post-launch grace clock: the monitor loop must not call this
+            -- clone unhealthy while it is still loading (see `launchedAt`).
+            markLaunch(id)
             if not launched then
                 Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
             end
@@ -4360,6 +4388,11 @@ end
 
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
+    -- How long a clone we just launched may load before the health check is allowed to
+    -- call it unhealthy. At least a minute (a clone on a slow device needs that long to
+    -- pass minRss); config gracePeriod can make it longer, never shorter -- a too short
+    -- window is what made the monitor relaunch every clone it had just opened.
+    startGrace = math.max(60, tonumber(conf and conf.gracePeriod) or 60)
     monitorConf = type(conf) == "table" and conf or {}
     Webhook.configure(monitorConf)
     noLoginLast = {}
@@ -4466,6 +4499,10 @@ function Monitor.start(conf, opts)
                     local r_ok, r_err = pcall(function()
                         return recoveryManager.relaunch(inst)
                     end)
+                    -- Fresh pid: give it the post-launch grace again, otherwise the health
+                    -- check below would immediately recover the clone we just relaunched.
+                    markLaunch(id)
+                    Status.noteRecovery(id)
                     if not r_ok or not r_err then
                         Logger.error(string.format("Monitor: relaunch failed for %s: %s", name, tostring(r_err)))
                         ProbeLog.line(string.format("[%s] EVENT relaunch_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
@@ -4484,7 +4521,14 @@ function Monitor.start(conf, opts)
             -- a stale "ingame" status memory kept the instance forever "healthy" and the
             -- recovery was never triggered (the app stayed closed).
             local healthy = false
-            if pkg then
+            -- A clone we just launched/recovered is still loading: its RSS is below
+            -- minRss on purpose. Never judge it (and never recover it) inside the grace
+            -- window -- that is what caused the force-stop/relaunch loop.
+            local loadingNow, graceLeft = loading(id)
+            if loadingNow then
+                healthy = true
+                Logger.debug(string.format("Monitor: %s masih loading (%ds lagi)", name, graceLeft))
+            elseif pkg then
                 -- A force-close leaves a low-RSS stub process alive, so process existence
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has
@@ -4555,6 +4599,10 @@ function Monitor.start(conf, opts)
             local p_ok, recovered = pcall(function()
                 return recoveryManager.checkAndRecover(inst)
             end)
+            -- Fresh pid again: restart the grace clock so the next cycles do not treat
+            -- the clone we just recovered as unhealthy while it loads.
+            markLaunch(id)
+            Status.noteRecovery(id)
             if not p_ok then
                 Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
                 ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
@@ -5071,6 +5119,22 @@ local Status = {}
 -- }
 local states = {}
 
+-- How many times we relaunched / recovered each instance this run. The Discord report
+-- shows it as a counter, so a relaunch loop is visible in the channel instead of only
+-- showing up as "uptime 0m".
+local recoveries = {}
+
+-- Count one restart (recovery or frozen-relaunch) for this instance.
+function Status.noteRecovery(id)
+    if id == nil then return end
+    recoveries[id] = (recoveries[id] or 0) + 1
+end
+
+-- Restarts so far for this instance (0 = none).
+function Status.recoveryCount(id)
+    return recoveries[id] or 0
+end
+
 -- Defaults / config gate for freeze detection.
 local freezeTimeout = 300  -- seconds (RSS-low/proc-stub or ANR -> wait, then relaunch)
 local gracePeriod = 30     -- seconds after healthy before judging ingame vs stuck
@@ -5090,6 +5154,7 @@ end
 
 function Status.reset()
     states = {}
+    recoveries = {}
     anrCache = nil
 end
 
@@ -5812,6 +5877,7 @@ end
 
 return Username]=]
 __ya_sources["managers.webhook"] = [[
+local Paths = require("core.paths")
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
 
@@ -5844,11 +5910,23 @@ local warned = {}
 local eventLast = {}
 local cpuPrev = nil      -- { total, idle }
 local procPrev = {}      -- pkg -> { proc, total }
-local STATE_FILE = "data/webhook_msg.txt"
+-- Id of the status message we keep editing. It lives in the DATA ROOT, like every other
+-- file this tool owns. It used to be the relative "data/webhook_msg.txt", which landed in
+-- a different folder depending on how the engine was started (repo folder when launched
+-- from the menu, data root when launched by the boot script, the download folder for the
+-- single-file loader). When that folder did not exist the write failed silently, the id
+-- was never stored and every report posted a NEW message instead of editing the old one.
+local STATE_FILE = Paths.data("webhook_msg.txt")
+local STATE_FILE_LEGACY = "data/webhook_msg.txt"
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
 local HZ = 100
+
+-- Accept any real Discord webhook URL. The token is base64url and often contains "_",
+-- which the previous pattern ([%w%.%-]) rejected -- silently disabling the whole feature
+-- with no log line at all.
+local URL_OK = "^https://[%w%.%-%_]+/api/webhooks/%S+$"
 
 local function warnOnce(key, msg)
     if warned[key] then return end
@@ -5866,7 +5944,14 @@ function Webhook.configure(c)
         hideNames = w.hideNames ~= false,
         deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
-    if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
+    if not conf.url:match(URL_OK) then
+        -- A non-empty URL we refuse is almost always a paste we don't understand, and
+        -- before this the whole feature just went quiet. Say so in the log.
+        if conf.url ~= "" then
+            Logger.warn("Webhook: URL tidak valid, webhook dimatikan: " .. conf.url)
+        end
+        conf.url = ""
+    end
     lastReport = 0
     firstReportAt = os.time() + 30
 end
@@ -5895,8 +5980,33 @@ local function shQuote(v)
 end
 
 -- Run curl as the Termux user. Returns http code (number or nil) and body.
+--
+-- The binary is resolved explicitly: this runs through io.popen (NOT su), so it uses the
+-- Termux PATH, and a bare "curl" silently does nothing when curl is not installed or the
+-- prefix differs. Same candidate list as managers/auth.lua.
+local curlBin = nil -- nil = not probed yet, false = none available
+
+local function resolveCurl()
+    if curlBin ~= nil then return curlBin end
+    for _, c in ipairs({
+        "/data/data/com.termux/files/usr/bin/curl",
+        "/system/bin/curl",
+    }) do
+        local f = io.popen("[ -x '" .. c .. "' ] && echo AE_YES || echo AE_NO 2>/dev/null")
+        local out = f and f:read("*l") or ""
+        if f then f:close() end
+        if out and out:find("AE_YES", 1, true) then
+            curlBin = c
+            Logger.info("Webhook: pakai curl " .. c)
+            return curlBin
+        end
+    end
+    curlBin = "curl" -- last resort: whatever PATH has
+    return curlBin
+end
+
 local function curl(args)
-    local cmd = "curl -s --max-time 25 -w '\\n%{http_code}' " .. args .. " </dev/null 2>/dev/null"
+    local cmd = resolveCurl() .. " -s --max-time 25 -w '\\n%{http_code}' " .. args .. " </dev/null 2>/dev/null"
     local f = io.popen(cmd)
     if not f then return nil, "" end
     local out = f:read("*a") or ""
@@ -5997,8 +6107,14 @@ local function systemStats()
     return s
 end
 
+-- Uptime as "8h 31m" / "3d 4h", seconds for a process younger than a minute ("42dtk") and
+-- "-" when it cannot be read. The old version floored to minutes, so any clone that had
+-- been (re)started in the last 60s showed a misleading "0m" -- which is exactly what a
+-- relaunch loop looks like from Discord.
 local function fmtDuration(sec)
-    sec = math.max(0, math.floor(sec or 0))
+    if not sec or sec <= 0 then return "-" end
+    sec = math.floor(sec)
+    if sec < 60 then return string.format("%ddtk", sec) end
     local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
     if d > 0 then return string.format("%dd %dh", d, h) end
     if h > 0 then return string.format("%dh %dm", h, m) end
@@ -6067,11 +6183,16 @@ local function buildReport(instances, sys, withImage)
             local kb = APK.getRSSinKB(inst.package)
             if kb and kb > 0 then memMb = math.floor(kb / 1024) end
         end
-        rows[#rows + 1] = string.format("%s %s\n└ ⏱️ %s | 💾 %s | ⚡ %s",
+        -- Restart counter for this run: makes a relaunch loop obvious in the channel
+        -- (a clone that keeps restarting shows a growing ♻️ instead of a quiet "0m").
+        local restarts = (okS and Status.recoveryCount and Status.recoveryCount(inst.id)) or 0
+        rows[#rows + 1] = string.format("%s %s%s\n└ ⏱️ %s | 💾 %s | ⚡ %s%s",
             ICON[status] or "⚪", name,
+            restarts > 0 and string.format(" ♻️%d", restarts) or "",
             p.uptime and fmtDuration(p.uptime) or "-",
             memMb and (memMb .. " MB") or "-",
-            p.cpu or "-")
+            p.cpu or "-",
+            restarts > 0 and string.format(" | ♻️ %dx restart", restarts) or "")
     end
 
     local now = os.time()
@@ -6132,8 +6253,23 @@ local function screenshot()
 end
 
 -- Message id of the status message we keep editing.
+--
+-- Falls back to the old relative location once, so an install that already stored the
+-- id there keeps editing its existing message instead of posting a new one.
 local function msgId()
     local s = readFile(STATE_FILE)
+    if not s and STATE_FILE_LEGACY ~= STATE_FILE then
+        s = readFile(STATE_FILE_LEGACY)
+        if s then
+            local id = s:match("(%d+)")
+            if id then
+                writeFile(STATE_FILE, id .. "\n")
+                os.remove(STATE_FILE_LEGACY)
+                Logger.info("Webhook: id pesan dipindah ke data root: " .. STATE_FILE)
+            end
+            return id
+        end
+    end
     return s and s:match("(%d+)")
 end
 
@@ -6228,11 +6364,12 @@ function Webhook.report(instances)
     if id then
         local code = send(payload, withImage, "PATCH", conf.url .. "/messages/" .. id)
         if code and code >= 200 and code < 300 then return true end
-        if code ~= 404 then
-            warnOnce("edit" .. tostring(code), "update pesan gagal (HTTP " .. tostring(code or "?") .. ")")
-            return false
-        end
-        os.remove(STATE_FILE) -- message deleted: post a new one
+        -- Any failed edit (401/403 from another webhook token, 400 from a stale payload,
+        -- 404 when the message was deleted) invalidates the stored id. Keeping it made
+        -- the webhook fail the very same way forever, with no new message ever posted.
+        warnOnce("edit" .. tostring(code), "update pesan gagal (HTTP " .. tostring(code or "?") .. "), buat pesan baru")
+        os.remove(STATE_FILE)
+        os.remove(STATE_FILE_LEGACY)
     end
     local code, body = send(payload, withImage, "POST", conf.url .. "?wait=true")
     if not code or code < 200 or code >= 300 then

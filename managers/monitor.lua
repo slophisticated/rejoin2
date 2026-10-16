@@ -108,6 +108,31 @@ local function setRecovering(id, val)
     if val then recovering[id] = true else recovering[id] = nil end
 end
 
+-- When WE launched (or relaunched) a clone, and how long it may load before the health
+-- check is allowed to call it unhealthy.
+--
+-- Health is read from the real process state (RSS >= minRss), but a Roblox clone that
+-- just started sits well below that for a while. Without this grace the monitor read the
+-- clone it had just launched as "not healthy" and queued it for recovery, which
+-- force-stopped it again: a relaunch loop with the uptime stuck at 0m and the CPU pegged
+-- by constant `am force-stop` / `am start` / `su` calls. Only our own launches get the
+-- grace; a clone the user (or Android) closed is still detected right away.
+local launchedAt = {} -- id -> os.time() of our last launch / relaunch
+local startGrace = 60 -- seconds; raised from config gracePeriod in Monitor.start
+
+local function markLaunch(id)
+    if id ~= nil then launchedAt[id] = os.time() end
+end
+
+-- Is the clone still inside its post-launch grace window?
+local function loading(id)
+    local at = launchedAt[id]
+    if not at then return false, 0 end
+    local left = startGrace - (os.time() - at)
+    if left > 0 then return true, left end
+    return false, 0
+end
+
 -- Menu 1 flow: launch the clones ONE AT A TIME, showing the live dashboard the whole
 -- time. Each instance flips to Starting, gets force-stopped + joined, and the next one
 -- only starts after this one is really RUNNING (RSS >= minRss, i.e. isActive) and has
@@ -248,6 +273,9 @@ local function runSequentialLaunch(conf)
         do
             local p_ok, l_ok = pcall(function() return recoveryManager.launchAndJoin(inst) end)
             local launched = p_ok and l_ok
+            -- Start the post-launch grace clock: the monitor loop must not call this
+            -- clone unhealthy while it is still loading (see `launchedAt`).
+            markLaunch(id)
             if not launched then
                 Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
             end
@@ -332,6 +360,11 @@ end
 
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
+    -- How long a clone we just launched may load before the health check is allowed to
+    -- call it unhealthy. At least a minute (a clone on a slow device needs that long to
+    -- pass minRss); config gracePeriod can make it longer, never shorter -- a too short
+    -- window is what made the monitor relaunch every clone it had just opened.
+    startGrace = math.max(60, tonumber(conf and conf.gracePeriod) or 60)
     monitorConf = type(conf) == "table" and conf or {}
     Webhook.configure(monitorConf)
     noLoginLast = {}
@@ -438,6 +471,10 @@ function Monitor.start(conf, opts)
                     local r_ok, r_err = pcall(function()
                         return recoveryManager.relaunch(inst)
                     end)
+                    -- Fresh pid: give it the post-launch grace again, otherwise the health
+                    -- check below would immediately recover the clone we just relaunched.
+                    markLaunch(id)
+                    Status.noteRecovery(id)
                     if not r_ok or not r_err then
                         Logger.error(string.format("Monitor: relaunch failed for %s: %s", name, tostring(r_err)))
                         ProbeLog.line(string.format("[%s] EVENT relaunch_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
@@ -456,7 +493,14 @@ function Monitor.start(conf, opts)
             -- a stale "ingame" status memory kept the instance forever "healthy" and the
             -- recovery was never triggered (the app stayed closed).
             local healthy = false
-            if pkg then
+            -- A clone we just launched/recovered is still loading: its RSS is below
+            -- minRss on purpose. Never judge it (and never recover it) inside the grace
+            -- window -- that is what caused the force-stop/relaunch loop.
+            local loadingNow, graceLeft = loading(id)
+            if loadingNow then
+                healthy = true
+                Logger.debug(string.format("Monitor: %s masih loading (%ds lagi)", name, graceLeft))
+            elseif pkg then
                 -- A force-close leaves a low-RSS stub process alive, so process existence
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has
@@ -527,6 +571,10 @@ function Monitor.start(conf, opts)
             local p_ok, recovered = pcall(function()
                 return recoveryManager.checkAndRecover(inst)
             end)
+            -- Fresh pid again: restart the grace clock so the next cycles do not treat
+            -- the clone we just recovered as unhealthy while it loads.
+            markLaunch(id)
+            Status.noteRecovery(id)
             if not p_ok then
                 Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
                 ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))

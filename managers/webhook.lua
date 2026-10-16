@@ -1,3 +1,4 @@
+local Paths = require("core.paths")
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
 
@@ -30,11 +31,23 @@ local warned = {}
 local eventLast = {}
 local cpuPrev = nil      -- { total, idle }
 local procPrev = {}      -- pkg -> { proc, total }
-local STATE_FILE = "data/webhook_msg.txt"
+-- Id of the status message we keep editing. It lives in the DATA ROOT, like every other
+-- file this tool owns. It used to be the relative "data/webhook_msg.txt", which landed in
+-- a different folder depending on how the engine was started (repo folder when launched
+-- from the menu, data root when launched by the boot script, the download folder for the
+-- single-file loader). When that folder did not exist the write failed silently, the id
+-- was never stored and every report posted a NEW message instead of editing the old one.
+local STATE_FILE = Paths.data("webhook_msg.txt")
+local STATE_FILE_LEGACY = "data/webhook_msg.txt"
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
 local HZ = 100
+
+-- Accept any real Discord webhook URL. The token is base64url and often contains "_",
+-- which the previous pattern ([%w%.%-]) rejected -- silently disabling the whole feature
+-- with no log line at all.
+local URL_OK = "^https://[%w%.%-%_]+/api/webhooks/%S+$"
 
 local function warnOnce(key, msg)
     if warned[key] then return end
@@ -52,7 +65,14 @@ function Webhook.configure(c)
         hideNames = w.hideNames ~= false,
         deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
-    if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
+    if not conf.url:match(URL_OK) then
+        -- A non-empty URL we refuse is almost always a paste we don't understand, and
+        -- before this the whole feature just went quiet. Say so in the log.
+        if conf.url ~= "" then
+            Logger.warn("Webhook: URL tidak valid, webhook dimatikan: " .. conf.url)
+        end
+        conf.url = ""
+    end
     lastReport = 0
     firstReportAt = os.time() + 30
 end
@@ -81,8 +101,33 @@ local function shQuote(v)
 end
 
 -- Run curl as the Termux user. Returns http code (number or nil) and body.
+--
+-- The binary is resolved explicitly: this runs through io.popen (NOT su), so it uses the
+-- Termux PATH, and a bare "curl" silently does nothing when curl is not installed or the
+-- prefix differs. Same candidate list as managers/auth.lua.
+local curlBin = nil -- nil = not probed yet, false = none available
+
+local function resolveCurl()
+    if curlBin ~= nil then return curlBin end
+    for _, c in ipairs({
+        "/data/data/com.termux/files/usr/bin/curl",
+        "/system/bin/curl",
+    }) do
+        local f = io.popen("[ -x '" .. c .. "' ] && echo AE_YES || echo AE_NO 2>/dev/null")
+        local out = f and f:read("*l") or ""
+        if f then f:close() end
+        if out and out:find("AE_YES", 1, true) then
+            curlBin = c
+            Logger.info("Webhook: pakai curl " .. c)
+            return curlBin
+        end
+    end
+    curlBin = "curl" -- last resort: whatever PATH has
+    return curlBin
+end
+
 local function curl(args)
-    local cmd = "curl -s --max-time 25 -w '\\n%{http_code}' " .. args .. " </dev/null 2>/dev/null"
+    local cmd = resolveCurl() .. " -s --max-time 25 -w '\\n%{http_code}' " .. args .. " </dev/null 2>/dev/null"
     local f = io.popen(cmd)
     if not f then return nil, "" end
     local out = f:read("*a") or ""
@@ -183,8 +228,14 @@ local function systemStats()
     return s
 end
 
+-- Uptime as "8h 31m" / "3d 4h", seconds for a process younger than a minute ("42dtk") and
+-- "-" when it cannot be read. The old version floored to minutes, so any clone that had
+-- been (re)started in the last 60s showed a misleading "0m" -- which is exactly what a
+-- relaunch loop looks like from Discord.
 local function fmtDuration(sec)
-    sec = math.max(0, math.floor(sec or 0))
+    if not sec or sec <= 0 then return "-" end
+    sec = math.floor(sec)
+    if sec < 60 then return string.format("%ddtk", sec) end
     local d, h, m = math.floor(sec / 86400), math.floor(sec % 86400 / 3600), math.floor(sec % 3600 / 60)
     if d > 0 then return string.format("%dd %dh", d, h) end
     if h > 0 then return string.format("%dh %dm", h, m) end
@@ -253,11 +304,16 @@ local function buildReport(instances, sys, withImage)
             local kb = APK.getRSSinKB(inst.package)
             if kb and kb > 0 then memMb = math.floor(kb / 1024) end
         end
-        rows[#rows + 1] = string.format("%s %s\n└ ⏱️ %s | 💾 %s | ⚡ %s",
+        -- Restart counter for this run: makes a relaunch loop obvious in the channel
+        -- (a clone that keeps restarting shows a growing ♻️ instead of a quiet "0m").
+        local restarts = (okS and Status.recoveryCount and Status.recoveryCount(inst.id)) or 0
+        rows[#rows + 1] = string.format("%s %s%s\n└ ⏱️ %s | 💾 %s | ⚡ %s%s",
             ICON[status] or "⚪", name,
+            restarts > 0 and string.format(" ♻️%d", restarts) or "",
             p.uptime and fmtDuration(p.uptime) or "-",
             memMb and (memMb .. " MB") or "-",
-            p.cpu or "-")
+            p.cpu or "-",
+            restarts > 0 and string.format(" | ♻️ %dx restart", restarts) or "")
     end
 
     local now = os.time()
@@ -318,8 +374,23 @@ local function screenshot()
 end
 
 -- Message id of the status message we keep editing.
+--
+-- Falls back to the old relative location once, so an install that already stored the
+-- id there keeps editing its existing message instead of posting a new one.
 local function msgId()
     local s = readFile(STATE_FILE)
+    if not s and STATE_FILE_LEGACY ~= STATE_FILE then
+        s = readFile(STATE_FILE_LEGACY)
+        if s then
+            local id = s:match("(%d+)")
+            if id then
+                writeFile(STATE_FILE, id .. "\n")
+                os.remove(STATE_FILE_LEGACY)
+                Logger.info("Webhook: id pesan dipindah ke data root: " .. STATE_FILE)
+            end
+            return id
+        end
+    end
     return s and s:match("(%d+)")
 end
 
@@ -414,11 +485,12 @@ function Webhook.report(instances)
     if id then
         local code = send(payload, withImage, "PATCH", conf.url .. "/messages/" .. id)
         if code and code >= 200 and code < 300 then return true end
-        if code ~= 404 then
-            warnOnce("edit" .. tostring(code), "update pesan gagal (HTTP " .. tostring(code or "?") .. ")")
-            return false
-        end
-        os.remove(STATE_FILE) -- message deleted: post a new one
+        -- Any failed edit (401/403 from another webhook token, 400 from a stale payload,
+        -- 404 when the message was deleted) invalidates the stored id. Keeping it made
+        -- the webhook fail the very same way forever, with no new message ever posted.
+        warnOnce("edit" .. tostring(code), "update pesan gagal (HTTP " .. tostring(code or "?") .. "), buat pesan baru")
+        os.remove(STATE_FILE)
+        os.remove(STATE_FILE_LEGACY)
     end
     local code, body = send(payload, withImage, "POST", conf.url .. "?wait=true")
     if not code or code < 200 or code >= 300 then

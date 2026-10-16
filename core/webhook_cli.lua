@@ -51,7 +51,7 @@ function CLI.run()
                 save(conf)
             elseif v == "" then
                 print("Tidak diubah.")
-            elseif v:match("^https://[%w%.%-]+/api/webhooks/") then
+            elseif v:match("^https://[%w%.%-%_]+/api/webhooks/%S+$") then
                 wh.url = v
                 save(conf)
             else

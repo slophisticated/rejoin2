@@ -16,6 +16,22 @@ local Status = {}
 -- }
 local states = {}
 
+-- How many times we relaunched / recovered each instance this run. The Discord report
+-- shows it as a counter, so a relaunch loop is visible in the channel instead of only
+-- showing up as "uptime 0m".
+local recoveries = {}
+
+-- Count one restart (recovery or frozen-relaunch) for this instance.
+function Status.noteRecovery(id)
+    if id == nil then return end
+    recoveries[id] = (recoveries[id] or 0) + 1
+end
+
+-- Restarts so far for this instance (0 = none).
+function Status.recoveryCount(id)
+    return recoveries[id] or 0
+end
+
 -- Defaults / config gate for freeze detection.
 local freezeTimeout = 300  -- seconds (RSS-low/proc-stub or ANR -> wait, then relaunch)
 local gracePeriod = 30     -- seconds after healthy before judging ingame vs stuck
@@ -35,6 +51,7 @@ end
 
 function Status.reset()
     states = {}
+    recoveries = {}
     anrCache = nil
 end
 
