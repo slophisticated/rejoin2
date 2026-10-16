@@ -63,7 +63,7 @@ cd ~/rejoin && lua main.lua
 | Menu | Isi |
 |---|---|
 | `1` Launch All + Monitor | Buka semua clone berurutan, lalu pantau |
-| `2` Instances Manager | Auto Detect Roblox atau Manual Input; package dan nama ditinjau sebelum disimpan |
+| `2` Instances Manager | Package clone + link game / private server |
 | `3` Settings | Pengaturan umum; `13` = jeda launch (`launchJoinTimeout`, `launchSettleDelay`, dst.) |
 | `4` View Logs | Lihat `data/rejoin.log` |
 | `5` Start Monitor | Pantau saja, tanpa launch |

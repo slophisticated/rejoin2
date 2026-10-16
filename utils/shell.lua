@@ -64,16 +64,6 @@ local function runWithRoot(cmd)
     return "su -c '" .. inner .. "'"
 end
 
--- Verify that root commands are enabled and that `su` actually grants uid 0.
--- An inactive Magisk/SuperSU grant must stop the engine before it opens menus or
--- starts monitoring, otherwise process checks silently run with incomplete access.
-function Shell.rootAvailable()
-    if not rootEnabled() then return false, "useRoot=false" end
-    local ok, out = Shell.exec("id -u")
-    if ok and out and out:match("^%s*0%s*$") then return true end
-    return false, out or "su_failed"
-end
-
 -- Execute a command and return (ok, output). Uses io.popen to capture stdout.
 -- If runtime dry-run is enabled, log the command and return a simulated success output.
 function Shell.exec(cmd)

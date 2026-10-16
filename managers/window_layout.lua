@@ -15,7 +15,7 @@ local Config = require("core.config")
 --       enabled = true,    -- on in the shipped config; installer turns it on
 --       columns = 0,       -- 0 = automatic (2 columns for 2-4 clones, 3 for 5-9, ...)
 --       gap = 0,           -- pixels between windows
---       offsetTop = 0,     -- extra top margin; auto grid still avoids the Android status bar
+--       offsetTop = 0,     -- pixels kept free at the top of the screen
 --       overlap = 80,      -- pixels every row except the last reaches into the row
 --                          -- below it, so a small window shows the whole Roblox
 --                          -- sidebar (up to "More"). With overlap the rows are filled
@@ -136,7 +136,6 @@ local function systemTopInset()
     topInsetCache = inset
     return topInsetCache
 end
-
 local function prefsFile(pkg)
     return "/data/data/" .. pkg .. "/shared_prefs/" .. pkg .. "_preferences.xml"
 end

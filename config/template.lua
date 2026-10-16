@@ -80,8 +80,8 @@ return {
         hideNames = true,
         deviceName = "",    -- Label Device Name in report title/body; "" = device model
     },
-    -- Delta license file used to detect when Delta asks for a key.
-    deltaLicensePath = "/sdcard/delta/internal/cache/license",
+    -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
