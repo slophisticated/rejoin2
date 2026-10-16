@@ -58,13 +58,17 @@ return {
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
     -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
-    -- is running (RSS >= minRss), wait launchSettleDelay for it to load the game, then
-    -- clone 2, and so on. A clone that is not logged in is opened but not waited for.
+    -- is running (RSS >= minRss), wait until it is in game, then clone 2, and so on.
+    -- A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchSettleDelay:  wait (s) after a clone is running, before the next one starts.
+    -- launchJoinTimeout:  with the Delta heartbeat: max wait (s) for the clone to be in
+    --                     game. A clone that never sends one switches the rest of that
+    --                     Launch All to launchSettleDelay.
+    -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchJoinTimeout = 240,
     launchSettleDelay = 20,
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.
@@ -74,14 +78,17 @@ return {
     -- force-stop) and at most once per noLoginCooldown seconds.
     relaunchNoLogin = true,
     -- Status reports to a Discord webhook (one message kept up to date + event
-    -- messages). Empty url = off. Set it in Main Menu 8) Discord Webhook.
+    -- messages). Empty url = off. Set it in Main Menu 9) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,
         screenshot = true,
-        events = true,
+        events = true,      -- separate message when Delta asks for a key
         hideNames = true,
+        deviceName = "",    -- shown in every message; "" = device model
     },
+    -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,

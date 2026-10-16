@@ -25,6 +25,7 @@ local function printSettings(conf)
     print("  anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
     print("  launchWaitInterval = " .. tostring(conf.launchWaitInterval))
     print("  launchWaitTimeout = " .. tostring(conf.launchWaitTimeout))
+    print("  launchJoinTimeout = " .. tostring(conf.launchJoinTimeout))
     print("  launchSettleDelay = " .. tostring(conf.launchSettleDelay))
     print("  launchEmptyDelay = " .. tostring(conf.launchEmptyDelay))
     local wl = type(conf.windowLayout) == "table" and conf.windowLayout or {}
@@ -58,6 +59,7 @@ function CLI.run()
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
+    conf.launchJoinTimeout = conf.launchJoinTimeout or 240
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
@@ -109,7 +111,7 @@ function CLI.run()
             print("anrCheckEnabled = " .. tostring(conf.anrCheckEnabled and true or false))
         elseif choice == "13" then
             -- Launch All opens clones one by one: wait until the clone is running, then
-            -- wait launchSettleDelay for it to load the game, then start the next one.
+            -- until it is in game (heartbeat, launchJoinTimeout) or launchSettleDelay.
             print("Launch All membuka clone satu per satu. Kosongkan untuk tetap pakai nilai lama.")
             local function askNumber(key, label, allowZero)
                 local v = prompt(label .. ": [" .. tostring(conf[key]) .. "] ")
@@ -117,11 +119,12 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchSettleDelay", "Jeda setelah Roblox jalan, sebelum clone berikutnya (detik, waktu masuk game)", true)
+            askNumber("launchJoinTimeout", "Maks tunggu clone MASUK GAME sebelum clone berikutnya (detik, pakai heartbeat Delta; 0 = mati)", true)
+            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat tidak ada (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            print("(Jendela, heartbeat & mode hemat: Main Menu 9. Discord webhook: Main Menu 8.)")
+            print("(Jendela, heartbeat & mode hemat: Main Menu 10. Discord webhook: Main Menu 9.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

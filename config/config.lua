@@ -22,10 +22,12 @@ return {
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
     -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
-    -- launchWaitTimeout detik), tunggu launchSettleDelay detik biar masuk game,
-    -- baru clone berikutnya. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
+    -- launchWaitTimeout detik), lalu tunggu sampai MASUK GAME (heartbeat Delta, maks
+    -- launchJoinTimeout detik) baru clone berikutnya. Tanpa heartbeat: jeda tetap
+    -- launchSettleDelay detik. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
+    launchJoinTimeout = 240,
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,
@@ -34,17 +36,20 @@ return {
     -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
     relaunchNoLogin = true,
     -- Laporan status ke Discord webhook (1 pesan yang terus di-update + notif kejadian).
-    -- url kosong = mati. Isi lewat Main Menu 8) Discord Webhook.
+    -- url kosong = mati. Isi lewat Main Menu 9) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,    -- detik antar laporan
         screenshot = true, -- sertakan screenshot layar
-        events = true,     -- pesan terpisah saat engine mulai / ke-kick / recovery gagal
+        events = true,     -- pesan terpisah kalau Delta minta key (file license hilang)
         hideNames = true,  -- nama akun disembunyikan (spoiler)
+        deviceName = "",   -- nama device di tiap pesan (mis. nama di Redfinger); "" = model
     },
+    -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
+    deltaLicensePath = "",
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
-    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 9) Jendela & Mode Hemat.
+    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 10) Jendela & Mode Hemat.
     windowLayout = {
         enabled = true,
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)

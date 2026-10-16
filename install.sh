@@ -4,10 +4,9 @@
 #   curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh
 #
 # Safe to run again on a device that already has rejoin: your config/config.lua and
-# logs are kept. Note the engine reads them from the DATA ROOT
-# (${YANAMIN_HOME:-/sdcard/yanamin}), not from this repo folder, so that is where
-# they are backed up and restored. What it does:
-#   1. installs/updates the Termux packages (lua53 sqlite curl git)
+# logs are kept. What it does:
+#   1. installs/updates the Termux packages (lua53 sqlite curl git); skipped when
+#      they are all installed and working (FULL_UPGRADE=1 forces it)
 #   2. makes `lua` available
 #   3. checks root
 #   4. downloads rejoin to ~/rejoin (fresh copy, settings kept)
@@ -42,21 +41,37 @@ fi
 step "1/8 Paket Termux"
 export DEBIAN_FRONTEND=noninteractive
 APT_OPTS="-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
-# apt instead of pkg: pkg itself needs a working curl, which a half-upgraded
-# Termux may not have (libcurl/openssl mismatch).
-if apt-get update </dev/null >/dev/null 2>&1; then
-    ok "daftar paket ter-update"
+# Running the installer again (e.g. by accident) should be quick: when every package
+# is installed and actually runs, skip the slow apt update / full-upgrade.
+# Force it anyway with: ... | FULL_UPGRADE=1 sh
+packages_ok() {
+    for p in lua53 sqlite curl git; do
+        dpkg -s "$p" </dev/null >/dev/null 2>&1 || return 1
+    done
+    curl --version </dev/null >/dev/null 2>&1 || return 1
+    git --version </dev/null >/dev/null 2>&1 || return 1
+    sqlite3 -version </dev/null >/dev/null 2>&1 || return 1
+    { [ -x "$PREFIX/bin/lua5.3" ] || command -v lua >/dev/null 2>&1; } || return 1
+}
+if [ "${FULL_UPGRADE:-0}" != 1 ] && packages_ok; then
+    ok "lua53 sqlite curl git sudah lengkap (upgrade paket dilewati)"
 else
-    die "apt update gagal. Jalankan: termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
-fi
-echo "  upgrade paket (bisa beberapa menit)..."
-# shellcheck disable=SC2086
-apt-get $APT_OPTS full-upgrade </dev/null >/dev/null 2>&1 || warn "upgrade paket ada yang gagal (lanjut)"
-# shellcheck disable=SC2086
-if apt-get $APT_OPTS install lua53 sqlite curl git </dev/null >/dev/null 2>&1; then
-    ok "lua53 sqlite curl git terpasang"
-else
-    die "gagal install lua53/sqlite/curl/git. Coba: termux-change-repo (Mirrors in Asia), lalu ulangi."
+    # apt instead of pkg: pkg itself needs a working curl, which a half-upgraded
+    # Termux may not have (libcurl/openssl mismatch).
+    if apt-get update </dev/null >/dev/null 2>&1; then
+        ok "daftar paket ter-update"
+    else
+        die "apt update gagal. Jalankan: termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
+    fi
+    echo "  upgrade paket (bisa beberapa menit)..."
+    # shellcheck disable=SC2086
+    apt-get $APT_OPTS full-upgrade </dev/null >/dev/null 2>&1 || warn "upgrade paket ada yang gagal (lanjut)"
+    # shellcheck disable=SC2086
+    if apt-get $APT_OPTS install lua53 sqlite curl git </dev/null >/dev/null 2>&1; then
+        ok "lua53 sqlite curl git terpasang"
+    else
+        die "gagal install lua53/sqlite/curl/git. Coba: termux-change-repo (Mirrors in Asia), lalu ulangi."
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -158,7 +173,7 @@ fi
 # Floating window grid on by default (a kept config from an older install may have it off).
 WL=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --enable-window-layout </dev/null 2>/dev/null | tail -1)
 case "$WL" in
-    OK:*) ok "${WL#OK: } (matikan: Main Menu 9)" ;;
+    OK:*) ok "${WL#OK: } (matikan: Main Menu 10)" ;;
     *)    warn "auto atur jendela belum bisa dinyalakan (${WL:-tidak ada output})" ;;
 esac
 

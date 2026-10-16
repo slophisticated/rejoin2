@@ -1,6 +1,6 @@
 local Config = require("core.config")
 
--- Main Menu 10: Discord webhook status reports (managers/webhook.lua).
+-- Main Menu 9: Discord webhook status reports (managers/webhook.lua).
 -- Pick one item at a time; every change is saved right away.
 
 local CLI = {}
@@ -32,9 +32,12 @@ function CLI.run()
         print("  1) URL webhook          [" .. (hasUrl and "diset" or "kosong") .. "]")
         print("  2) Interval laporan     [" .. tostring(wh.interval or 300) .. " detik]")
         print("  3) Screenshot           [" .. onoff(wh.screenshot ~= false) .. "]")
-        print("  4) Notif kejadian       [" .. onoff(wh.events ~= false) .. "]")
+        print("  4) Notif Delta minta key [" .. onoff(wh.events ~= false) .. "]")
         print("  5) Sembunyikan nama     [" .. onoff(wh.hideNames ~= false) .. "]")
         print("  6) Kirim tes sekarang")
+        local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
+        print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
+        print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -69,7 +72,7 @@ function CLI.run()
             save(conf)
         elseif choice == "4" then
             wh.events = not (wh.events ~= false)
-            print("Notif kejadian: " .. onoff(wh.events))
+            print("Notif Delta minta key: " .. onoff(wh.events))
             save(conf)
         elseif choice == "5" then
             wh.hideNames = not (wh.hideNames ~= false)
@@ -89,6 +92,43 @@ function CLI.run()
                     print("Terkirim. Cek channel Discord.")
                 else
                     print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                end
+            end
+        elseif choice == "7" then
+            local v = prompt("Nama device (mis. nama di Redfinger; '-' = hapus): ")
+            v = (v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if v == "-" then
+                wh.deviceName = ""
+                save(conf)
+            elseif v == "" then
+                print("Tidak diubah.")
+            else
+                wh.deviceName = v:sub(1, 60)
+                save(conf)
+            end
+        elseif choice == "8" then
+            if not hasUrl then
+                print("Isi URL webhook dulu (pilihan 1), harus sama dengan device lama.")
+            else
+                print("Discord: klik kanan pesan status lama > Copy Message Link (atau Copy Message ID).")
+                local v = prompt("Link / ID pesan: ")
+                local Webhook = require("managers.webhook")
+                Webhook.configure(conf)
+                local id, err = Webhook.useMessage(v)
+                if not id then
+                    print(err)
+                else
+                    print("Mengedit pesan itu sekarang...")
+                    local okI, Instances = pcall(require, "managers.instance")
+                    local list = okI and Instances.getAll and Instances.getAll() or {}
+                    local ok, res = pcall(Webhook.report, list)
+                    if not (ok and res) then
+                        print("Gagal kirim (cek URL / internet; detail di data/rejoin.log).")
+                    elseif Webhook.messageId() == id then
+                        print("Berhasil: pesan lama sekarang di-update oleh device ini.")
+                    else
+                        print("Pesan itu tidak bisa diedit (sudah dihapus atau dari webhook lain); dibuat pesan baru.")
+                    end
                 end
             end
         else

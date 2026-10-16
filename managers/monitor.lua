@@ -7,6 +7,7 @@ local ProbeLog = require("utils.probe_log")
 local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
+local DeltaKey = require("managers.delta_key")
 
 local Monitor = {}
 local running = false
@@ -157,9 +158,26 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
         pcall(function() return Optimizer.applyForInstance(inst) end)
     else
         Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
-        Webhook.event("nologin:" .. pkg, "⚠️ Gagal membuka clone", name .. " (belum login) tidak bisa dibuka lagi", 15548997)
     end
     return true
+end
+
+-- Delta key: one status for the whole device (shared Delta folder). Notify once each
+-- time the license entry disappears; nothing when it comes back.
+local keyState = nil
+local function checkKey()
+    local present = DeltaKey.present()
+    if present == nil or present == keyState then return end
+    local was = keyState
+    keyState = present
+    if present then
+        if was == false then Logger.info("[KEY] key Delta aktif lagi") end
+        return
+    end
+    Logger.warn("[KEY] file license Delta hilang (" .. tostring(DeltaKey.path()) .. "): Delta minta key")
+    Webhook.event("key", "🔑 Delta minta key",
+        "File license Delta hilang. Script (heartbeat, autoexecute) tidak jalan sampai key dimasukkan lagi.",
+        16705372)
 end
 
 local function checkWindow(inst)
@@ -182,7 +200,24 @@ local function checkWindow(inst)
 end
 
 local function runSequentialLaunch(conf)
-    local instances = instanceManager.getAll()
+    -- Logged-in clones first (each waited for until in game), clones without an account
+    -- last; within each group the Menu 2 order. Unknown login counts as logged in.
+    -- Window slots follow the Menu 2 order, so positions do not change.
+    local instances, later, names, laterNames = {}, {}, {}, {}
+    for _, inst in ipairs(instanceManager.getAll()) do
+        local okL, li = pcall(Auth.isLoggedIn, inst)
+        local label = tostring(inst.name or inst.id or "?")
+        if okL and li == false then
+            later[#later + 1] = inst
+            laterNames[#laterNames + 1] = label
+        else
+            instances[#instances + 1] = inst
+            names[#names + 1] = label
+        end
+    end
+    for _, inst in ipairs(later) do instances[#instances + 1] = inst end
+    Logger.info("Monitor: urutan launch: " .. (#names > 0 and table.concat(names, ", ") or "-")
+        .. (#laterNames > 0 and (" | belum login: " .. table.concat(laterNames, ", ")) or ""))
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
     local poll = tonumber(conf and conf.launchWaitInterval) or 3
     if poll <= 0 then poll = 3 end
@@ -190,6 +225,12 @@ local function runSequentialLaunch(conf)
     if settle < 0 then settle = 0 end
     local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
     if emptyDelay < 0 then emptyDelay = 0 end
+    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 240
+    if joinTimeout < 0 then joinTimeout = 0 end
+    -- With the Delta heartbeat, wait until each clone is really in game before the next
+    -- one starts. Turned off for the rest of this Launch All once a clone never sends
+    -- one (Delta without key / script not running): then the fixed settle delay is used.
+    local hbWorking = Heartbeat.isEnabled() and joinTimeout > 0
     local function stopped() return not running end
 
     for i, inst in ipairs(instances) do
@@ -243,22 +284,37 @@ local function runSequentialLaunch(conf)
                 if running then Status.printSummary(instanceManager.getAll()) end
             end
 
-            -- 2) Give it time to load into the game before starting the next clone.
+            -- 2) Give it time to load into the game before starting the next clone:
+            --    until its heartbeat says in game (up to launchJoinTimeout), or without a
+            --    heartbeat a fixed launchSettleDelay.
             local settled = 0
-            while active and running and settled < settle do
-                local step = math.min(poll, settle - settled)
+            local limit = hbWorking and joinTimeout or settle
+            local sawHeartbeat = false
+            while active and running and settled < limit do
+                local alive, why = Heartbeat.alive(inst)
+                if alive == true then
+                    Logger.info(string.format("Monitor: %s in game (heartbeat, %ds); next clone", name, waited + settled))
+                    sawHeartbeat = true
+                    break
+                elseif alive == false and tostring(why):find("^kicked") then
+                    Logger.warn(string.format("Monitor: %s %s while joining; moving on", name, tostring(why)))
+                    sawHeartbeat = true
+                    break
+                end
+                local step = math.min(poll, limit - settled)
                 Timer.sleepInterruptible(step, stopped)
                 settled = settled + step
                 if running then Status.printSummary(instanceManager.getAll()) end
                 if not isActiveNow() then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
+                    sawHeartbeat = true -- not the heartbeat's fault
                     break
                 end
-                -- The in-game heartbeat proves it already joined: no need to wait longer.
-                if Heartbeat.alive(inst) == true then
-                    Logger.info(string.format("Monitor: %s in game (heartbeat); next clone", name))
-                    break
-                end
+            end
+            if hbWorking and active and running and not sawHeartbeat then
+                hbWorking = false
+                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?); sisa clone pakai jeda launchSettleDelay %ds",
+                    name, joinTimeout, settle))
             end
 
             Status.endStarting(id)
@@ -412,9 +468,6 @@ function Monitor.start(conf, opts)
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
-                    if why and why:find("^kicked") then
-                        Webhook.event("kick:" .. tostring(pkg), "🔴 Ke-kick / disconnect", name .. ": " .. why:gsub("^kicked:%s*", "") .. "\nRejoin otomatis...", 15548997)
-                    end
                 end
             end
 
@@ -433,13 +486,27 @@ function Monitor.start(conf, opts)
                 elseif isRecovering(id) then
                     Logger.info(string.format("Monitor: recovery already in progress for %s; skipping", name))
                 else
-                    -- Queue it instead of recovering inline. Recovery can take up to
-                    -- recoveryRetries x (checkTimeout + recoveryDelay) seconds; running it
-                    -- inside the status loop froze the dashboard AND stopped every other
-                    -- clone from being checked for that whole time. At most one queued
-                    -- instance is recovered per cycle (see below), so the monitor stays
-                    -- responsive and the rest is picked up on the following cycles.
-                    pendingRecovery[#pendingRecovery + 1] = inst
+                    -- mark as recovering and run recovery (synchronous). This avoids overlapping recoveries.
+                    setRecovering(id, true)
+                    Status.beginRecovery(id)
+                    ProbeLog.line(string.format("[%s] EVENT recovery_begin %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    local p_ok, recovered = pcall(function()
+                        return recoveryManager.checkAndRecover(inst)
+                    end)
+                    if not p_ok then
+                        Logger.error(string.format("Monitor: recovery raised an error for %s: %s", name, tostring(recovered)))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_error %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    elseif recovered then
+                        Logger.info(string.format("Monitor: recovery succeeded for %s", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_success %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                        -- checkAndRecover restarts the process -> new pid -> re-tune it.
+                        pcall(function() return Optimizer.applyForInstance(inst) end)
+                    else
+                        Logger.error(string.format("Monitor: recovery failed for %s (all attempts)", name))
+                        ProbeLog.line(string.format("[%s] EVENT recovery_failed %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
+                    end
+                    Status.endRecovery(id)
+                    setRecovering(id, false)
                 end
             end
 
@@ -509,6 +576,7 @@ function Monitor.start(conf, opts)
 
         if running and cycle % windowEvery == 0 then
             for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
+            pcall(checkKey)
         end
 
         Timer.sleepInterruptible(interval, function() return not running end)
