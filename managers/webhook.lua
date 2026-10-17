@@ -169,6 +169,26 @@ local function clockTicks()
     return HZ
 end
 
+local function parseElapsed(raw)
+    raw = tostring(raw or ""):match("^%s*(.-)%s*$")
+    local seconds = tonumber(raw)
+    if seconds then return seconds end
+    local days, hours, minutes, secs = raw:match("^(%d+)%-(%d+):(%d+):(%d+)$")
+    if days then return tonumber(days) * 86400 + tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(secs) end
+    hours, minutes, secs = raw:match("^(%d+):(%d+):(%d+)$")
+    if hours then return tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(secs) end
+    minutes, secs = raw:match("^(%d+):(%d+)$")
+    if minutes then return tonumber(minutes) * 60 + tonumber(secs) end
+    return nil
+end
+
+local function processElapsed(pid)
+    local value = parseElapsed(root("ps -o ELAPSED= -p " .. pid))
+    if not value then value = parseElapsed(root("ps -o etime= -p " .. pid)) end
+    if not value then value = parseElapsed(root("ps -o etimes= -p " .. pid)) end
+    return value and value > 0 and value or nil
+end
+
 -- System numbers ------------------------------------------------------------------
 local function cpuTotals()
     local stat = root("cat /proc/stat")
@@ -257,19 +277,16 @@ local function procStats(pkg, sys)
     if type(pkg) ~= "string" or not pkg:match("^[%w_%.]+$") then return nil end
     local pid = (root("pidof " .. pkg) or ""):match("(%d+)")
     if not pid then return nil end
+    local r = { uptime = processElapsed(pid) }
     local stat = root("cat /proc/" .. pid .. "/stat")
-    if not stat then return nil end
+    if not stat then return r end
     local rest = stat:match("%)%s+(.*)$")
-    if not rest then return nil end
+    if not rest then return r end
     local f = {}
     for v in rest:gmatch("%S+") do f[#f + 1] = v end
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
-    local r = {}
-    -- Prefer ps's elapsed-seconds field. Android can expose /proc/uptime and proc
-    -- starttime in different clock namespaces, making their subtraction look near 0.
-    local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
-    if elapsed and elapsed > 0 then r.uptime = elapsed end
+    -- `ps etime` above is preferred; use proc starttime only as another fallback.
     if not r.uptime and start and sys.uptime then
         local elapsed = sys.uptime - start / clockTicks()
         if elapsed > 0 then r.uptime = elapsed end

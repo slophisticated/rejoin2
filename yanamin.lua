@@ -5771,6 +5771,26 @@ local function clockTicks()
     return HZ
 end
 
+local function parseElapsed(raw)
+    raw = tostring(raw or ""):match("^%s*(.-)%s*$")
+    local seconds = tonumber(raw)
+    if seconds then return seconds end
+    local days, hours, minutes, secs = raw:match("^(%d+)%-(%d+):(%d+):(%d+)$")
+    if days then return tonumber(days) * 86400 + tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(secs) end
+    hours, minutes, secs = raw:match("^(%d+):(%d+):(%d+)$")
+    if hours then return tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(secs) end
+    minutes, secs = raw:match("^(%d+):(%d+)$")
+    if minutes then return tonumber(minutes) * 60 + tonumber(secs) end
+    return nil
+end
+
+local function processElapsed(pid)
+    local value = parseElapsed(root("ps -o ELAPSED= -p " .. pid))
+    if not value then value = parseElapsed(root("ps -o etime= -p " .. pid)) end
+    if not value then value = parseElapsed(root("ps -o etimes= -p " .. pid)) end
+    return value and value > 0 and value or nil
+end
+
 -- System numbers ------------------------------------------------------------------
 local function cpuTotals()
     local stat = root("cat /proc/stat")
@@ -5841,18 +5861,16 @@ local function procStats(pkg, sys)
     if type(pkg) ~= "string" or not pkg:match("^[%w_%.]+$") then return nil end
     local pid = (root("pidof " .. pkg) or ""):match("(%d+)")
     if not pid then return nil end
+    local r = { uptime = processElapsed(pid) }
     local stat = root("cat /proc/" .. pid .. "/stat")
-    if not stat then return nil end
+    if not stat then return r end
     local rest = stat:match("%)%s+(.*)$")
-    if not rest then return nil end
+    if not rest then return r end
     local f = {}
     for v in rest:gmatch("%S+") do f[#f + 1] = v end
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
-    local r = {}
-    -- `ps etimes` avoids clock-namespace mismatches between /proc/uptime and starttime.
-    local elapsed = tonumber((root("ps -o etimes= -p " .. pid) or ""):match("%d+"))
-    if elapsed and elapsed > 0 then r.uptime = elapsed end
+    -- `ps etime` above is preferred; use proc starttime only as another fallback.
     if not r.uptime and start and sys.uptime then
         local procElapsed = sys.uptime - start / clockTicks()
         if procElapsed > 0 then r.uptime = procElapsed end
@@ -6147,7 +6165,7 @@ local KEYS = { "left", "top", "right", "bottom" }
 local KEY_PREFIX = "app_cloner_current_window_"
 
 local screenCache = nil      -- { w, h, at }
-local SCREEN_TTL = 30
+local topInsetCache = nil
 local DEFAULT_OVERLAP = 80
 local TOLERANCE = 10          -- pixels the app may adjust a window by
 local lastVerify = {}         -- pkg -> { ok, at, actual, target }
@@ -6196,6 +6214,40 @@ local function screenSize(wl)
     end
     screenCache = { a, b }
     return a, b
+end
+
+-- Keep auto-grid slots below Android's notification bar and display cutout.
+local function systemTopInset()
+    if topInsetCache then return topInsetCache end
+    local inset = 0
+    local ok, out = Shell.exec("dumpsys window windows")
+    if ok and out and out ~= "(dry-run)" then
+        local start = out:find("Window #%d+[^\r\n]-StatusBar")
+        if start then
+            local nextWindow = out:find("\nWindow #", start + 1, true)
+            local block = out:sub(start, nextWindow or (start + 1800))
+            for line in block:gmatch("[^\r\n]+") do
+                local l, t, r, b = line:match("[Ff]rame=%[(-?%d+),%s*(-?%d+)%]%[(-?%d+),%s*(-?%d+)%]")
+                l, t, r, b = tonumber(l), tonumber(t), tonumber(r), tonumber(b)
+                if l and t == 0 and r and b and b > 0 and (r - l) >= b then inset = math.max(inset, b) end
+            end
+        end
+    end
+    if inset == 0 then
+        ok, out = Shell.exec("dumpsys window displays")
+        if ok and out and out ~= "(dry-run)" then
+            local stable = tonumber(out:match("mStableInsets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            local cutout = tonumber(out:match("DisplayCutout%{insets=Rect%(%-?%d+,%s*(%-?%d+)%s*%-%s*%-?%d+,%s*%-?%d+%)"))
+            inset = math.max(stable or 0, cutout or 0)
+        end
+    end
+    if inset == 0 then
+        ok, out = Shell.exec("wm density")
+        local density = ok and tonumber((out or ""):match("density:%s*(%d+)")) or nil
+        inset = density and math.floor(24 * density / 160 + 0.5) or 24
+    end
+    topInsetCache = math.max(0, math.floor(inset)) + 2
+    return topInsetCache
 end
 
 local function prefsFile(pkg)
@@ -6266,7 +6318,10 @@ function WindowLayout.boundsFor(instance, index, count)
     if cols < 1 then cols = math.ceil(math.sqrt(count)) end
     local rows = math.ceil(count / cols)
     local gap = math.max(0, math.floor(tonumber(wl.gap) or 0))
-    local top0 = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    local requestedTop = math.max(0, math.floor(tonumber(wl.offsetTop) or 0))
+    local fixedInset = tonumber(wl.topInset)
+    local safeInset = fixedInset and fixedInset > 0 and math.floor(fixedInset) or systemTopInset()
+    local top0 = math.max(requestedTop, safeInset)
 
     local cellW = math.floor((sw - gap * (cols - 1)) / cols)
     local cellH = math.floor((sh - top0 - gap * (rows - 1)) / rows)
