@@ -52,6 +52,14 @@ local function rootEnabled()
     return true
 end
 
+-- Fail early when root was disabled or su did not grant uid 0.
+function Shell.rootAvailable()
+    if not rootEnabled() then return false, "useRoot=false" end
+    local ok, out = Shell.exec("id -u")
+    if ok and out and out:match("^%s*0%s*$") then return true end
+    return false, out or "su_failed"
+end
+
 -- Wrap a shell command in `su -c '...'` so ps/pidof/pgrep/am/logcat run as root. A
 -- rooted device running Termux as a NORMAL user cannot see other apps' processes
 -- (Android 11+), which previously made every process probe return empty and broke

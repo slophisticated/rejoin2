@@ -795,6 +795,9 @@ return CLI
 __ya_sources["core.instances_cli"] = [[
 local Logger = require("core.logger")
 local InstanceManager = require("managers.instance")
+local Config = require("core.config")
+local Shell = require("utils.shell")
+local APK = require("managers.apk")
 
 local CLI = {}
 
@@ -816,6 +819,82 @@ local function printInstances()
     end
 end
 
+local function detectRobloxPackages()
+    local conf = Config.get() or {}
+    local prefix = type(conf.clonePackagePrefix) == "string" and conf.clonePackagePrefix:lower() or ""
+    local ok, out = Shell.exec("pm list packages")
+    if not ok or not out or out == "(dry-run)" then
+        return nil, "Tidak bisa membaca daftar package Android."
+    end
+
+    local found, seen = {}, {}
+    for line in out:gmatch("[^\r\n]+") do
+        local pkg = line:match("package:(%S+)")
+        if pkg and not seen[pkg] then
+            local lower = pkg:lower()
+            local match = lower:find("roblox", 1, true) ~= nil
+                or (prefix ~= "" and lower:find(prefix, 1, true) == 1)
+            if not match then
+                local component = APK.resolveLaunchComponent(pkg)
+                match = component and component:lower():find("roblox", 1, true) ~= nil
+            end
+            if match then
+                seen[pkg] = true
+                found[#found + 1] = pkg
+            end
+        end
+    end
+    table.sort(found)
+    return found
+end
+
+local function addPackage(pkg)
+    local name = prompt("Instance name (Enter = " .. pkg .. "): ") or ""
+    name = name:match("^%s*(.-)%s*$")
+    if name == "" then name = pkg end
+    local server = (prompt("Private Server URL (required): ") or ""):match("^%s*(.-)%s*$")
+    if server == "" then
+        print("Private Server URL wajib diisi.")
+        return
+    end
+    local ok, res = InstanceManager.add({ name = name, package = pkg, privateServer = server })
+    if ok then print("Added instance id=" .. tostring(res.id)) else print("Failed to add: " .. tostring(res)) end
+end
+
+local function addInstance()
+    print("\nAdd Instance:\n  1) Auto Detect Roblox\n  2) Manual Input\n  0) Cancel")
+    local mode = (prompt("Choose a mode: ") or ""):match("^%s*(.-)%s*$")
+    if mode == "0" or mode == "" then return end
+    if mode == "2" then
+        local pkg = (prompt("Package name (e.g. com.roblox.client): ") or ""):match("^%s*(.-)%s*$")
+        if pkg == "" then print("Package is required.") else addPackage(pkg) end
+        return
+    end
+    if mode ~= "1" then print("Unknown mode."); return end
+
+    local packages, err = detectRobloxPackages()
+    if not packages then print(err); return end
+    if #packages == 0 then print("No Roblox packages detected. Try Manual Input."); return end
+    print("Detected Roblox packages:")
+    for i, pkg in ipairs(packages) do print(string.format("  %d) %s", i, pkg)) end
+    local selection = (prompt("Select package indices (e.g. 1,2) or 'all': ") or ""):lower()
+    selection = selection:match("^%s*(.-)%s*$")
+    local indices, seen = {}, {}
+    if selection == "all" or selection == "a" then
+        for i = 1, #packages do indices[#indices + 1] = i end
+    else
+        for value in selection:gmatch("%d+") do
+            local i = tonumber(value)
+            if i and packages[i] and not seen[i] then
+                indices[#indices + 1] = i
+                seen[i] = true
+            end
+        end
+    end
+    if #indices == 0 then print("No valid package selected."); return end
+    for _, i in ipairs(indices) do addPackage(packages[i]) end
+end
+
 function CLI.run()
     while true do
         print("\nInstances Manager:\n  1) List instances\n  2) Add instance\n  3) Edit instance\n  4) Delete instance\n  5) Exit\n")
@@ -824,16 +903,7 @@ function CLI.run()
         if choice == "1" then
             printInstances()
         elseif choice == "2" then
-            local pkg = prompt("Package name (e.g. com.roblox.client): ") or ""
-            pkg = pkg:match("^%s*(.-)%s*$")
-            if pkg == "" then print("Package is required.") else
-                local name = prompt("Instance name (press Enter to use package): ") or ""
-                if name == "" then name = pkg end
-                local server = prompt("Private Server URL (optional): ") or ""
-                if server == "" then server = nil end
-                local ok, res = InstanceManager.add({ name = name, package = pkg, privateServer = server })
-                if ok then print("Added instance id=" .. tostring(res.id)) else print("Failed to add: " .. tostring(res)) end
-            end
+            addInstance()
         elseif choice == "3" then
             local id = prompt("Instance id to edit: ") or ""
             id = tonumber(id)
@@ -6959,6 +7029,13 @@ local function runWithRoot(cmd)
     return "su -c '" .. inner .. "'"
 end
 
+function Shell.rootAvailable()
+    if not rootEnabled() then return false, "useRoot=false" end
+    local ok, out = Shell.exec("id -u")
+    if ok and out and out:match("^%s*0%s*$") then return true end
+    return false, out or "su_failed"
+end
+
 -- Execute a command and return (ok, output). Uses io.popen to capture stdout.
 -- If runtime dry-run is enabled, log the command and return a simulated success output.
 function Shell.exec(cmd)
@@ -7238,15 +7315,7 @@ local ok, created_or_err = Setup.ensureConfig(configSource)
 if not ok then
     Logger.error("Failed to ensure config: " .. tostring(created_or_err))
 else
-    if created_or_err == true and not skipWizard and not headless then
-        -- config was just created from template; run the interactive setup wizard
-        local Wizard = require("core.setup_wizard")
-        local wok, werr = Wizard.run()
-        if not wok then
-            Logger.warn("Setup wizard did not complete: " .. tostring(werr))
-            Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
-        end
-    end
+
 end
 
 local Config = require("core.config")
@@ -7257,6 +7326,27 @@ if conf.logPath then
     Logger.setLogPath(conf.logPath)
 end
 
+-- Root is required for package/process discovery and recovery. Stop before the wizard
+-- or menu if su is disabled or does not grant uid 0.
+if not dryRun then
+    local Shell = require("utils.shell")
+    local rootOk, rootErr = Shell.rootAvailable()
+    if not rootOk then
+        local msg = "Root tidak aktif atau izin su ditolak. Aktifkan akses root dan pastikan useRoot = true di config/config.lua, lalu jalankan ulang."
+        Logger.error(msg .. " (" .. tostring(rootErr) .. ")")
+        print("\n[FATAL] " .. msg)
+        os.exit(1)
+    end
+end
+
+if ok and created_or_err == true and not skipWizard and not headless then
+    local Wizard = require("core.setup_wizard")
+    local wok, werr = Wizard.run()
+    if not wok then
+        Logger.warn("Setup wizard did not complete: " .. tostring(werr))
+        Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
+    end
+end
 local data = conf
 
 local InstanceManager = require("managers.instance")
