@@ -76,6 +76,8 @@ managers/webhook.lua  laporan Discord (POST ?wait=true lalu PATCH /messages/<id>
 managers/window_layout.lua grid floating window App Cloner
 managers/auth.lua     cek login (cookie + verifikasi curl)
 managers/delta_key.lua cek file "license" Delta (notif minta key)
+managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute
+                      (autoAdd = copy dari Scripts, autoRemove). Menu 6 = core/autoexecute_cli.lua
 managers/apk.lua      am/pm/pidof/RSS/hasWindow
 scripts/rejoin_heartbeat.lua  script Luau di dalam game (Delta autoexecute)
 install.sh            installer 8 langkah (aman diulang, skip apt kalau paket lengkap)
@@ -93,7 +95,7 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
 `relaunchNoLogin`, `noLoginCooldown`, `windowLayout{enabled,columns,gap,overlap}`,
 `heartbeat{enabled,saver{...}}`, `webhook{url,interval,screenshot,events,hideNames,deviceName}`,
 `deltaLicensePath`, `useRoot`, `appAutoExecutePath`, `presets{A={name,link}}`,
-`defaultPreset`, `remote{url,secret,interval}`, `instances{...,preset}`.
+`defaultPreset`, `scriptsPath`, `remote{url,secret,interval}`, `instances{...,preset}`.
 
 ## 4. Aturan teknis wajib (masing-masing dari bug nyata)
 
@@ -130,6 +132,10 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
   di PRD. `remote.url/secret` sengaja ga bisa diubah dari bot. Secret ga boleh ke log.
 - Rejoin karena ganti preset / perintah bot selalu lewat antrian monitor (berurutan),
   jangan launch langsung.
+- **Script**: isi script cuma boleh ditulis ke folder **Scripts**. Autoexecute cuma
+  diisi lewat copy dari Scripts (`autoAdd`), jangan ada jalur nulis langsung ke
+  Autoexecute. `rejoin_heartbeat.lua` milik rejoin, ga boleh dihapus/ditimpa dari menu
+  atau bot. Folder Delta dipake bareng semua clone 1 device (per device, bukan per clone).
 
 ## 5. Cara tes (di sandbox ga ada device)
 

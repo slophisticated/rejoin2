@@ -51,8 +51,9 @@ cd ~/rejoin && lua main.lua
 4. **Preset Game** — menu `11`: `1)` tambah preset (kode `A`, nama game, link). Preset pertama otomatis jadi **default** dan semua clone ikut. Joki game lain? Tambah preset `B`, terus `4)` kasih ke clone tertentu (khusus), atau `3)` jadiin `B` default buat mindahin semua clone yang ikut default. Kalau engine lagi jalan, clone yang diubah langsung di-rejoin satu per satu. Link lama tiap clone otomatis dijadiin preset pas update. Clone baru di menu `2` otomatis ikut default.
 5. **Discord Webhook** (opsional) — menu `9`: `1)` paste URL webhook channel (Discord → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL), isi `7) Nama device` (mis. nama di Redfinger, biar tiap device kebedain), lalu `6) Kirim tes sekarang`. Status di-update tiap 5 menit + screenshot; notif terpisah hanya kalau **Delta minta key** (file license di folder Delta hilang).
    *Ganti / replace device?* Pakai URL webhook yang sama, lalu `8) Pakai pesan status lama` → paste link pesan status device lama (Discord: klik kanan pesan → Copy Message Link). Device baru meneruskan pesan itu, jadi tidak ada pesan yang nyangkut.
-6. **Bot Discord** (opsional, kalau udah punya bot sesuai `docs/discord_bot_prd.md`) — menu `9` → `9)` URL bot, `10)` secret (sama dengan `DEVICE_SECRET` di bot), `11)` tes koneksi. Perintah dari bot dijalankan selama monitor jalan.
-7. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
+6. **Script** (opsional) — menu `6`: `1)` tambah script ke folder Scripts (atau `2)` dari loadstring URL), lalu `4)` masukkan ke Autoexecute biar jalan otomatis di semua clone. `5)` keluarin dari Autoexecute (script di Scripts tetap ada).
+7. **Bot Discord** (opsional, kalau udah punya bot sesuai `docs/discord_bot_prd.md`) — menu `9` → `9)` URL bot, `10)` secret (sama dengan `DEVICE_SECRET` di bot), `11)` tes koneksi. Perintah dari bot dijalankan selama monitor jalan.
+8. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
 *Clone yang sudah login dibuka duluan, satu per satu: tiap clone ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya. Clone yang belum login dibuka paling akhir dan tidak ditunggu.*
 
 ## 🔁 Auto Start & Update

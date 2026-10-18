@@ -122,6 +122,7 @@ local SCHEMA = {
     { key = "webhook.deviceName", type = "string", max = 60, label = "Nama device" },
     { key = "deltaLicensePath", type = "string", max = 300, label = "Path file license Delta (kosong = otomatis)" },
     { key = "appAutoExecutePath", type = "string", max = 300, label = "Folder Autoexecute Delta" },
+    { key = "scriptsPath", type = "string", max = 300, label = "Folder Scripts Delta (kosong = otomatis)" },
     { key = "remote.interval", type = "int", min = 10, max = 600, label = "Interval sync bot (dtk)" },
 }
 local SCHEMA_BY_KEY = {}
@@ -156,7 +157,7 @@ local DEFAULTS = {
     ["heartbeat.saver.fpsCap"] = 15, ["heartbeat.saver.disable3d"] = true, ["webhook.url"] = "",
     ["webhook.interval"] = 300, ["webhook.screenshot"] = true, ["webhook.events"] = true,
     ["webhook.hideNames"] = true, ["webhook.deviceName"] = "", deltaLicensePath = "",
-    appAutoExecutePath = "/sdcard/Delta/Autoexecute", ["remote.interval"] = 30,
+    appAutoExecutePath = "/sdcard/Delta/Autoexecute", scriptsPath = "", ["remote.interval"] = 30,
 }
 
 local function settingsSnapshot(conf)
@@ -237,8 +238,22 @@ local function snapshot(instances)
         list[#list + 1] = e
     end
 
+    local okA, AutoExecute = pcall(require, "managers.autoexecute")
+    local scripts, auto = JSON.array({}), JSON.array({})
+    if okA then
+        for _, s in ipairs(AutoExecute.scriptsList() or {}) do
+            scripts[#scripts + 1] = { name = s.name, size = s.size, auto = s.auto and true or false }
+        end
+        for _, s in ipairs(AutoExecute.autoList() or {}) do
+            auto[#auto + 1] = { name = s.name, size = s.size, fromScripts = s.fromScripts and true or false,
+                managed = s.managed and true or false }
+        end
+    end
+
     return {
         protocol = PROTOCOL,
+        scripts = scripts,
+        autoexecute = auto,
         device = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "-",
         version = version(),
         time = os.time(),
@@ -521,6 +536,49 @@ function H.webhook_test(args, ctx, instances)
     local ok, res = pcall(Webhook.report, instances)
     if ok and res then return true, "laporan terkirim" end
     return false, "gagal kirim laporan (cek URL / internet)"
+end
+
+-- Scripts (Delta's Scripts folder, shared by every clone on this device). Content goes
+-- to Scripts only; Autoexecute only gets a copy from Scripts (auto_add).
+function H.script_add(args)
+    local AutoExecute = require("managers.autoexecute")
+    local content = args.content
+    if (content == nil or content == "") and args.url and args.url ~= "" then
+        local loader, err = AutoExecute.loaderFor(args.url)
+        if not loader then return false, err end
+        content = loader .. "\n"
+    end
+    if type(content) ~= "string" or content == "" then return false, "isi script (content) atau url wajib" end
+    local n, replaced, autoUpdated = AutoExecute.scriptSave(args.name, content)
+    if not n then return false, tostring(replaced) end
+    return true, string.format("%s %s di Scripts (%d byte)%s", n, replaced and "diganti" or "ditambah", #content,
+        autoUpdated and "; copy di Autoexecute ikut diperbarui" or "")
+end
+
+function H.script_remove(args)
+    local n, stillAuto = require("managers.autoexecute").scriptRemove(args.name)
+    if not n then return false, tostring(stillAuto) end
+    return true, n .. " dihapus dari Scripts" .. (stillAuto and " (copy di Autoexecute masih ada; hapus dengan auto_remove)" or "")
+end
+
+function H.script_get(args)
+    local content, n = require("managers.autoexecute").scriptRead(args.name)
+    if not content then return false, tostring(n) end
+    return true, string.format("%s (%d byte)", n, #content), { name = n, content = content }
+end
+
+function H.auto_add(args, ctx)
+    local n, err = require("managers.autoexecute").autoAdd(args.name)
+    if not n then return false, tostring(err) end
+    if args.rejoin then ctx.requestRejoin({ "all" }) end
+    return true, n .. " masuk Autoexecute" .. (args.rejoin and ", rejoin semua clone" or ", berlaku saat clone masuk game berikutnya")
+end
+
+function H.auto_remove(args, ctx)
+    local n, err = require("managers.autoexecute").autoRemove(args.name)
+    if not n then return false, tostring(err) end
+    if args.rejoin then ctx.requestRejoin({ "all" }) end
+    return true, n .. " dikeluarkan dari Autoexecute (masih ada di Scripts)" .. (args.rejoin and ", rejoin semua clone" or "")
 end
 
 Remote.handlers = H

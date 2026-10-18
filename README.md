@@ -51,7 +51,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Setting device otomatis.** Animasi, freeform, smallest width, dan izin background diatur sekali dari installer.
 - **Dashboard live** dengan username tiap clone, status berwarna, FPS/RAM dari heartbeat, dan progres launch.
 - **Inject Cookie.** Masukkan token `.ROBLOSECURITY` ke clone. Token diverifikasi dulu sebelum ditulis.
-- **AutoExecute Manager.** Tambah, edit, atau hapus script di folder Autoexecute Delta langsung dari Termux.
+- **Script Manager.** Script disimpan di folder **Scripts** Delta (tambah / ganti / hapus, bisa dari 1 baris loadstring URL). **Autoexecute ngambil dari Scripts**: masukin = copy dari Scripts, keluarin = hapus copy-nya. Berlaku buat semua clone di device itu. Bisa dari Menu `6` atau bot Discord (`/script`, `/autoexec`).
 - **Cek root di awal.** Kalau root belum diizinkan, `lua main.lua` langsung berhenti dengan petunjuk cara mengaktifkannya.
 - **Prioritas rendah.** Clone di-`renice` / `ionice` supaya Termux dan sistem tetap responsif.
 
@@ -70,7 +70,7 @@ cd ~/rejoin && lua main.lua
 | `3` Settings | Pengaturan umum; `13` = jeda launch (`launchJoinTimeout`, `launchSettleDelay`, dst.) |
 | `4` View Logs | Lihat `data/rejoin.log` |
 | `5` Start Monitor | Pantau saja, tanpa launch |
-| `6` AutoExecute Manager | Kelola script Autoexecute Delta |
+| `6` Script Manager | Script di folder Scripts + masukin/keluarin dari Autoexecute (copy dari Scripts) |
 | `7` Inject Cookie | Login clone pakai cookie |
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
 | `9` Discord (Webhook & Bot) | URL webhook, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama, URL + secret bot, tes koneksi bot |

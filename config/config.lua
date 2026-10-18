@@ -45,6 +45,8 @@ return {
     },
     -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
     deltaLicensePath = "",
+    -- Folder Scripts Delta (Menu 6 / bot simpan script di sini). "" = otomatis.
+    scriptsPath = "",
     -- Preset game (Main Menu 11 / bot). Clone ikut defaultPreset, kecuali punya preset
     -- khusus (preset = "B") atau preset = "-" (pakai privateServer sendiri).
     presets = {},

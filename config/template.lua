@@ -82,6 +82,9 @@ return {
     },
     -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
     deltaLicensePath = "",
+    -- Delta's Scripts folder (Menu 6 / bot store scripts here; Autoexecute only gets a
+    -- copy from it). "" = Scripts / scripts next to appAutoExecutePath.
+    scriptsPath = "",
     -- Game presets (Main Menu 11 / bot). Clones follow `defaultPreset` unless they have
     -- their own `preset = "B"` ("khusus"), or `preset = "-"` (use their own
     -- privateServer). Example:
