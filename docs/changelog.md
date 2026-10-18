@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Panduan deploy bot di Railway** (`bot/README.md`): root `bot`, healthcheck `/health`, watch path `bot/**`, generate domain → `remote_url.txt`, pindah akun dengan `DEVICE_SECRET` yang sama. Kode bot tidak berubah.
+
 - **Rejoin Control Bot siap deploy**: implementasi Node.js 24 + discord.js v14 di
   `bot/`, blueprint Render Free di root, registrasi slash command guild otomatis,
   seluruh command PRD dengan balasan ephemeral owner-only, screenshot dan attachment
