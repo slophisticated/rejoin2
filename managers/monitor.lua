@@ -94,6 +94,9 @@ end
 
 -- track instances currently undergoing recovery to avoid duplicate recoveries
 local recovering = {}
+-- id -> consecutive unhealthy cycles; RSS dips while Roblox loads, so one low reading
+-- alone does not trigger a recovery (a heartbeat kick still does at once).
+local unhealthyStreak = {}
 
 local function isRecovering(id)
     return recovering[id] == true
@@ -231,9 +234,12 @@ local function runSequentialLaunch(conf, only)
     local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 240
     if joinTimeout < 0 then joinTimeout = 0 end
     -- With the Delta heartbeat, wait until each clone is really in game before the next
-    -- one starts. Turned off for the rest of this Launch All once a clone never sends
-    -- one (Delta without key / script not running): then the fixed settle delay is used.
-    local hbWorking = Heartbeat.isEnabled() and joinTimeout > 0
+    -- one starts. One clone without a heartbeat (e.g. Delta asking for a key) does not
+    -- end the waiting for the others; only after 2 such clones in a row is the rest of
+    -- this Launch All given the fixed settle delay instead.
+    local hbEnabled = Heartbeat.isEnabled() and joinTimeout > 0
+    local hbMisses = 0
+    local hbWorking = hbEnabled
     local function stopped() return not running end
 
     for i, inst in ipairs(instances) do
@@ -323,9 +329,13 @@ local function runSequentialLaunch(conf, only)
                 end
             end
             if hbWorking and active and running and not sawHeartbeat then
-                hbWorking = false
-                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?); sisa clone pakai jeda launchSettleDelay %ds",
-                    name, joinTimeout, settle))
+                hbMisses = hbMisses + 1
+                hbWorking = hbMisses < 2
+                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?)%s",
+                    name, joinTimeout, hbWorking and "; clone berikutnya tetap ditunggu"
+                        or string.format("; 2 clone berturut-turut, sisa clone pakai jeda launchSettleDelay %ds", settle)))
+            elseif hbEnabled and sawHeartbeat then
+                hbMisses = 0
             end
 
             Status.endStarting(id)
@@ -572,15 +582,29 @@ function Monitor.start(conf, opts)
                 -- a stopped heartbeat is unhealthy even with plenty of RSS.
                 local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                local kicked = false
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)
                     if why then Logger.warn(string.format("Monitor: %s %s", name, why)) end
+                    kicked = tostring(why or ""):find("^kicked") ~= nil
+                end
+                if healthy then
+                    unhealthyStreak[id] = nil
+                elseif not kicked then
+                    -- A closed app (no process) is certain; only a low-RSS reading waits.
+                    local okR, isUp = pcall(function() return apkManager.isRunning(pkg) end)
+                    unhealthyStreak[id] = (okR and isUp == false) and 2 or (unhealthyStreak[id] or 0) + 1
+                    if unhealthyStreak[id] < 2 then
+                        Logger.info(string.format("Monitor: %s kelihatan ga sehat (RSS rendah?), dicek lagi siklus berikutnya", name))
+                        healthy = true
+                    end
                 end
             end
 
             if healthy then
                 Logger.debug(string.format("Monitor: instance healthy: %s", name))
             else
+                unhealthyStreak[id] = nil -- after acting, a fresh low reading gets its grace again
                 Logger.warn(string.format("Monitor: instance not healthy: %s", name))
                 -- A clone that has no logged-in account is treated as idle (low memory is
                 -- expected while it sits on the login screen). Never force-recover it,

@@ -2,6 +2,9 @@
 
 ## Unreleased / Bug fixes
 
+- **Monitor ga rejoin cuma gara-gara RAM turun sekali**: clone tanpa heartbeat yang RSS-nya sekali di bawah `minRss` dicek lagi siklus berikutnya dulu; app yang beneran ketutup atau heartbeat "kicked" tetap langsung ditangani.
+- **Launch All: 1 clone tanpa heartbeat ga bikin sisa clone ga ditunggu**: clone berikutnya tetap ditunggu heartbeat-nya; baru setelah 2 clone berturut-turut ga ada heartbeat, sisa clone pakai jeda `launchSettleDelay`.
+
 - **Fix Launch All ga nunggu clone berikutnya**: RAM (RSS) Roblox sempet turun di bawah `minRss` pas loading game, dan sekali turun langsung dianggap "dropped while loading" → clone berikutnya langsung dibuka. Sekarang clone baru dianggap mati kalau prosesnya beneran ga ada 2x cek berturut-turut.
 
 - **Main Menu: `1` = Start Monitor, `5` = Launch All + Monitor** (ditukar). Yang paling sering dipake (nyalain monitor + bot lagi tanpa launch ulang clone) jadi nomor 1; menu lain tetap. Engine boot ga berubah (`--auto-launch`).
