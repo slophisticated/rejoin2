@@ -21,6 +21,8 @@ dengan balasan **ephemeral** (cuma pemilik yang lihat, channel tidak spam):
 - Discord webhook status (URL, interval, screenshot, notif key, sembunyikan nama),
   nama device, **ganti device** (lanjutkan pesan status lama)
 - jendela floating, heartbeat & mode hemat, jeda launch, dll (semua setting di §6)
+- **screenshot** layar cloud phone saat itu juga (balasan ephemeral)
+- rejoin **beberapa clone sekaligus** (pilih banyak clone)
 - **script Delta**: upload/tambah script ke folder Scripts, hapus, lihat; masukkan /
   keluarkan dari Autoexecute (copy dari Scripts, per device)
 - lihat status semua device
@@ -215,6 +217,18 @@ Response 200:
   (ephemeral) dengan ✅/❌ + `message`. Response `{"ok":true}`. Id tidak dikenal → 200
   juga (abaikan).
 
+### 4.2b `POST /api/upload/<commandId>`
+
+Dipakai command `screenshot`: device mengunggah gambar **sebelum** mengirim ack.
+- Auth sama (`Bearer`), `Content-Type: image/png`, body = file PNG mentah (bukan
+  multipart), maks **8 MB** (lebih → 413). `<commandId>` = id command yang ada di antrian
+  dan bertipe `screenshot`; id lain → 404.
+- Bot simpan buffer di memori (hapus setelah dikirim ke Discord atau 5 menit).
+- Saat ack `ok:true` dengan `data.uploaded:true` datang → `editReply({ content, files:
+  [{ attachment: buffer, name: "screenshot-<device>.png" }] })`. Tangani juga urutan
+  terbalik (ack dulu, upload belakangan): tunggu upload maks 30 dtk.
+- Response `{"ok":true}`.
+
 ### 4.3 `GET /health`
 `200 {"ok":true,"devices":N}` tanpa auth (health check Render + monitor uptime). Harus
 cepat (tanpa memanggil Discord). Jangan bocorkan nama device / data lain.
@@ -238,7 +252,8 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `default_set` | `{preset, rejoin?: bool=true}` | Ganti preset **default**; clone yang ikut default di-rejoin berurutan |
 | `game` | `{preset, clones?: [..] \| "all", rejoin?: bool=true}` | Tanpa `clones` / `"all"`: preset itu jadi default **dan semua clone ikut default** (preset khusus dilepas). Dengan `clones`: clone itu dapat preset **khusus**. Rejoin berurutan |
 | `set_preset` | sama dengan `game` | alias |
-| `restart` | `{clone}` atau `{clones:[..]}` | Rejoin clone itu (berurutan) |
+| `restart` | `{clone}` atau `{clones:[..] \| "A,B"}` | Rejoin clone itu (berurutan). `clones` boleh array atau teks dipisah koma |
+| `screenshot` | `{}` | Device `screencap` layar penuh → `POST /api/upload/<id>` → ack `data:{uploaded:true, bytes}` |
 | `launch_all` | `{}` | Rejoin semua (login duluan, satu per satu) |
 | `preset_set` | `{key, name, link, rejoin?: bool}` | Tambah/ubah preset. `key` `^[A-Za-z0-9_]{1,16}$` (bukan `default`); `link` harus `https://*roblox.com/...` atau `roblox://...`. Preset pertama otomatis jadi default. `rejoin:true` → clone pemakai preset di-rejoin |
 | `preset_remove` | `{key}` | Hapus preset (ditolak kalau itu default); clone yang khusus ke preset itu jadi ikut default |
@@ -261,6 +276,11 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 Catatan perilaku:
 - Rejoin selalu **berurutan** (clone login duluan, tunggu masuk game) supaya RAM tidak
   numpuk. Pesan ack keluar **sebelum** rejoin selesai (rejoin jalan di siklus monitor).
+- Setelah menerima command apa pun, device **sync tiap 5 dtk selama 2 menit** (mode
+  cepat), lalu kembali ke `remote.interval`. Jadi command lanjutan (mis. screenshot
+  setelah restart) cepat dibalas. Rate limit bot harus mengizinkan ini (≥1 sync / 5 dtk).
+- `clone` / `clones` di semua command boleh id, nama, atau package; `clones` boleh array
+  atau teks dipisah koma (`"Clone1,Clone3"`).
 - Command hanya diproses saat **monitor jalan** (Menu 1 / boot). Kalau device tidak
   sync > 3× interval, bot menandai device **offline** dan tetap mengantrikan command
   (berlaku saat device online lagi) — beri tahu user di balasan.
@@ -320,7 +340,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 |---|---|---|
 | `/status` | `device?` | tampil dari snapshot (tanpa antri). Tombol "🔄 Refresh" → antri `status` |
 | `/devices` | – | daftar device: nama, versi, online/offline (lastSeen), jumlah clone ingame/total |
-| `/game` | `preset`, `device?` (bisa `all`), `clone?`, `rejoin?` (default true) | tanpa `clone` → `game` (preset jadi default, semua clone ikut); dengan `clone` → `game` clones=[clone] (khusus) |
+| `/game` | `preset`, `device?` (bisa `all`), `clones?`, `rejoin?` (default true) | tanpa `clones` → `game` (preset jadi default, semua clone ikut); dengan `clones` → `game` clones=[...] (khusus) |
 | `/default` | `preset`, `device?` (bisa `all`), `rejoin?` | `default_set` (clone khusus tidak ikut pindah) |
 | `/preset list` | `device?` | dari snapshot |
 | `/preset set` | `key`, `name`, `link`, `device?`(+`all`), `rejoin?` | `preset_set` |
@@ -329,7 +349,15 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone add` | `name`, `package`, `preset?`, `link?`, `device?` | `instance_add` |
 | `/clone edit` | `clone`, `name?`, `package?`, `preset?`, `link?`, `device?` | `instance_edit` |
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
-| `/restart` | `clone` (atau `all`), `device?` | `restart` / `launch_all` |
+| `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
+| `/screenshot` | `device?` (bisa `all`) | `screenshot` → gambar layar cloud phone di balasan ephemeral (≤10 gambar per balasan untuk `all`; lebih → follow-up ephemeral) |
+
+**Opsi `clones` (pilih banyak clone):** opsi teks dengan autocomplete yang mendukung
+banyak nilai dipisah koma — autocomplete menyarankan clone untuk bagian setelah koma
+terakhir (mis. user ketik `Clone1, Cl` → saran `Clone1, Clone2`, `Clone1, Clone3`).
+Bot memecah ke array sebelum dikirim. Alternatif yang juga boleh: setelah command,
+tampilkan **select menu multi-pilih** (ephemeral, `min_values 1`, `max_values` = jumlah
+clone) berisi clone dari snapshot.
 | `/config get` | `device?`, `key?` | dari snapshot (`settings`), secret tampil "diset"/"kosong" |
 | `/config set` | `key` (autocomplete dari `settings`), `value`, `device?`(+`all`) | `config_set` |
 | `/webhook set` | `url`, `device?`(+`all`) | `config_set webhook.url` |
@@ -385,7 +413,11 @@ Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari setti
 
 - Hanya `OWNER_IDS`. Cek di setiap interaction (termasuk autocomplete & tombol).
 - `DEVICE_SECRET` dibandingkan timing-safe; jangan pernah di-log / ditampilkan.
-- Rate limit API: maks 1 sync / 5 dtk per device (lebih → 429), 60 request/menit per IP.
+- Rate limit API: maks 1 sync / 4 dtk per device (lebih → 429; device mode cepat sync
+  tiap 5 dtk), 60 request/menit per IP. Upload maks 8 MB, hanya untuk id command
+  `screenshot` yang sedang menunggu.
+- Screenshot berisi layar semua clone (termasuk username) → hanya dikirim ephemeral ke
+  owner, tidak disimpan di disk, tidak di-log.
 - Jangan log **isi script** (command `script_add`, ack `script_get`).
 - Jangan log body sync (berisi link private server). Log cukup: device, jumlah
   command, kode status.
@@ -411,6 +443,9 @@ Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari setti
 7. User di luar `OWNER_IDS` tidak bisa memakai command apa pun (termasuk autocomplete).
 8. Redeploy bot (state hilang) → `/status` kembali normal setelah sync berikutnya.
 9. Semua balasan ephemeral; channel tidak berisi pesan bot.
+11. `/screenshot` → ≤ ±15 dtk (kalau device sedang mode cepat) atau ≤ interval + 15 dtk,
+    gambar layar muncul di balasan ephemeral. `/restart clones:"Clone1,Clone3"` →
+    hanya dua clone itu yang rejoin.
 
 10. `/script add name:egg file:egg.lua` → muncul di `/script list`; `/autoexec add
     name:egg rejoin:true` → ✅, `/autoexec list` berisi `egg.lua`; `/script add` lagi

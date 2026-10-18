@@ -358,6 +358,13 @@ local function screenshot()
     return size and size > 0
 end
 
+-- Take a screenshot of the cloud phone now (also used by the bot's /screenshot).
+-- Returns the PNG path, or nil.
+function Webhook.captureScreen()
+    if screenshot() then return SHOT end
+    return nil
+end
+
 -- Message id of the status message we keep editing.
 local function msgId()
     local s = readFile(STATE_FILE)

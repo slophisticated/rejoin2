@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: screenshot + pilih banyak clone + sync cepat**: command `screenshot` (device `screencap` → `POST /api/upload/<id>` PNG mentah → ack `data.uploaded`; bot menaruh gambar di balasan ephemeral). `clones` boleh teks dipisah koma (`"Clone1,Clone3"`) di `restart` / `game`. Setelah menerima command, device sync tiap 5 dtk selama 2 menit (mode cepat). `Webhook.captureScreen()` dipakai bersama. PRD: §4.2b upload, `/screenshot`, opsi `clones` multi-pilih.
+
 - **Script Manager (Scripts + Autoexecute)**: script disimpan di folder **Scripts** Delta (`scriptsPath`, "" = `Scripts`/`scripts` di sebelah Autoexecute). Autoexecute cuma diisi lewat **copy dari Scripts** (`AutoExecute.autoAdd`) dan dikosongkan dengan `autoRemove`; ganti isi script di Scripts ikut memperbarui copy di Autoexecute. Nama divalidasi (`[A-Za-z0-9_.-]`, maks 64), isi maks 200 KB, `rejoin_heartbeat.lua` dilindungi. Menu 6 jadi "Script Manager" (tambah/ganti, dari loadstring URL, hapus, masukkan/keluarkan Autoexecute, edit, tawaran rejoin). Bot: command `script_add` (content / url), `script_remove`, `script_get`, `auto_add`, `auto_remove`; snapshot kirim `scripts` + `autoexecute`; PRD: `/script` + `/autoexec`.
 - **Fix PRD bot sempat kosong** di commit sebelumnya (file terpotong waktu revisi Render); isi dipulihkan + revisi Render dipasang ulang.
 

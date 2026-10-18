@@ -23,6 +23,9 @@ local REMOTE_URL_FILE = "https://raw.githubusercontent.com/slophisticated/rejoin
 local PROTOCOL = 1
 
 local lastSync = 0
+local fastUntil = 0      -- poll every FAST_INTERVAL s until then (right after a command)
+local FAST_INTERVAL = 5
+local FAST_WINDOW = 120
 local failures = 0
 local lastFallback = 0
 local warned = {}
@@ -63,8 +66,9 @@ end
 local function shq(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 
 -- HTTP ---------------------------------------------------------------------------
--- Returns status code (number, 0 = no connection) and the body.
-local function request(path, payload)
+-- Returns status code (number, 0 = no connection) and the body. `payload` is a table
+-- sent as JSON; with `rawFile` the file is sent as-is with `contentType` instead.
+local function request(path, payload, rawFile, contentType)
     local r = section()
     local base = tostring(r.url or ""):gsub("/+$", "")
     local tmp = os.getenv("TMPDIR") or "/data/data/com.termux/files/usr/tmp"
@@ -75,14 +79,18 @@ local function request(path, payload)
     os.execute("umask 077; : > " .. shq(hdr) .. " 2>/dev/null")
     local fh = io.open(hdr, "w")
     if not fh then return 0, "" end
-    fh:write("Content-Type: application/json\n")
+    fh:write("Content-Type: " .. (contentType or "application/json") .. "\n")
     fh:write("Authorization: Bearer " .. tostring(r.secret or "") .. "\n")
     fh:close()
-    local fb = io.open(body, "w")
-    if not fb then os.remove(hdr); return 0, "" end
-    fb:write(JSON.encode(payload))
-    fb:close()
-    local cmd = "curl -s -m 20 -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(body)
+    local dataFile = rawFile
+    if not dataFile then
+        local fb = io.open(body, "w")
+        if not fb then os.remove(hdr); return 0, "" end
+        fb:write(JSON.encode(payload))
+        fb:close()
+        dataFile = body
+    end
+    local cmd = "curl -s -m " .. (rawFile and "60" or "20") .. " -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(dataFile)
         .. " -w '\\n%{http_code}' " .. shq(base .. path) .. " </dev/null 2>/dev/null"
     local p = io.popen(cmd)
     local out = p and p:read("*a") or ""
@@ -271,6 +279,14 @@ local function findClones(refs)
     local Instances = require("managers.instance")
     local all = Instances.getAll()
     if refs == nil or refs == "all" or (type(refs) == "table" and #refs == 0) then return all end
+    if type(refs) == "string" and refs:find(",", 1, true) then
+        local list = {}
+        for part in refs:gmatch("[^,]+") do
+            part = part:gsub("^%s+", ""):gsub("%s+$", "")
+            if part ~= "" then list[#list + 1] = part end
+        end
+        refs = list
+    end
     if type(refs) ~= "table" then refs = { refs } end
     local out, missing = {}, {}
     for _, r in ipairs(refs) do
@@ -529,6 +545,22 @@ function H.webhook_use_message(args)
     return true, "pesan status lama dipakai (id " .. id .. "), di-update di laporan berikutnya"
 end
 
+-- Screenshot of the whole cloud phone, uploaded to the bot (POST /api/upload/<id>);
+-- the bot shows it in the user's ephemeral reply.
+function H.screenshot(args, ctx, instances, cmd)
+    if type(cmd) ~= "table" or not cmd.id then return false, "command id tidak ada" end
+    local id = tostring(cmd.id)
+    if not id:match("^[%w_%-]+$") then return false, "command id tidak valid" end
+    local path = require("managers.webhook").captureScreen()
+    if not path then return false, "screencap gagal (root?)" end
+    local f = io.open(path, "rb")
+    local size = f and f:seek("end") or 0
+    if f then f:close() end
+    local code = request("/api/upload/" .. id, nil, path, "image/png")
+    if code < 200 or code >= 300 then return false, "upload screenshot gagal (HTTP " .. code .. ")" end
+    return true, string.format("screenshot %d KB", math.floor(size / 1024 + 0.5)), { uploaded = true, bytes = size }
+end
+
 function H.webhook_test(args, ctx, instances)
     local Webhook = require("managers.webhook")
     Webhook.configure(Config.get() or {})
@@ -589,7 +621,7 @@ function Remote.run(cmd, ctx, instances)
     local h = H[tostring(cmd.type or "")]
     if not h then return false, "command tidak dikenal: " .. tostring(cmd.type) end
     local args = type(cmd.args) == "table" and cmd.args or {}
-    local ok, a, b, c = pcall(h, args, ctx or { requestRejoin = function() end }, instances)
+    local ok, a, b, c = pcall(h, args, ctx or { requestRejoin = function() end }, instances, cmd)
     if not ok then return false, "error: " .. tostring(a) end
     return a, b, c
 end
@@ -632,6 +664,8 @@ function Remote.sync(instances, ctx)
     local cmds = type(data) == "table" and type(data.commands) == "table" and data.commands or {}
     local okW, Webhook = pcall(require, "managers.webhook")
     local device = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "-"
+    -- The user is active: answer follow-up commands quickly for a while.
+    if #cmds > 0 then fastUntil = os.time() + FAST_WINDOW end
     for _, cmd in ipairs(cmds) do
         local ok, msg, extra = Remote.run(cmd, ctx, instances)
         Logger.info(string.format("Remote: %s %s -> %s %s", tostring(cmd.type), tostring(cmd.id),
@@ -654,7 +688,8 @@ function Remote.tick(instances, ctx)
     local now = os.time()
     -- Bot unreachable / asleep: back off (x2, x3 … up to x10) so a dead bot does not
     -- stall the monitor with curl timeouts every cycle.
-    local wait = interval() * math.min(failures + 1, 10)
+    local base = (os.time() < fastUntil and failures == 0) and FAST_INTERVAL or interval()
+    local wait = base * math.min(failures + 1, 10)
     if now - lastSync < wait then return false end
     lastSync = now
     Remote.sync(instances, ctx)
