@@ -3,3 +3,4 @@
 #   (jadi tiap device cukup diisi secret di Menu 9 -> 10).
 # - Kalau bot pindah akun / URL, ganti baris di bawah: device yang gagal sync 5x
 #   berturut-turut akan pindah ke URL ini.
+https://rejoin-bot-production.up.railway.app
