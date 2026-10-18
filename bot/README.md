@@ -99,7 +99,7 @@ Railway tidak menidurkan service, jadi tidak perlu monitor uptime. **Pindah akun
 4. URL device boleh kosong agar diambil dari repo, atau diisi manual di `9` → `9`.
    URL yang diisi manual (mis. bot milik sendiri) **tidak pernah diganti** oleh
    `remote_url.txt`; isi `-` untuk kembali ikut repo.
-5. `9` → `11`: tes koneksi; jalankan monitor (menu `1` atau monitor saja).
+5. `9` → `11`: tes koneksi; jalankan monitor (menu `1` Start Monitor, atau `5` Launch All).
 6. Device terlihat di `/devices` pada sync berikutnya, default sekitar 30 detik.
 
 Command diproses hanya saat monitor aktif. Setelah menerima command, device polling

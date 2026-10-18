@@ -51,7 +51,7 @@ local function followersOfDefault()
     return ids
 end
 
--- Ask whether to rejoin now. The running engine (Menu 1 / boot) picks the request up
+-- Ask whether to rejoin now. The running engine (Menu 1 / 5 / boot) picks the request up
 -- through data/rejoin_request.txt; without an engine the new link is used next launch.
 local function offerRejoin(ids)
     if #ids == 0 then return end

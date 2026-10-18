@@ -69,11 +69,11 @@ cd ~/rejoin && lua main.lua
 
 | Menu | Isi |
 |---|---|
-| `1` Launch All + Monitor | Buka semua clone berurutan, lalu pantau |
+| `1` Start Monitor | Pantau + sambungan bot, tanpa launch ulang clone yang lagi jalan |
 | `2` Instances Manager | Package clone + link game / private server |
 | `3` Settings | Pengaturan umum; `13` = jeda launch (`launchJoinTimeout`, `launchSettleDelay`, dst.) |
 | `4` View Logs | Lihat `data/rejoin.log` |
-| `5` Start Monitor | Pantau saja, tanpa launch |
+| `5` Launch All + Monitor | Buka semua clone berurutan, lalu pantau |
 | `6` Script Manager | Script di folder Scripts + masukin/keluarin dari Autoexecute (copy dari Scripts) |
 | `7` Inject Cookie | Login clone pakai cookie, cek token, logout akun clone |
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |

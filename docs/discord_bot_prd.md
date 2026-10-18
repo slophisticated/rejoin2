@@ -290,7 +290,7 @@ Catatan perilaku:
   setelah restart) cepat dibalas. Rate limit bot harus mengizinkan ini (≥1 sync / 5 dtk).
 - `clone` / `clones` di semua command boleh id, nama, atau package; `clones` boleh array
   atau teks dipisah koma (`"Clone1,Clone3"`).
-- Command hanya diproses saat **monitor jalan** (Menu 1 / boot). Kalau device tidak
+- Command hanya diproses saat **monitor jalan** (Menu 1 Start Monitor / Menu 5 Launch All / boot). Kalau device tidak
   sync > 3× interval, bot menandai device **offline** dan tetap mengantrikan command
   (berlaku saat device online lagi) — beri tahu user di balasan.
 

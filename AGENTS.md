@@ -54,7 +54,8 @@ Fitur utama:
 ## 3. Peta kode
 
 ```
-main.lua              entry + Main Menu (1-8, 9 Discord Webhook & Bot, 10 Jendela & Mode Hemat, 11 Preset Game, 0 Exit)
+main.lua              entry + Main Menu (1 Start Monitor, 2-4, 5 Launch All + Monitor, 6-8, 9 Discord Webhook & Bot,
+                      10 Jendela & Mode Hemat, 11 Preset Game, 0 Exit)
                       flag: --headless --start-monitor --auto-launch --dry-run --no-wizard
                             --install-heartbeat --enable-window-layout (one-shot installer)
 run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (REJOIN_WRAPPER=1)

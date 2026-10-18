@@ -56,7 +56,7 @@ function Status.endRecovery(id)
 end
 
 -- Force-hold an instance in "starting" while it is being launched/loaded (used by the
--- Menu 1 sequential launch flow). Cleared with Status.endStarting when it is up.
+-- Menu 5 sequential launch flow). Cleared with Status.endStarting when it is up.
 function Status.beginStarting(id)
     local s = states[id] or {}
     s.startingOverride = true

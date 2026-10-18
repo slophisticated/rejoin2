@@ -211,10 +211,10 @@ end
 local infoLine = installInfo()
 
 while true do
-    print('\n' .. infoLine .. '\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
-    if choice == "1" then
+    if choice == "5" then
         local list = InstanceManager.getAll()
         if #list == 0 then
             print("No instances configured.")
@@ -238,7 +238,9 @@ while true do
     elseif choice == "4" then
         local LogsCLI = require("core.logs_cli")
         LogsCLI.run()
-    elseif choice == "5" then
+    elseif choice == "1" then
+        -- Most used: bring the monitor (and the bot connection) back without
+        -- relaunching clones that are already running.
         local Monitor = require("managers.monitor")
         print("(tekan Ctrl+C untuk berhenti monitor)")
         Monitor.start(Config.get())

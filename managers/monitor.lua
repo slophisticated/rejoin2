@@ -104,7 +104,7 @@ local function setRecovering(id, val)
     if val then recovering[id] = true else recovering[id] = nil end
 end
 
--- Menu 1 flow: launch the clones ONE AT A TIME, showing the live dashboard the whole
+-- Menu 5 flow: launch the clones ONE AT A TIME, showing the live dashboard the whole
 -- time. Each instance flips to Starting, gets force-stopped + joined, and the next one
 -- only starts after this one is really RUNNING (RSS >= minRss, i.e. isActive) and has
 -- then stayed up for launchSettleDelay seconds (time to load into the game).
@@ -489,7 +489,7 @@ function Monitor.start(conf, opts)
     io.write("\27[2J\27[H")
     Logger.info("Monitor: starting (interval=" .. tostring(interval) .. ")")
 
-    -- Menu 1 passes autoLaunch=true: launch clones one at a time with the live
+    -- Menu 5 passes autoLaunch=true: launch clones one at a time with the live
     -- dashboard (Starting -> Running) before the monitoring loop takes over.
     if opts.autoLaunch then
         -- Launch All opens everything anyway: drop rejoin requests left from the menu.
@@ -615,7 +615,7 @@ function Monitor.start(conf, opts)
             if not running then break end
         end
 
-        -- Automatic per-cycle diagnostics (Menu 1 flow) — evidence for launch.log.
+        -- Automatic per-cycle diagnostics (Menu 5 flow) — evidence for launch.log.
         if running then
             pcall(function() return ProbeLog.scan(instances, statuses) end)
         end

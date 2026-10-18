@@ -69,7 +69,7 @@ cd ~/rejoin && lua main.lua
    *Ganti / replace device?* Pakai URL webhook yang sama, lalu `8) Pakai pesan status lama` → paste link pesan status device lama (Discord: klik kanan pesan → Copy Message Link). Device baru meneruskan pesan itu, jadi tidak ada pesan yang nyangkut.
 6. **Script** (opsional) — menu `6`: `1)` tambah script ke folder Scripts (atau `2)` dari loadstring URL), lalu `4)` masukkan ke Autoexecute biar jalan otomatis di semua clone. `5)` keluarin dari Autoexecute (script di Scripts tetap ada).
 7. **Bot Discord** (opsional, kalau udah punya bot sesuai `docs/discord_bot_prd.md`) — menu `9` → `10)` secret (sama dengan `DEVICE_SECRET` di bot), lalu `11)` tes koneksi. URL bot bisa diisi manual di `9)`, atau taruh sekali di `remote_url.txt` di repo (push ke `main`): device yang URL-nya kosong otomatis ngambil dari situ, jadi tiap device cukup diisi secret. Perintah dari bot dijalankan selama monitor jalan.
-8. **Start** — menu `1` (Launch All + Monitor). Keluar: **Ctrl+C**.
+8. **Start** — menu `5` (Launch All + Monitor) buat buka semua clone, atau menu `1` (Start Monitor) kalau clone udah jalan dan cuma mau nyalain monitor + bot lagi. Keluar: **Ctrl+C**.
 *Clone yang sudah login dibuka duluan, satu per satu: tiap clone ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya. Clone yang belum login dibuka paling akhir dan tidak ditunggu.*
 
 ## 🔁 Auto Start & Update
