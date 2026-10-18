@@ -86,9 +86,8 @@ buat bypass key system), upload file bebas ke device (APK / file apa pun selain 
 | `GUILD_ID` | ya | server tempat command didaftarkan (guild command = langsung aktif) |
 | `OWNER_IDS` | ya | user id Discord yang boleh pakai, dipisah koma |
 | `DEVICE_SECRET` | ya* | string acak panjang (≥32 char), sama dengan `remote.secret` di device |
-| `HWID_MASTER` | tidak* | ≥32 char. Aktifkan **key HWID per device**: `/hwid redeem hwid:<hex>` → key `RJ-<idOwner base36>-<20 char base32 HMAC-SHA256(HWID_MASTER, "rejoin-hwid-v1|<hwid lower>|<idOwner>")>`. Device kirim key di `Bearer` + HWID di header `X-Rejoin-Hwid`; bot cek tanda tangan (tanpa penyimpanan), akun = akun idOwner |
-| `HWID_USERS` | tidak | ID Discord yang boleh redeem dengan akun sendiri (`u<id>`); `OWNER_IDS` juga boleh redeem (akun bareng) |
-| `HWID_REVOKED` | tidak | HWID yang ditolak, dipisah koma |
+| `HWID_USERS` | tidak | ID Discord yang boleh `/hwid redeem` dengan akun sendiri (`u<id>`); `OWNER_IDS` juga boleh (akun bareng) |
+| `HWID_CHANNEL_ID` | tidak | channel privat buat nyimpen daftar HWID (satu pesan per HWID: `rejoin-hwid v1 <sha256> <idOwner>`) kalau ga ada `DATA_DIR`. **Daftar HWID**: `/hwid redeem hwid:<hex>` mencatat sha256(`rejoin-hwid|<hwid>`) → idOwner (di `DATA_DIR/hwid.json` dan/atau channel); device tanpa secret sync dengan header `X-Rejoin-Hwid`, akun = akun idOwner. `/hwid remove` mencabut |
 | `OWNERS` | tidak* | `idDiscord:secret,...` — device **terpisah per owner**: secret yang dipakai device menentukan akunnya; tiap owner hanya melihat/mengontrol device akunnya (nama device boleh sama antar akun). *Wajib `OWNERS` atau pasangan `OWNER_IDS`+`DEVICE_SECRET` (keduanya boleh dipakai bersamaan) |
 | `PORT` | otomatis dari Render | port HTTP (jangan di-hardcode) |
 | `DATA_DIR` | tidak | folder persist (kosong di Render free = memori saja) |

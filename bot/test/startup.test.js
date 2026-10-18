@@ -11,7 +11,8 @@ const env = { DISCORD_TOKEN: 'test-token-only', APP_ID: '34567890123456789', GUI
 test('env validates required secrets, IDs, PORT and command timeout without exposing values', () => {
   const config = readEnv(env);
   assert.equal(config.port, 3000); assert.equal(config.timeoutMs, 90_000); assert.equal(config.owners.size, 2);
-  for (const key of Object.keys(env)) assert.throws(() => readEnv({ ...env, [key]: '' }), new RegExp(key));
+  for (const key of Object.keys(env).filter(k => k !== 'DEVICE_SECRET')) assert.throws(() => readEnv({ ...env, [key]: '' }), new RegExp(key));
+  assert.equal(readEnv({ ...env, DEVICE_SECRET: '' }).secrets.length, 0); // HWID-only setup
   for (const change of [{ PORT: '-1' }, { PORT: '70000' }, { APP_ID: 'oops' }, { OWNER_IDS: 'x' }, { OWNER_IDS: ',' }, { DEVICE_SECRET: 'short' }, { COMMAND_TIMEOUT_SEC: 'NaN' }]) assert.throws(() => readEnv({ ...env, ...change }));
 });
 

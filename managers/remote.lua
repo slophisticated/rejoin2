@@ -30,6 +30,7 @@ local fastUntil = 0      -- poll every FAST_INTERVAL s until then (right after a
 local FAST_INTERVAL = 5
 local FAST_WINDOW = 120
 local failures = 0
+local authFails = 0      -- HWID not registered yet / secret rejected: back off too
 local lastFallback = 0
 local warned = {}
 local versionCache = nil
@@ -46,10 +47,11 @@ local function section(conf)
     return conf.remote, conf
 end
 
+-- On as soon as the bot URL is known: the device authenticates with its HWID once the
+-- owner registered it (/hwid redeem); a secret (DEVICE_SECRET / OWNERS) is optional.
 function Remote.enabled()
     local r = section()
     return type(r.url) == "string" and r.url:match("^https?://") ~= nil
-        and type(r.secret) == "string" and r.secret ~= ""
 end
 
 local function interval()
@@ -66,9 +68,9 @@ local function deviceId()
     if f then f:close() end
     if not (id and id:match("^%x+$") and #id >= 16 and #id <= 64) then
         local r = io.open("/dev/urandom", "rb")
-        local b = r and r:read(8) or nil
+        local b = r and r:read(16) or nil
         if r then r:close() end
-        if b and #b == 8 then
+        if b and #b == 16 then
             id = b:gsub(".", function(c) return string.format("%02x", c:byte()) end)
         else
             id = string.format("%08x%08x", math.random(0, 0x7fffffff), os.time() % 0x7fffffff)
@@ -108,8 +110,10 @@ local function request(path, payload, rawFile, contentType)
     local fh = io.open(hdr, "w")
     if not fh then return 0, "" end
     fh:write("Content-Type: " .. (contentType or "application/json") .. "\n")
-    fh:write("Authorization: Bearer " .. tostring(r.secret or "") .. "\n")
-    -- HWID: with a per-device key (RJ-...) the bot checks the key against this id.
+    if type(r.secret) == "string" and r.secret ~= "" then
+        fh:write("Authorization: Bearer " .. r.secret .. "\n")
+    end
+    -- HWID: a device registered with /hwid redeem needs nothing else.
     fh:write("X-Rejoin-Hwid: " .. deviceId() .. "\n")
     fh:close()
     local dataFile = rawFile
@@ -697,11 +701,6 @@ local function fetchRepoUrl(force)
     return url
 end
 
-local function hasSecret()
-    local r = section()
-    return type(r.secret) == "string" and r.secret ~= ""
-end
-
 local function hasUrl()
     local r = section()
     return type(r.url) == "string" and r.url:match("^https?://") ~= nil
@@ -711,7 +710,9 @@ end
 function Remote.sync(instances, ctx)
     local code, body = request("/api/sync", snapshot(instances))
     if code == 401 or code == 403 then
-        warnOnce("auth", "bot menolak secret (HTTP " .. code .. "); cek remote.secret")
+        authFails = authFails + 1
+        warnOnce("auth", "bot belum kenal device ini (HTTP " .. code .. "): daftarkan HWID " .. deviceId()
+            .. " lewat /hwid redeem di Discord (atau cek secret di Menu 9 -> 10)")
         return code
     end
     if code < 200 or code >= 300 then
@@ -722,6 +723,7 @@ function Remote.sync(instances, ctx)
         return code
     end
     failures = 0
+    authFails = 0
     warned = {}
     local data = JSON.decode(body)
     local cmds = type(data) == "table" and type(data.commands) == "table" and data.commands or {}
@@ -747,8 +749,8 @@ end
 
 -- Called once per monitor cycle.
 function Remote.tick(instances, ctx)
-    -- Secret set but no URL yet: take the URL from remote_url.txt.
-    if hasSecret() and not hasUrl() then
+    -- No URL yet: take it from remote_url.txt.
+    if not hasUrl() then
         local okF, url = pcall(fetchRepoUrl)
         if okF and url then warned.nourl = nil
         elseif not hasUrl() then warnOnce("nourl", "URL bot kosong dan remote_url.txt belum berisi URL") end
@@ -758,7 +760,7 @@ function Remote.tick(instances, ctx)
     -- Bot unreachable / asleep: back off (x2, x3 … up to x10) so a dead bot does not
     -- stall the monitor with curl timeouts every cycle.
     local base = (os.time() < fastUntil and failures == 0) and FAST_INTERVAL or interval()
-    local wait = base * math.min(failures + 1, 10)
+    local wait = base * math.min(failures + authFails + 1, 10)
     if now - lastSync < wait then return false end
     lastSync = now
     Remote.sync(instances, ctx)
@@ -767,7 +769,6 @@ end
 
 -- Menu "tes koneksi": one sync without running anything heavy. Returns ok, message.
 function Remote.test()
-    if not hasSecret() then return false, "secret / key bot belum diisi (HWID device: " .. deviceId() .. ")" end
     if not hasUrl() then pcall(fetchRepoUrl, true) end
     if not hasUrl() then
         return false, "URL bot kosong (isi di sini atau taruh URL di remote_url.txt repo)"
@@ -775,7 +776,9 @@ function Remote.test()
     local Instances = require("managers.instance")
     local code = Remote.sync(Instances.getAll(), { requestRejoin = function() end })
     if code >= 200 and code < 300 then return true, "terhubung (HTTP " .. code .. ")" end
-    if code == 401 or code == 403 then return false, "secret / key ditolak bot (HTTP " .. code .. "); key HWID cuma berlaku di device ini" end
+    if code == 401 or code == 403 then
+        return false, "HWID " .. deviceId() .. " belum didaftarkan: ketik /hwid redeem hwid:" .. deviceId() .. " di Discord (HTTP " .. code .. ")"
+    end
     if code == 0 then return false, "bot tidak bisa dihubungi (URL / internet)" end
     return false, "bot membalas HTTP " .. code
 end

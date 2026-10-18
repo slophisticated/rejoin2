@@ -237,6 +237,6 @@ HWID=$(cd "$DIR" && lua main.lua --hwid </dev/null 2>/dev/null | tail -1)
 if [ -n "$HWID" ] && ! grep -q 'secret = "[^"]' "$DIR/config/config.lua" 2>/dev/null; then
     echo
     echo "Bot Discord (opsional): HWID device ini = $HWID"
-    echo "  Ketik /hwid redeem hwid:$HWID di Discord (atau kirim HWID ke owner),"
-    echo "  lalu masukkan key RJ-... di: lua main.lua -> 9 -> 10"
+    echo "  Ketik /hwid redeem hwid:$HWID di Discord (atau kirim HWID ke owner). Selesai,"
+    echo "  device nyambung sendiri. Jangan sebar HWID ini di tempat umum."
 fi

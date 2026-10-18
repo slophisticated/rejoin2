@@ -5,10 +5,10 @@ const discordId = s => /^\d{17,20}$/.test(s);
 export const accountOf = secret => createHash('sha256').update(secret).digest('hex').slice(0, 16);
 
 // Accounts: OWNERS="ownerId:secret,ownerId:secret" (one secret per owner = their own devices).
-// The legacy pair OWNER_IDS + DEVICE_SECRET is one shared account (''). With HWID_MASTER,
-// devices may instead use a per-device key (/hwid redeem); HWID_USERS get an account of
-// their own (`u<id>`) for those devices.
-function readAccounts(env, master) {
+// The legacy pair OWNER_IDS + DEVICE_SECRET is one shared account (''); DEVICE_SECRET is
+// optional since devices can be registered by HWID (/hwid redeem). HWID_USERS get an
+// account of their own (`u<id>`).
+function readAccounts(env) {
   const accounts = new Map();
   const secrets = [];
   const mapIds = (ids, account, key) => {
@@ -34,10 +34,8 @@ function readAccounts(env, master) {
     }
   }
   const hwidUsers = list(env.HWID_USERS);
-  if (hwidUsers.length && !master) throw new Error('HWID_USERS butuh HWID_MASTER.');
   if (env.OWNER_IDS?.trim() || env.DEVICE_SECRET?.trim() || (!owners && !hwidUsers.length)) {
     if (!env.OWNER_IDS?.trim()) throw new Error('Env OWNER_IDS wajib diisi (atau pakai OWNERS / HWID_USERS).');
-    if (!env.DEVICE_SECRET?.trim() && !master) throw new Error('Env DEVICE_SECRET wajib diisi (atau pakai HWID_MASTER).');
     const ids = list(env.OWNER_IDS);
     if (!ids.length) throw new Error('OWNER_IDS harus berisi ID Discord.');
     if (env.DEVICE_SECRET?.trim()) {
@@ -57,9 +55,9 @@ export function readEnv(env = process.env) {
   for (const key of ['APP_ID', 'GUILD_ID']) {
     if (!discordId(env[key])) throw new Error(`Env ${key} harus ID Discord.`);
   }
-  const master = env.HWID_MASTER?.trim() || null;
-  if (master && master.length < 32) throw new Error('HWID_MASTER minimal 32 karakter.');
-  const { accounts, secrets } = readAccounts(env, master);
+  const { accounts, secrets } = readAccounts(env);
+  const hwidChannelId = env.HWID_CHANNEL_ID?.trim() || null;
+  if (hwidChannelId && !discordId(hwidChannelId)) throw new Error('HWID_CHANNEL_ID harus ID channel Discord.');
   const port = Number(env.PORT || 3000);
   const timeout = Number(env.COMMAND_TIMEOUT_SEC || 90);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT tidak valid.');
@@ -67,7 +65,7 @@ export function readEnv(env = process.env) {
   return {
     token: env.DISCORD_TOKEN, appId: env.APP_ID, guildId: env.GUILD_ID,
     owners: new Set(accounts.keys()), accounts, secrets, port,
-    hwid: master ? { master, revoked: new Set((env.HWID_REVOKED || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)) } : null, timeoutMs: timeout * 1000,
+    hwidChannelId, timeoutMs: timeout * 1000,
     dataDir: env.DATA_DIR?.trim() || null, render: env.RENDER === 'true',
   };
 }

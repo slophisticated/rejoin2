@@ -29,30 +29,28 @@ Blueprint `render.yaml` di root mengatur Web Service Node Free, root `bot`, buil
 | `APP_ID` | Application ID |
 | `GUILD_ID` | Server ID tempat command didaftarkan |
 | `OWNER_IDS` | User ID yang boleh mengontrol, dipisahkan koma (1 akun bareng) |
-| `DEVICE_SECRET` | Secret minimal 32 karakter untuk `OWNER_IDS`, dibuat otomatis blueprint |
-| `HWID_MASTER` | Opsional, ≥32 karakter: aktifkan key HWID per device (`/hwid redeem`) |
-| `HWID_USERS` | Opsional: ID Discord yang boleh redeem key, masing-masing akun sendiri |
-| `HWID_REVOKED` | Opsional: HWID yang diblokir, dipisah koma |
+| `DEVICE_SECRET` | Opsional (≥32 karakter): secret lama untuk `OWNER_IDS`; kosong = pakai daftar HWID |
+| `HWID_USERS` | Opsional: ID Discord yang boleh `/hwid redeem`, masing-masing akun sendiri |
+| `HWID_CHANNEL_ID` | Opsional: channel privat buat nyimpen daftar HWID kalau ga ada volume |
 | `OWNERS` | Opsional, **device terpisah per owner**: `idDiscord:secret,idDiscord:secret` (lihat di bawah) |
 | `PORT` | Otomatis dari Render; server listen `0.0.0.0` |
 | `COMMAND_TIMEOUT_SEC` | Opsional, default `90` |
 | `DATA_DIR` | Opsional, kosong pada Render Free |
 
-**Key HWID per device (`HWID_MASTER`, disarankan).** Cara paling gampang buat banyak
-orang: ga ada secret yang disalin-salin.
+**Daftar HWID (disarankan, tanpa secret).** User cukup paste HWID ke bot sekali.
 
-1. Railway → Variables: `HWID_MASTER` = string acak ≥32 karakter (jangan pernah dibagi,
-   jangan diganti — ganti = semua key lama mati). Orang yang boleh pakai: `OWNER_IDS`
-   (akun bareng) dan/atau `HWID_USERS=idDiscord,idDiscord` (masing-masing akun sendiri).
-2. Device: HWID muncul di akhir installer dan di Termux `lua main.lua` → `9` (baris bot),
+1. Railway: pastikan Volume terpasang (mis. di `/data`) dan `DATA_DIR=/data`, supaya
+   daftar HWID ga hilang tiap redeploy. Tanpa volume bisa pakai channel Discord privat:
+   `HWID_CHANNEL_ID=<id channel>` (bot butuh izin View, Send Messages, Read History).
+   Orang yang boleh daftar: `OWNER_IDS` (akun bareng) dan/atau `HWID_USERS=idDiscord,...`
+   (masing-masing akun sendiri). `DEVICE_SECRET` boleh kosong.
+2. Device: HWID muncul di akhir installer, di Termux `lua main.lua` → `9` (baris bot),
    atau `lua main.lua --hwid`.
-3. Discord: `/hwid redeem hwid:<HWID>` → bot balas key `RJ-...` (ephemeral).
-4. Termux: `9` → `10` paste key → `11` tes. Device masuk ke list orang yang nge-redeem.
+3. Discord: `/hwid redeem hwid:<HWID>` → selesai. Device sync pakai header
+   `X-Rejoin-Hwid` dan masuk ke list orang yang daftar. `/hwid remove hwid:<HWID>`
+   buat nyabut.
 
-Key = tanda tangan bot atas HWID + ID Discord pemiliknya, jadi bot ga perlu nyimpen
-apa-apa (aman walau redeploy tanpa Volume), key cuma jalan di HWID itu, dan orang yang
-cuma tau HWID ga bisa bikin key. Cabut device: tambah HWID-nya ke `HWID_REVOKED`
-(dipisah koma). Device mengirim HWID di header `X-Rejoin-Hwid`.
+Yang disimpan cuma hash HWID. HWID = "password" device: acak, tapi jangan disebar.
 
 **Device per owner (`OWNERS`).** Tiap owner punya secret sendiri; device yang sync
 pakai secret itu masuk ke akun owner tersebut. `/devices`, `/status`, autocomplete,

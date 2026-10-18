@@ -2,7 +2,7 @@
 
 ## Unreleased / Bug fixes
 
-- **Key HWID per device**: device punya HWID (acak, `data/device_id.txt`; tampil di akhir installer, Menu 9, `lua main.lua --hwid`). `/hwid redeem hwid:...` di Discord bikin key `RJ-...` (HMAC `HWID_MASTER` atas HWID + ID Discord), di-paste di Menu 9 → 10. Device kirim HWID di header `X-Rejoin-Hwid`; bot verifikasi tanpa penyimpanan, key cuma jalan di HWID itu, device masuk akun orang yang redeem. Env baru `HWID_MASTER`, `HWID_USERS`, `HWID_REVOKED`; secret lama (`DEVICE_SECRET`/`OWNERS`) tetap jalan.
+- **Daftar HWID, tanpa key/secret di device**: device punya HWID (acak, `data/device_id.txt`; tampil di akhir installer, Menu 9, `lua main.lua --hwid`). `/hwid redeem hwid:...` di Discord nyatet HWID itu ke akun yang ngetik (`/hwid remove` nyabut) — user ga perlu input apa-apa di Termux. Device kirim HWID di header `X-Rejoin-Hwid`; bot cuma nyimpen hash-nya di `DATA_DIR/hwid.json` (volume) dan/atau channel privat (`HWID_CHANNEL_ID`). Bot sync otomatis begitu URL ada (secret opsional); device yang belum terdaftar dapet 401 + backoff dan pesan jelas di log / tes koneksi. Env baru `HWID_USERS`, `HWID_CHANNEL_ID`; `DEVICE_SECRET` jadi opsional, secret lama tetap jalan.
 
 - **Lisensi GPL-3.0-or-later** (`LICENSE`) + `CONTRIBUTING.md` (cara tes, gaya, aturan penting) biar orang bisa kontribusi.
 

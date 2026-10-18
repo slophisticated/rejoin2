@@ -5,17 +5,16 @@ import { autocomplete } from './autocomplete.js';
 import { planDevice, selectDevices } from './planner.js';
 import { downloadScript, present, setting } from './validate.js';
 import { renameTarget } from '../store.js';
-import { makeKey } from '../hwid.js';
 import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
 
 const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list']);
 const button = (id, label, style = ButtonStyle.Secondary, disabled = false) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style).setDisabled(disabled);
 
 export class Handler {
-  constructor({ store, replies, owners = new Set(), accounts = null, hwid = null, guildId, now = Date.now, fetcher = fetch, log = () => {} }) {
+  constructor({ store, replies, owners = new Set(), accounts = null, registry = null, guildId, now = Date.now, fetcher = fetch, log = () => {} }) {
     // accounts: Discord user ID -> account; each owner only sees the devices of their account.
     accounts ??= new Map([...owners].map(id => [id, '']));
-    Object.assign(this, { store, replies, accounts, hwid, guildId, now, fetcher, log });
+    Object.assign(this, { store, replies, accounts, registry, guildId, now, fetcher, log });
     this.sessions = new Map();
   }
 
@@ -42,7 +41,7 @@ export class Handler {
       const values = interactionValues(i, path);
       const view = this.view(i);
       if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
-      if (path === 'hwid redeem') return await this.redeem(i, String(values.hwid || '').trim().toLowerCase());
+      if (path === 'hwid redeem' || path === 'hwid remove') return await this.hwid(i, path, String(values.hwid || '').trim().toLowerCase());
       const devices = selectDevices(view, path, values.device);
       if (path === 'status') return await this.showStatus(i, devices[0]);
       if (localPaths.has(path)) return await this.show(i, chunks(localLines(path, devices[0], values)).map(content => ({ content })));
@@ -74,12 +73,15 @@ export class Handler {
     }
   }
 
-  // Key for one device HWID, tied to the caller: that device lands in the caller's list.
-  async redeem(i, hwid) {
-    if (!this.hwid) throw new Error('Key HWID belum aktif: isi env HWID_MASTER di hosting bot.');
-    if (this.hwid.revoked.has(hwid)) throw new Error('HWID ini diblokir (HWID_REVOKED).');
-    const key = makeKey(this.hwid.master, hwid, i.user.id);
-    await i.editReply({ content: `🔑 Key buat HWID \`${hwid}\`:\n\`\`\`\n${key}\n\`\`\`\nPaste di Termux: \`lua main.lua\` → 9 → 10, lalu 11 buat tes. Key ini cuma jalan di device dengan HWID itu, dan device-nya masuk ke list kamu.`, allowedMentions: mentions });
+  // Register / unregister a device HWID for the caller; the device then syncs with it alone.
+  async hwid(i, path, hwid) {
+    if (!this.registry) throw new Error('Pendaftaran HWID belum aktif di bot ini.');
+    if (path === 'hwid remove') {
+      await this.registry.remove(hwid, i.user.id);
+      return await i.editReply({ content: `🗑️ HWID \`${hwid}\` dihapus dari list kamu. Device itu ga bisa nyambung lagi.`, allowedMentions: mentions });
+    }
+    const added = await this.registry.add(hwid, i.user.id);
+    await i.editReply({ content: `${added ? '✅ HWID didaftarkan' : 'ℹ️ HWID ini sudah terdaftar'} ke kamu: \`${hwid}\`.\nDevice-nya muncul di /devices dalam ±1 menit (monitor harus jalan). Ga perlu input apa-apa lagi di Termux.${this.registry.persistent ? '' : '\n⚠️ DATA_DIR (volume) / HWID_CHANNEL_ID belum diisi di bot: daftar HWID hilang tiap bot redeploy.'}`, allowedMentions: mentions });
   }
 
   async queue(i, path, values, devices) {

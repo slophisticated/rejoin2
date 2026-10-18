@@ -6,6 +6,7 @@ import { createApi } from './http.js';
 import { Replies } from './replies.js';
 import { Handler } from './commands/handler.js';
 import { registerCommands } from './register.js';
+import { HwidRegistry } from './registry.js';
 
 export async function start(config = readEnv(), {
   log = message => console.log(message),
@@ -15,11 +16,16 @@ export async function start(config = readEnv(), {
   const store = new Store({ timeoutMs: config.timeoutMs, dataDir: config.dataDir, log });
   await store.load();
   const replies = new Replies({ store, log });
-  const handler = new Handler({ store, replies, owners: config.owners, accounts: config.accounts, hwid: config.hwid, guildId: config.guildId, log });
+  const registry = new HwidRegistry({ channelId: config.hwidChannelId, dataDir: config.dataDir, log });
+  await registry.loadFile(); // a volume-backed list is ready before the first device sync
+  const handler = new Handler({ store, replies, owners: config.owners, accounts: config.accounts, registry, guildId: config.guildId, log });
   const client = createClient();
-  const server = createApi({ store, secrets: config.secrets, hwid: config.hwid, accounts: config.accounts, render: config.render, log });
+  const server = createApi({ store, secrets: config.secrets, registry, accounts: config.accounts, render: config.render, log });
   client.on(Events.InteractionCreate, interaction => { void handler.handle(interaction); });
-  client.once(Events.ClientReady, ready => log(`logged in as ${ready.user.tag}`));
+  client.once(Events.ClientReady, ready => {
+    log(`logged in as ${ready.user.tag}`);
+    void registry.load(ready);
+  });
   client.on(Events.Error, () => log('discord_gateway_error'));
   const timer = setInterval(() => { store.tick(); replies.tick(); handler.tick(); }, 1000);
   timer.unref();
