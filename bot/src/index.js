@@ -15,9 +15,9 @@ export async function start(config = readEnv(), {
   const store = new Store({ timeoutMs: config.timeoutMs, dataDir: config.dataDir, log });
   await store.load();
   const replies = new Replies({ store, log });
-  const handler = new Handler({ store, replies, owners: config.owners, guildId: config.guildId, log });
+  const handler = new Handler({ store, replies, owners: config.owners, accounts: config.accounts, guildId: config.guildId, log });
   const client = createClient();
-  const server = createApi({ store, secret: config.secret, render: config.render, log });
+  const server = createApi({ store, secrets: config.secrets, render: config.render, log });
   client.on(Events.InteractionCreate, interaction => { void handler.handle(interaction); });
   client.once(Events.ClientReady, ready => log(`logged in as ${ready.user.tag}`));
   client.on(Events.Error, () => log('discord_gateway_error'));

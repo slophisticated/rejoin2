@@ -28,11 +28,28 @@ Blueprint `render.yaml` di root mengatur Web Service Node Free, root `bot`, buil
 | `DISCORD_TOKEN` | Token bot Discord |
 | `APP_ID` | Application ID |
 | `GUILD_ID` | Server ID tempat command didaftarkan |
-| `OWNER_IDS` | User ID yang boleh mengontrol, dipisahkan koma |
-| `DEVICE_SECRET` | Secret minimal 32 karakter, dibuat otomatis blueprint |
+| `OWNER_IDS` | User ID yang boleh mengontrol, dipisahkan koma (1 akun bareng) |
+| `DEVICE_SECRET` | Secret minimal 32 karakter untuk `OWNER_IDS`, dibuat otomatis blueprint |
+| `OWNERS` | Opsional, **device terpisah per owner**: `idDiscord:secret,idDiscord:secret` (lihat di bawah) |
 | `PORT` | Otomatis dari Render; server listen `0.0.0.0` |
 | `COMMAND_TIMEOUT_SEC` | Opsional, default `90` |
 | `DATA_DIR` | Opsional, kosong pada Render Free |
+
+**Device per owner (`OWNERS`).** Tiap owner punya secret sendiri; device yang sync
+pakai secret itu masuk ke akun owner tersebut. `/devices`, `/status`, autocomplete,
+`device:all`, dan semua command cuma menyentuh device milik pemanggil. Nama device
+boleh sama antar owner. Contoh 5 device punya kamu + 3 device temen:
+
+```
+OWNERS=111111111111111111:secretKamu32karakterAtauLebih,222222222222222222:secretTemen32karakterAtauLebih
+```
+
+Device kamu isi `secretKamu` di menu `9` → `10`, device temen isi `secretTemen`; URL
+bot sama (`remote_url.txt`). Dua ID dengan secret yang sama = berbagi satu akun.
+`OWNER_IDS` + `DEVICE_SECRET` tetap jalan (jadi satu akun tersendiri), jadi setup lama
+tidak perlu diubah; tinggal tambah `OWNERS` buat owner baru. Akun dikenali dari secret,
+jadi **ganti secret = device muncul sebagai akun baru**. Yang punya hosting tetap bisa
+melihat data semua akun di server, jadi pakai hanya dengan orang yang dipercaya.
 
 **Pindah hosting:** pakai kembali `DEVICE_SECRET` lama, jangan menggantinya dengan
 secret baru hasil generate. Bot mendaftarkan command guild otomatis saat startup.
@@ -76,6 +93,8 @@ Railway tidak menidurkan service, jadi tidak perlu monitor uptime. **Pindah akun
    di komentar sebelum URL yang benar.
 2. Termux menu `9` → `10`: isi secret yang sama dengan `DEVICE_SECRET`.
 3. URL device boleh kosong agar diambil dari repo, atau diisi manual di `9` → `9`.
+   URL yang diisi manual (mis. bot milik sendiri) **tidak pernah diganti** oleh
+   `remote_url.txt`; isi `-` untuk kembali ikut repo.
 4. `9` → `11`: tes koneksi; jalankan monitor (menu `1` atau monitor saja).
 5. Device terlihat di `/devices` pada sync berikutnya, default sekitar 30 detik.
 
@@ -88,7 +107,8 @@ device akan mencoba lagi dengan backoff.
 ## Command
 
 Seluruh balasan, file, tombol konfirmasi, dan follow-up **ephemeral**. Hanya user
-dalam `OWNER_IDS` di `GUILD_ID` yang boleh memakai command, tombol, dan autocomplete.
+dalam `OWNER_IDS` / `OWNERS` di `GUILD_ID` yang boleh memakai command, tombol, dan
+autocomplete; tiap owner hanya melihat device akunnya.
 Opsi `device` boleh kosong bila hanya satu device dikenal.
 
 | Command | Fungsi |

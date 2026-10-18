@@ -38,8 +38,15 @@ async function body(req, limit) {
   return Buffer.concat(chunks);
 }
 
-export function createApi({ store, secret, now = Date.now, render = false, log = () => {} }) {
-  const expected = digest(secret);
+export function createApi({ store, secret, secrets = [{ account: '', secret }], now = Date.now, render = false, log = () => {} }) {
+  const expected = secrets.map(s => ({ account: s.account, digest: digest(s.secret) }));
+  // Compare against every secret (no early exit) so timing does not reveal which one matched.
+  const accountFor = token => {
+    const d = digest(token);
+    let found = null;
+    for (const e of expected) if (timingSafeEqual(d, e.digest) && found === null) found = e.account;
+    return found;
+  };
   const failedAuth = new Map();
   const server = createServer(async (req, res) => {
     const reply = (status, value) => {
@@ -54,7 +61,8 @@ export function createApi({ store, secret, now = Date.now, render = false, log =
       if (!['/api/sync', '/api/ack'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
       const header = req.headers.authorization || '';
       const bearer = /^Bearer (.+)$/.exec(header);
-      if (!bearer || !timingSafeEqual(digest(bearer[1]), expected)) {
+      const account = bearer ? accountFor(bearer[1]) : null;
+      if (account === null) {
         const ip = render ? String(req.headers['x-forwarded-for'] || req.socket.remoteAddress).split(',').at(-1).trim() : req.socket.remoteAddress;
         const time = now();
         for (const [key, bucket] of failedAuth) if (time - bucket.start >= 60_000) failedAuth.delete(key);
@@ -68,10 +76,10 @@ export function createApi({ store, secret, now = Date.now, render = false, log =
       const media = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
       if (media !== (upload ? 'image/png' : 'application/json')) { req.resume(); return reply(415, { error: 'unsupported_media_type' }); }
       if (upload) {
-        if (!store.canUpload(upload[1])) { req.resume(); return reply(404, { error: 'not_found' }); }
+        if (!store.canUpload(upload[1], account)) { req.resume(); return reply(404, { error: 'not_found' }); }
         const buffer = await body(req, PNG_LIMIT);
         if (!buffer.subarray(0, 8).equals(PNG)) return reply(400, { error: 'invalid_png' });
-        if (!store.upload(upload[1], buffer)) return reply(404, { error: 'not_found' });
+        if (!store.upload(upload[1], buffer, account)) return reply(404, { error: 'not_found' });
         return reply(200, { ok: true });
       }
       const raw = await body(req, JSON_LIMIT);
@@ -79,7 +87,7 @@ export function createApi({ store, secret, now = Date.now, render = false, log =
       try { b = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)); }
       catch { throw fail(400, 'invalid_json'); }
       if (path === '/api/sync') {
-        const commands = store.sync(validateSnapshot(b));
+        const commands = store.sync(validateSnapshot(b), account);
         if (commands === null) return reply(429, { error: 'rate_limited' });
         log(`sync ${JSON.stringify(b.device)} commands=${commands.length} 200`);
         return reply(200, { commands });
@@ -87,7 +95,7 @@ export function createApi({ store, secret, now = Date.now, render = false, log =
       if (!object(b) || b.protocol !== 1 || typeof b.device !== 'string' || typeof b.id !== 'string'
         || typeof b.ok !== 'boolean' || typeof b.message !== 'string') throw fail(400, 'invalid_ack');
       if (b.ok && b.data && store.commands.get(b.id)?.type === 'status') validateSnapshot(b.data);
-      store.ack(b);
+      store.ack(b, account);
       return reply(200, { ok: true });
     } catch (e) {
       if (!res.headersSent && !res.destroyed) reply(Number.isInteger(e.code) ? e.code : 500, { error: Number.isInteger(e.code) ? e.message : 'internal_error' });

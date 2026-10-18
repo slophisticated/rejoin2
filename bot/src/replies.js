@@ -53,7 +53,7 @@ export class Replies {
       let attachment, name;
       if (item.command.type === 'screenshot' && item.result.buffer) {
         attachment = item.result.buffer;
-        name = `screenshot-${safeName(item.command.device)}.png`;
+        name = `screenshot-${safeName(item.command.name || item.command.device)}.png`;
       } else if (item.command.type === 'script_get' && typeof item.result.data?.content === 'string') {
         attachment = Buffer.from(item.result.data.content);
         name = safeName(item.result.data.name || item.command.args.name);

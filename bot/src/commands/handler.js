@@ -11,12 +11,16 @@ const localPaths = new Set(['preset list', 'clone list', 'config get', 'script l
 const button = (id, label, style = ButtonStyle.Secondary, disabled = false) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style).setDisabled(disabled);
 
 export class Handler {
-  constructor({ store, replies, owners, guildId, now = Date.now, fetcher = fetch, log = () => {} }) {
-    Object.assign(this, { store, replies, owners, guildId, now, fetcher, log });
+  constructor({ store, replies, owners = new Set(), accounts = null, guildId, now = Date.now, fetcher = fetch, log = () => {} }) {
+    // accounts: Discord user ID -> account; each owner only sees the devices of their account.
+    accounts ??= new Map([...owners].map(id => [id, '']));
+    Object.assign(this, { store, replies, accounts, guildId, now, fetcher, log });
     this.sessions = new Map();
   }
 
-  allowed(i) { return this.owners.has(i.user.id) && i.guildId === this.guildId; }
+  allowed(i) { return this.accounts.has(i.user.id) && i.guildId === this.guildId; }
+
+  view(i) { return this.store.view(this.accounts.get(i.user.id)); }
 
   async handle(i) {
     try {
@@ -27,7 +31,7 @@ export class Handler {
       if (i.isAutocomplete()) {
         const path = interactionPath(i);
         if (!routes[path]) return await i.respond([]);
-        return await i.respond(autocomplete(this.store, path, interactionValues(i, path), i.options.getFocused(true)));
+        return await i.respond(autocomplete(this.view(i), path, interactionValues(i, path), i.options.getFocused(true)));
       }
       if (i.isButton()) return await this.component(i);
       if (!i.isChatInputCommand()) return;
@@ -35,8 +39,9 @@ export class Handler {
       const path = interactionPath(i);
       if (!routes[path]) throw new Error('Command tidak dikenal. Daftarkan ulang command bot.');
       const values = interactionValues(i, path);
-      if (path === 'devices') return await this.show(i, chunks(deviceLines(this.store)).map(content => ({ content })));
-      const devices = selectDevices(this.store, path, values.device);
+      const view = this.view(i);
+      if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
+      const devices = selectDevices(view, path, values.device);
       if (path === 'status') return await this.showStatus(i, devices[0]);
       if (localPaths.has(path)) return await this.show(i, chunks(localLines(path, devices[0], values)).map(content => ({ content })));
       if (path === 'script add') {
@@ -48,7 +53,7 @@ export class Handler {
         if (path === 'clone remove') values.clone = String(planDevice(path, values, devices[0])[0].args.clone);
         const id = randomUUID();
         this.sessions.set(id, { kind: 'confirm', owner: i.user.id, expires: this.now() + 60_000, path, values,
-          targets: devices.map(d => d.name) });
+          targets: devices.map(d => d.key) });
         return await i.editReply({ content: `Yakin mau ${path === 'clone remove' ? 'hapus clone dari daftar (app tetap terpasang)' : 'hapus script dari Scripts (copy Autoexecute tetap ada)'}?\nTarget: ${devices.map(d => escape(d.name)).join(', ')}`, components: [new ActionRowBuilder().addComponents(button(`confirm:${id}`, 'Hapus', ButtonStyle.Danger), button(`cancel:${id}`, 'Batal'))], allowedMentions: mentions });
       }
       await this.queue(i, path, values, devices);
@@ -67,9 +72,9 @@ export class Handler {
     for (const device of devices) {
       try {
         const plans = planDevice(path, values, device);
-        for (const p of plans) this.store.assertRename(device.name, renameTarget(p.type, p.args));
+        for (const p of plans) this.store.assertRename(device.key, renameTarget(p.type, p.args));
         for (const p of plans) {
-          const command = this.store.enqueue(device.name, p.type, p.args);
+          const command = this.store.enqueue(device.key, p.type, p.args);
           items.push({ command, interval: Number(setting(device, 'remote.interval')?.value) || 30,
             offline: !this.store.online(device), secret: Boolean(setting(device, p.args.key)?.secret) });
         }
@@ -98,7 +103,7 @@ export class Handler {
       components: controls.length ? [new ActionRowBuilder().addComponents(...controls)] : [] };
   }
 
-  async showStatus(i, device) { await this.show(i, statusPages(this.store, device), device.name); }
+  async showStatus(i, device) { await this.show(i, statusPages(this.store, device), device.key); }
 
   async component(i) {
     const [action, id] = i.customId.split(':');

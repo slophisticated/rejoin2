@@ -85,7 +85,8 @@ buat bypass key system), upload file bebas ke device (APK / file apa pun selain 
 | `APP_ID` | ya | application id |
 | `GUILD_ID` | ya | server tempat command didaftarkan (guild command = langsung aktif) |
 | `OWNER_IDS` | ya | user id Discord yang boleh pakai, dipisah koma |
-| `DEVICE_SECRET` | ya | string acak panjang (≥32 char), sama dengan `remote.secret` di device |
+| `DEVICE_SECRET` | ya* | string acak panjang (≥32 char), sama dengan `remote.secret` di device |
+| `OWNERS` | tidak* | `idDiscord:secret,...` — device **terpisah per owner**: secret yang dipakai device menentukan akunnya; tiap owner hanya melihat/mengontrol device akunnya (nama device boleh sama antar akun). *Wajib `OWNERS` atau pasangan `OWNER_IDS`+`DEVICE_SECRET` (keduanya boleh dipakai bersamaan) |
 | `PORT` | otomatis dari Render | port HTTP (jangan di-hardcode) |
 | `DATA_DIR` | tidak | folder persist (kosong di Render free = memori saja) |
 | `COMMAND_TIMEOUT_SEC` | tidak | default 90 |

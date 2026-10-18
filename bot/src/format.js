@@ -60,7 +60,7 @@ export function localLines(path, d, values) {
 }
 
 export function resultLine(item) {
-  const label = `${escape(item.command?.device || item.device)}${item.command ? ` · ${escape(item.command.args.key || item.command.type)}` : ''}`;
+  const label = `${escape(item.command?.name || item.command?.device || item.device)}${item.command ? ` · ${escape(item.command.args.key || item.command.type)}` : ''}`;
   if (item.error) return `❌ ${label}: ${escape(item.error).slice(0, 450)}`;
   if (item.result) {
     let msg = item.result.message || (item.result.ok ? 'Selesai.' : 'Gagal.');

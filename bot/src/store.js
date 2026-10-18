@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+// Devices are scoped per account (one account = one device secret). The legacy single-secret
+// setup uses account '' so its keys stay the plain device name.
+export const keyOf = (account, name) => account ? `${account}\u0000${name}` : name;
+
 export const renameTarget = (type, args) => type === 'device_rename' ? args.name
   : type === 'config_set' && args.key === 'webhook.deviceName' ? args.value : null;
 
@@ -24,14 +28,17 @@ export class Store extends EventEmitter {
     if (!this.dataDir) return;
     try {
       const state = JSON.parse(await readFile(join(this.dataDir, 'state.json'), 'utf8'));
-      if (state.version !== 1 || !Array.isArray(state.devices) || !Array.isArray(state.commands)) throw new Error();
+      if (![1, 2].includes(state.version) || !Array.isArray(state.devices) || !Array.isArray(state.commands)) throw new Error();
       for (const d of state.devices) {
         if (typeof d.name !== 'string' || !d.snapshot || !Number.isFinite(d.lastSeen)) throw new Error();
-        this.devices.set(d.name, { ...d, lastSync: null });
+        const account = typeof d.account === 'string' ? d.account : '';
+        const key = keyOf(account, d.name);
+        this.devices.set(key, { ...d, key, account, lastSync: null });
       }
       for (const c of state.commands) {
         if (typeof c.id !== 'string' || !this.devices.has(c.device) || !c.args || !Array.isArray(c.acceptedDevices)) throw new Error();
-        this.commands.set(c.id, c);
+        const d = this.devices.get(c.device);
+        this.commands.set(c.id, { ...c, name: d.name, account: d.account });
       }
     } catch (e) {
       this.devices.clear();
@@ -52,8 +59,8 @@ export class Store extends EventEmitter {
   persist() {
     if (!this.dataDir) return Promise.resolve();
     const content = JSON.stringify({
-      version: 1,
-      devices: [...this.devices.values()].map(({ name, snapshot, lastSeen }) => ({ name, snapshot, lastSeen })),
+      version: 2,
+      devices: [...this.devices.values()].map(({ account, name, snapshot, lastSeen }) => ({ account, name, snapshot, lastSeen })),
       commands: [...this.commands.values()].filter(c => c.state !== 'awaiting_upload').map(c => ({
         id: c.id, device: c.device, type: c.type, args: c.args, createdAt: c.createdAt,
         state: c.state, sentAt: c.sentAt, resent: c.resent, timedOut: c.timedOut,
@@ -82,19 +89,29 @@ export class Store extends EventEmitter {
     return Boolean(d && this.now() - d.lastSeen <= interval * 3000);
   }
 
-  assertRename(device, target, exceptId = null) {
-    if (!target || target === device) return;
-    if (this.devices.has(target)) throw new Error('Nama device itu sudah dipakai.');
+  // Devices of one account, keyed by their plain name (what commands and autocomplete show).
+  view(account = '') {
+    const devices = new Map([...this.devices.values()].filter(d => d.account === account).map(d => [d.name, d]));
+    return { devices, now: () => this.now(), online: d => this.online(d) };
+  }
+
+  assertRename(key, target, exceptId = null) {
+    const d = this.devices.get(key);
+    const account = d?.account ?? '';
+    if (!target || target === (d?.name ?? key)) return;
+    if (this.devices.has(keyOf(account, target))) throw new Error('Nama device itu sudah dipakai.');
     for (const c of this.commands.values()) {
-      if (c.id !== exceptId && renameTarget(c.type, c.args) === target) throw new Error('Nama device itu sedang dipesan command rename.');
+      if (c.id !== exceptId && c.account === account && renameTarget(c.type, c.args) === target) throw new Error('Nama device itu sedang dipesan command rename.');
     }
   }
 
-  enqueue(device, type, args = {}) {
-    if (!this.devices.has(device)) throw new Error('Device belum dikenal.');
-    this.assertRename(device, renameTarget(type, args));
+  enqueue(key, type, args = {}) {
+    const d = this.devices.get(key);
+    if (!d) throw new Error('Device belum dikenal.');
+    this.assertRename(key, renameTarget(type, args));
+    const device = key;
     const c = {
-      id: `c_${randomUUID().replaceAll('-', '')}`, device, type, args: structuredClone(args),
+      id: `c_${randomUUID().replaceAll('-', '')}`, device, name: d.name, account: d.account, type, args: structuredClone(args),
       state: 'queued', createdAt: this.now(), sentAt: null, resent: false,
       timedOut: false, acceptedDevices: [device],
     };
@@ -103,20 +120,21 @@ export class Store extends EventEmitter {
     return c;
   }
 
-  sync(snapshot) {
+  sync(snapshot, account = '') {
     const now = this.now();
-    const old = this.devices.get(snapshot.device);
+    const key = keyOf(account, snapshot.device);
+    const old = this.devices.get(key);
     if (old?.lastSync != null && now - old.lastSync < 4000) return null;
-    this.devices.set(snapshot.device, { name: snapshot.device, snapshot: structuredClone(snapshot), lastSeen: now, lastSync: now });
+    this.devices.set(key, { key, account, name: snapshot.device, snapshot: structuredClone(snapshot), lastSeen: now, lastSync: now });
     const commands = [];
     for (const c of this.commands.values()) {
-      if (c.device !== snapshot.device || c.state === 'awaiting_upload') continue;
+      if (c.device !== key || c.state === 'awaiting_upload') continue;
       if (c.state === 'queued' || (c.state === 'sent' && !c.resent && now - c.sentAt > 60_000
         && !['restart', 'launch_all'].includes(c.type))) {
         if (c.state === 'sent') c.resent = true;
         c.state = 'sent';
         c.sentAt = now;
-        if (!c.acceptedDevices.includes(snapshot.device)) c.acceptedDevices.push(snapshot.device);
+        if (!c.acceptedDevices.includes(key)) c.acceptedDevices.push(key);
         commands.push({ id: c.id, type: c.type, args: structuredClone(c.args) });
       }
     }
@@ -127,23 +145,26 @@ export class Store extends EventEmitter {
   moveDevice(c, target) {
     if (!target || target === c.device) return;
     this.assertRename(c.device, target, c.id);
-    const oldName = c.device;
-    const device = this.devices.get(oldName);
-    this.devices.delete(oldName);
+    const oldKey = c.device;
+    const device = this.devices.get(oldKey);
+    const newKey = keyOf(device.account, target);
+    this.devices.delete(oldKey);
+    device.key = newKey;
     device.name = target;
     device.snapshot.device = target;
-    this.devices.set(target, device);
+    this.devices.set(newKey, device);
     for (const queued of this.commands.values()) {
-      if (queued.device === oldName) {
-        queued.device = target;
-        if (!queued.acceptedDevices.includes(target)) queued.acceptedDevices.push(target);
+      if (queued.device === oldKey) {
+        queued.device = newKey;
+        queued.name = target;
+        if (!queued.acceptedDevices.includes(newKey)) queued.acceptedDevices.push(newKey);
       }
     }
   }
 
-  ack(payload) {
+  ack(payload, account = '') {
     const c = this.commands.get(payload.id);
-    if (!c || c.state === 'queued' || c.state === 'awaiting_upload' || !c.acceptedDevices.includes(payload.device)) return;
+    if (!c || c.state === 'queued' || c.state === 'awaiting_upload' || !c.acceptedDevices.includes(keyOf(account, payload.device))) return;
     let result = { ok: payload.ok, message: payload.message, data: payload.data };
     if (payload.ok) {
       const target = renameTarget(c.type, c.args);
@@ -168,13 +189,13 @@ export class Store extends EventEmitter {
     this.finish(c, result);
   }
 
-  canUpload(id) {
+  canUpload(id, account = '') {
     const c = this.commands.get(id);
-    return c?.type === 'screenshot' && ['sent', 'awaiting_upload'].includes(c.state);
+    return c?.type === 'screenshot' && (c.account ?? '') === account && ['sent', 'awaiting_upload'].includes(c.state);
   }
 
-  upload(id, buffer) {
-    if (!this.canUpload(id)) return false;
+  upload(id, buffer, account = '') {
+    if (!this.canUpload(id, account)) return false;
     this.uploads.set(id, { buffer, createdAt: this.now() });
     const c = this.commands.get(id);
     if (c.state === 'awaiting_upload') this.finish(c, c.result);
