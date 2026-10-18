@@ -1,0 +1,2 @@
+# URL bot Discord (mis. dari Railway). Kalau bot pindah akun / URL, ganti baris di bawah
+# lalu push: semua device yang gagal sync 5x berturut-turut akan pindah ke URL ini.

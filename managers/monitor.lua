@@ -8,6 +8,7 @@ local Heartbeat = require("managers.heartbeat")
 local WindowLayout = require("managers.window_layout")
 local Webhook = require("managers.webhook")
 local DeltaKey = require("managers.delta_key")
+local Remote = require("managers.remote")
 
 local Monitor = {}
 local running = false
@@ -194,12 +195,13 @@ local function checkWindow(inst)
     end
 end
 
-local function runSequentialLaunch(conf)
+local function runSequentialLaunch(conf, only)
     -- Logged-in clones first (each waited for until in game), clones without an account
     -- last; within each group the Menu 2 order. Unknown login counts as logged in.
     -- Window slots follow the Menu 2 order, so positions do not change.
+    -- `only` (optional): launch just these instances (a rejoin request), same rules.
     local instances, later, names, laterNames = {}, {}, {}, {}
-    for _, inst in ipairs(instanceManager.getAll()) do
+    for _, inst in ipairs(only or instanceManager.getAll()) do
         local okL, li = pcall(Auth.isLoggedIn, inst)
         local label = tostring(inst.name or inst.id or "?")
         if okL and li == false then
@@ -325,6 +327,64 @@ local function runSequentialLaunch(conf)
     end
 end
 
+-- Rejoin requests (preset change from Menu 11, the remote bot, ...). Processed one
+-- batch at a time by the monitor loop with the Launch All rules, so loading peaks
+-- do not pile up. Another process (the menu while the boot engine runs) asks through
+-- data/rejoin_request.txt: one instance id per line, or "all".
+local REQUEST_FILE = "data/rejoin_request.txt"
+local rejoinQueue = {}
+
+function Monitor.requestRejoin(ids)
+    for _, id in ipairs(ids or {}) do rejoinQueue[#rejoinQueue + 1] = id end
+end
+
+-- From another process: append ids (or "all") to the request file.
+function Monitor.requestRejoinFile(ids)
+    local f = io.open(REQUEST_FILE, "a")
+    if not f then return false end
+    for _, id in ipairs(ids or {}) do f:write(tostring(id), "\n") end
+    f:close()
+    return true
+end
+
+local function takeFileRequests()
+    local f = io.open(REQUEST_FILE, "r")
+    if not f then return end
+    local text = f:read("*a") or ""
+    f:close()
+    os.remove(REQUEST_FILE)
+    -- The menu saved new config (presets / links) before asking: pick it up.
+    pcall(function()
+        local Config = require("core.config")
+        Config.reload()
+        instanceManager.load(Config.get())
+    end)
+    for line in text:gmatch("[^\r\n]+") do
+        rejoinQueue[#rejoinQueue + 1] = line:match("^%s*(.-)%s*$")
+    end
+end
+
+local function runRejoinQueue(conf)
+    takeFileRequests()
+    if #rejoinQueue == 0 then return end
+    local list, seen = {}, {}
+    for _, ref in ipairs(rejoinQueue) do
+        if ref == "all" then
+            for _, inst in ipairs(instanceManager.getAll()) do
+                if not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
+            end
+        else
+            local inst = instanceManager.find(ref)
+            if inst and not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
+        end
+    end
+    rejoinQueue = {}
+    if #list == 0 then return end
+    Logger.info(string.format("Monitor: rejoin %d clone (permintaan menu / bot)", #list))
+    runSequentialLaunch(conf, list)
+    Status.setProgress(nil)
+end
+
 function Monitor.start(conf, opts)
     interval = conf and conf.monitorInterval or interval
     monitorConf = type(conf) == "table" and conf or {}
@@ -374,6 +434,8 @@ function Monitor.start(conf, opts)
     -- Menu 1 passes autoLaunch=true: launch clones one at a time with the live
     -- dashboard (Starting -> Running) before the monitoring loop takes over.
     if opts.autoLaunch then
+        -- Launch All opens everything anyway: drop rejoin requests left from the menu.
+        os.remove(REQUEST_FILE)
         runSequentialLaunch(conf)
         Status.setProgress(nil)
         -- one full refresh so the "starting" override is cleared and statuses settle
@@ -502,6 +564,8 @@ function Monitor.start(conf, opts)
         Status.setProgress(nil)
         Status.printSummary(instances)
         Webhook.tick(instances)
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin })
+        if running then pcall(runRejoinQueue, conf) end
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command
         -- left the terminal in raw mode.

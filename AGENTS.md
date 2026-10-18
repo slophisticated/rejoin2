@@ -54,13 +54,20 @@ Fitur utama:
 ## 3. Peta kode
 
 ```
-main.lua              entry + Main Menu (1-8, 9 Webhook, 10 Jendela & Mode Hemat, 0 Exit)
+main.lua              entry + Main Menu (1-8, 9 Discord Webhook & Bot, 10 Jendela & Mode Hemat, 11 Preset Game, 0 Exit)
                       flag: --headless --start-monitor --auto-launch --dry-run --no-wizard
                             --install-heartbeat --enable-window-layout (one-shot installer)
 run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (REJOIN_WRAPPER=1)
 core/                 menu CLI (settings_cli = Menu 3, item 13 jeda launch; webhook_cli = 9;
-                      display_cli = 10), config, logger, root_check, setup_wizard
-managers/monitor.lua  loop monitor + runSequentialLaunch (urutan launch, tunggu heartbeat)
+                      display_cli = 10; preset_cli = 11), config (+ Config.reload), logger,
+                      root_check, setup_wizard
+managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack, SCHEMA setting yang boleh
+                      diubah bot, handler command (game, preset_set, config_set, ...).
+                      Kontrak lengkap: docs/discord_bot_prd.md (bot dibuat terpisah)
+managers/instance.lua InstanceManager.gameLink (preset -> link, fallback privateServer), find, save
+utils/json.lua        JSON encode/decode pure Lua (cjson kalau ada)
+managers/monitor.lua  loop monitor + runSequentialLaunch (urutan launch, tunggu heartbeat),
+                      antrian rejoin (Monitor.requestRejoin / data/rejoin_request.txt dari menu)
 managers/recovery.lua launchAndJoin (force-stop -> window layout -> deep link), reopenNoLogin
 managers/status.lua   klasifikasi status + dashboard
 managers/heartbeat.lua install script ke Autoexecute, baca hb file (alive / isUp)
@@ -84,7 +91,8 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
 `launchEmptyDelay` (5), `launchWaitTimeout` (60), `minRss`, `freezeTimeout`,
 `relaunchNoLogin`, `noLoginCooldown`, `windowLayout{enabled,columns,gap,overlap}`,
 `heartbeat{enabled,saver{...}}`, `webhook{url,interval,screenshot,events,hideNames,deviceName}`,
-`deltaLicensePath`, `useRoot`, `appAutoExecutePath`, `instances{...}`.
+`deltaLicensePath`, `useRoot`, `appAutoExecutePath`, `presets{A={name,link}}`,
+`remote{url,secret,interval}`, `instances{...,preset}`.
 
 ## 4. Aturan teknis wajib (masing-masing dari bug nyata)
 
@@ -114,6 +122,13 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
 - **Smallest width tetap 600dp.** 900dp udah dicoba dan user ga suka (kekecilan).
 - Termux:Boot harus dibuka sekali (`stopped=false`). Installer ngecek ini sendiri.
 - Satu engine aja yang boleh jalan (`data/monitor.pid`).
+- **Link game** selalu lewat `InstanceManager.gameLink(inst)` (preset dulu, lalu
+  `privateServer`). Jangan baca `privateServer` langsung buat join.
+- **Remote/bot**: setting yang boleh diubah bot cuma yang ada di `SCHEMA`
+  (`managers/remote.lua`). Nambah setting baru = tambah ke SCHEMA + DEFAULTS + tabel §6
+  di PRD. `remote.url/secret` sengaja ga bisa diubah dari bot. Secret ga boleh ke log.
+- Rejoin karena ganti preset / perintah bot selalu lewat antrian monitor (berurutan),
+  jangan launch langsung.
 
 ## 5. Cara tes (di sandbox ga ada device)
 

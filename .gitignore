@@ -6,3 +6,4 @@ data/.migrated-*
 data/webhook_msg.txt
 data/clone_pids.txt
 data/delta_license_path.txt
+data/rejoin_request.txt

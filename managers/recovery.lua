@@ -52,24 +52,32 @@ local function extractPlaceIdLenient(url)
 end
 
 -- Open the instance game/private-server link. Propagate launch failures to callers.
+local function gameLink(instance)
+    local okI, Instances = pcall(require, "managers.instance")
+    if okI and Instances.gameLink then return Instances.gameLink(instance) end
+    local l = instance and instance.privateServer
+    return (type(l) == "string" and l ~= "") and l or nil
+end
+
 local function openGameLink(instance)
     local pkg = instance and instance.package
-    if not instance.privateServer then
+    local target = gameLink(instance)
+    if not target then
         return true
     end
 
     local link
-    if isShareLink(instance.privateServer) then
+    if isShareLink(target) then
         -- Private server: no placeId, must keep the exact /share link.
-        link = instance.privateServer
+        link = target
     else
-        local placeId = extractPlaceIdLenient(instance.privateServer)
+        local placeId = extractPlaceIdLenient(target)
         if placeId then
             -- The one form proven (on-device) to auto-join a clone and reach its account.
             link = "roblox://placeId=" .. placeId
         else
             -- Unknown shape: keep as-is (letting Android/any handler decide).
-            link = instance.privateServer
+            link = target
         end
     end
 
@@ -88,7 +96,7 @@ function Recovery.launchAndJoin(instance)
 
     Logger.debug("Recovery.launchAndJoin: launching " .. tostring(instance.name or pkg))
 
-    local hasLink = instance.privateServer ~= nil and instance.privateServer ~= ""
+    local hasLink = gameLink(instance) ~= nil
 
     if hasLink then
         -- On-device testing proved that OPTION-A join (`am start -a VIEW -d 'roblox://placeId=<id>'
@@ -288,7 +296,7 @@ function Recovery.checkAndRecover(instance)
         -- A game link must launch a cold app. Launching MAIN first can leave the
         -- subsequent VIEW intent on the game page without joining the server.
         local ok_launch, launchOut
-        if instance.privateServer and instance.privateServer ~= "" then
+        if gameLink(instance) then
             ok_launch, launchOut = openGameLink(instance)
         else
             ok_launch, launchOut = APK.launch(pkg)

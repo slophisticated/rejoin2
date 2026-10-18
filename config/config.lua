@@ -45,6 +45,14 @@ return {
     },
     -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
     deltaLicensePath = "",
+    -- Preset game (Main Menu 11 / bot): clone dengan preset = "A" join ke presets.A.link.
+    presets = {},
+    -- Kontrol dari bot Discord (Main Menu 9 -> 9/10). url / secret kosong = mati.
+    remote = {
+        url = "",
+        secret = "",
+        interval = 30,  -- detik antar sync ke bot
+    },
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 10) Jendela & Mode Hemat.

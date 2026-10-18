@@ -1,6 +1,7 @@
 local Config = require("core.config")
 
--- Main Menu 9: Discord webhook status reports (managers/webhook.lua).
+-- Main Menu 9: Discord webhook status reports (managers/webhook.lua) and the remote
+-- bot connection (managers/remote.lua).
 -- Pick one item at a time; every change is saved right away.
 
 local CLI = {}
@@ -28,7 +29,7 @@ function CLI.run()
     while true do
         local wh = section(conf)
         local hasUrl = type(wh.url) == "string" and wh.url ~= ""
-        print("\nDiscord Webhook:")
+        print("\nDiscord (Webhook & Bot):")
         print("  1) URL webhook          [" .. (hasUrl and "diset" or "kosong") .. "]")
         print("  2) Interval laporan     [" .. tostring(wh.interval or 300) .. " detik]")
         print("  3) Screenshot           [" .. onoff(wh.screenshot ~= false) .. "]")
@@ -38,6 +39,11 @@ function CLI.run()
         local dn = type(wh.deviceName) == "string" and wh.deviceName or ""
         print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
         print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
+        local rm = type(conf.remote) == "table" and conf.remote or {}
+        print("  -- Bot Discord (kontrol jarak jauh) --")
+        print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong") .. "]")
+        print(" 10) Secret bot            [" .. ((type(rm.secret) == "string" and rm.secret ~= "") and "diset" or "kosong") .. "]")
+        print(" 11) Tes koneksi bot")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
 
@@ -131,6 +137,24 @@ function CLI.run()
                     end
                 end
             end
+        elseif choice == "9" or choice == "10" then
+            conf.remote = type(conf.remote) == "table" and conf.remote or {}
+            if choice == "9" then
+                local v = (prompt("URL bot (mis. https://nama-bot.up.railway.app; '-' = hapus): ") or ""):gsub("%s+", "")
+                if v == "-" then conf.remote.url = ""; save(conf)
+                elseif v == "" then print("Tidak diubah.")
+                elseif v:match("^https://[%w%.%-]+") then conf.remote.url = v:gsub("/+$", ""); save(conf)
+                else print("URL harus diawali https://") end
+            else
+                local v = (prompt("Secret bot (sama dengan DEVICE_SECRET di bot; '-' = hapus): ") or ""):gsub("%s+", "")
+                if v == "-" then conf.remote.secret = ""; save(conf)
+                elseif v == "" then print("Tidak diubah.")
+                else conf.remote.secret = v; save(conf) end
+            end
+        elseif choice == "11" then
+            local ok, msg = require("managers.remote").test()
+            print((ok and "OK: " or "Gagal: ") .. tostring(msg))
+            print("(Perintah dari bot dijalankan selama monitor / Launch All jalan.)")
         else
             print("Pilihan tidak dikenal.")
         end

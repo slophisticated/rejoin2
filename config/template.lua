@@ -82,6 +82,17 @@ return {
     },
     -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
     deltaLicensePath = "",
+    -- Game presets (Main Menu 11 / bot): a clone with `preset = "A"` joins presets.A.link
+    -- instead of its own privateServer. Example:
+    --   presets = { A = { name = "Grow a Garden", link = "https://www.roblox.com/games/..." } },
+    presets = {},
+    -- Remote control through the Discord bot (docs/discord_bot_prd.md). url or secret
+    -- empty = off. Commands run while the monitor / Launch All is running.
+    remote = {
+        url = "",       -- e.g. https://my-bot.up.railway.app
+        secret = "",    -- same as the bot's DEVICE_SECRET
+        interval = 30,  -- seconds between syncs
+    },
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,

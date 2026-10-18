@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Preset game + kontrol dari bot Discord**:
+  - `presets = { A = { name, link } }` + `preset` per clone; link efektif lewat `InstanceManager.gameLink` (fallback `privateServer`), dipakai recovery. Main Menu `11) Preset Game` (tambah/ubah/hapus preset, preset per clone, ganti semua clone sekaligus). Rejoin hasil ganti preset lewat antrian monitor (berurutan, aturan Launch All); dari menu saat engine boot jalan lewat `data/rejoin_request.txt`.
+  - `managers/remote.lua`: device POST `/api/sync` tiap `remote.interval` (30 dtk) ke bot, jalankan command (`game`, `restart`, `launch_all`, `preset_set/remove`, `instance_add/edit/remove`, `config_set` hanya untuk key di SCHEMA, `device_rename`, `webhook_use_message`, `webhook_test`, `status`), lalu POST `/api/ack`. curl sebagai user Termux, secret lewat header file 0600, tidak pernah di-log. 5x gagal → baca `remote_url.txt` di repo untuk URL bot baru.
+  - Menu 9 jadi "Discord (Webhook & Bot)": `9)` URL bot, `10)` secret, `11)` tes koneksi.
+  - `utils/json.lua` sekarang punya encoder/decoder pure Lua (dulu error tanpa cjson).
+  - Spesifikasi bot untuk dibangun terpisah: `docs/discord_bot_prd.md`.
+
 - **Fix runtime clone di webhook selalu `0m`**: Redfinger menjalankan Android di container, jadi `/proc/uptime` (sejak cloud phone boot) dan `starttime` proses (sejak host boot) tidak sejalan; hasilnya negatif lalu jadi 0. Sekarang nilai `/proc` hanya dipakai kalau masuk akal; kalau tidak, runtime dihitung sejak pid clone pertama kali terlihat (atau sejak engine me-launch clone itu), disimpan di `data/clone_pids.txt` supaya tidak reset saat engine restart.
 
 - **Root handler**: `core/root_check.lua` mengecek `su -c id` (timeout 15 dtk, stdin /dev/null) di awal `main.lua`, sebelum setup wizard. Tanpa root → pesan petunjuk + exit 3 (menu tidak dibuka; saat boot, `termux-boot.sh` mencoba lagi tiap 30 dtk maks 5x). Dilewati untuk `--dry-run`, flag one-shot installer, dan `useRoot = false`.

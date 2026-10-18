@@ -22,6 +22,16 @@ function Config.get()
     return data
 end
 
+-- Re-read config/config.lua (e.g. after another process changed it). Keeps the same
+-- table object so code holding Config.get() sees the new values.
+function Config.reload()
+    local fresh = loadFromFile(configPath)
+    if not fresh then return false end
+    for k in pairs(data) do data[k] = nil end
+    for k, v in pairs(fresh) do data[k] = v end
+    return true
+end
+
 -- Serialize simple Lua table to a Lua file that returns the table
 local function serializeTable(t, indent)
     indent = indent or ""
