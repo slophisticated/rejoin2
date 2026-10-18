@@ -28,7 +28,8 @@ dengan balasan **ephemeral** (cuma pemilik yang lihat, channel tidak spam):
 - lihat status semua device
 
 **Bukan tujuan (v1):** login akun / inject cookie, ambil key Delta (dilarang — jangan
-buat bypass key system), upload file, kontrol non-owner.
+buat bypass key system), upload file bebas ke device (APK / file apa pun selain script
+`.lua`/`.txt` ≤200 KB lewat `/script add`, yang **termasuk v1**), kontrol non-owner.
 
 ## 2. Arsitektur
 
