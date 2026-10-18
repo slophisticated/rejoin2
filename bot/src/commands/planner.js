@@ -69,6 +69,10 @@ export function planDevice(path, v, device) {
       return cmd(edit ? 'instance_edit' : 'instance_add', args);
     }
     case 'clone remove': return cmd('instance_remove', { clone: findClone(device, v.clone).id });
+    case 'clone logout': {
+      const refs = cloneRefs(device, v.clones, false);
+      return cmd('logout', { clones: refs });
+    }
     case 'restart': {
       const refs = cloneRefs(device, v.clones);
       return refs === 'all' ? cmd('launch_all') : cmd('restart', { clones: refs });

@@ -77,7 +77,7 @@ end
 
 function CLI.run()
     while true do
-        print("\nInject Cookie:\n  1) Inject .ROBLOSECURITY ke instance\n  2) Dump cookies (debug)\n  3) Cek validitas token\n  4) Exit\n")
+        print("\nInject Cookie:\n  1) Inject .ROBLOSECURITY ke instance\n  2) Dump cookies (debug)\n  3) Cek validitas token\n  4) Logout akun clone (cookie dihapus, app ditutup)\n  0) Kembali\n")
         local choice = prompt("Choose an option: ") or ""
         choice = choice:match("^%s*(.-)%s*$")
         if choice == "1" then
@@ -182,6 +182,22 @@ function CLI.run()
                 return
             end
         elseif choice == "4" then
+            local inst = pickInstance()
+            if inst then
+                local confirm = prompt("Logout akun di " .. tostring(inst.package or "") .. "? Perlu login / inject lagi nanti. ketik 'y': ") or ""
+                if confirm:lower():match("^%s*y") then
+                    local called, ok, msg = pcall(CookieInjector.logout, inst)
+                    print(called and ((ok and "[OK] " or "[GAGAL] ") .. tostring(msg)) or "[GAGAL] Logout error, cek log.")
+                    if called and ok then
+                        print("Engine yang jalan nganggep clone ini belum login dalam ±30 detik (ga di-rejoin).")
+                    end
+                else
+                    print("Dibatalkan")
+                end
+            end
+            backToMain()
+            break
+        elseif choice == "0" or choice == "" then
             print("Exiting Inject Cookie")
             break
         else

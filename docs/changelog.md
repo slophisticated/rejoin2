@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Logout akun clone** (Menu 7 → 4, bot `/clone logout clones:...` dengan konfirmasi): `CookieInjector.logout` force-stop clone (cuma kalau masih login), backup tiap Cookies DB lalu hapus baris `.ROBLOSECURITY` (cookie lain tetap). Engine dikasih tau lewat `data/auth_forget.txt` / `Auth.forget` biar langsung nganggep clone itu belum login dan ga nge-rejoin. Session ga di-revoke di Roblox, jadi cookie-nya bisa di-inject lagi. Menu 7 sekarang `0) Kembali`.
+
 - **Bot: pilih device dulu**: command yang opsinya diisi dari data device (preset, clone, clones, script, key setting) sekarang wajib `device` dan `device` jadi opsi pertama, biar autocomplete clone/preset langsung keluar sesuai device yang dipilih.
 
 - **Fix nama device di bot ga ikut ganti**: engine yang lagi jalan sekarang ngecek `config/config.lua` tiap siklus dan langsung pakai setting webhook/bot dari Menu 9 (nama device, URL, secret) tanpa restart. Device ngirim `deviceId` (acak, `data/device_id.txt`); bot gabungin entri nama lama ke nama baru (antrian ikut) setelah nama lama diam ±1 menit, dan nandain ⚠️ di `/devices` kalau 2 device online pakai nama sama (mis. nama kosong = model HP).

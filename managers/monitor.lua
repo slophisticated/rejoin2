@@ -332,6 +332,18 @@ end
 -- do not pile up. Another process (the menu while the boot engine runs) asks through
 -- data/rejoin_request.txt: one instance id per line, or "all".
 local REQUEST_FILE = "data/rejoin_request.txt"
+local AUTH_FORGET_FILE = "data/auth_forget.txt" -- written by CookieInjector.logout
+
+-- Packages just logged out (maybe from Menu 7 in another process): forget their cached
+-- login state before deciding whether a closed clone gets rejoined.
+local function takeAuthForget()
+    local f = io.open(AUTH_FORGET_FILE, "r")
+    if not f then return end
+    local text = f:read("*a") or ""
+    f:close()
+    os.remove(AUTH_FORGET_FILE)
+    for pkg in text:gmatch("[^\r\n]+") do Auth.forget(pkg) end
+end
 local rejoinQueue = {}
 
 function Monitor.requestRejoin(ids)
@@ -483,9 +495,11 @@ function Monitor.start(conf, opts)
     local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
         cycle = cycle + 1
+        pcall(takeAuthForget)
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
+            pcall(takeAuthForget)
             Status.setProgress(i, #instances, "Checking")
             if i > 1 then Status.printSummary(instances) end
             local id = inst.id or i

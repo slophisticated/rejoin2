@@ -123,6 +123,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/default preset:A` | Ganti default; clone khusus tetap memakai preset sendiri |
 | `/preset list/set/remove` | Kelola preset; default tidak bisa dihapus |
 | `/clone list/add/edit/remove` | Kelola daftar; remove perlu konfirmasi, bukan uninstall |
+| `/clone logout clones:"Clone2"` | Logout akun Roblox clone pilihan (cookie dihapus, app ditutup, ga di-rejoin). Konfirmasi dulu; `all` ga boleh |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
 | `/screenshot` | Gambar layar cloud phone sekarang |
 | `/config get/set` | Setting dari schema snapshot device |

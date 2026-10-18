@@ -28,6 +28,8 @@ export const routes = {
   'clone add': route('Tambah clone ke daftar device.', [name, s('package', true), s('preset', false, true), s('link')]),
   'clone edit': route('Ubah clone; preset default berarti ikut default.', [clone, s('name'), s('package'), s('preset', false, true), s('link')]),
   'clone remove': route('Hapus clone dari daftar dengan konfirmasi.', [clone], { confirm: true }),
+  'clone logout': route('Logout akun Roblox clone pilihan (app ditutup, tidak di-rejoin).', [s('clones', true, true)], {
+    confirm: true, confirmText: 'logout akun Roblox clone ini (cookie dihapus, perlu login / inject lagi)' }),
   restart: route('Rejoin clone pilihan, atau all untuk Launch All.', [s('clones', true, true)]),
   screenshot: route('Ambil screenshot layar device saat ini.', [], { all: true }),
   'config get': route('Lihat nilai setting dari schema device.', [s('key', false, true)]),

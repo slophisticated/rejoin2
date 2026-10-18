@@ -112,7 +112,8 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
   diabaikan. Hasilnya diverifikasi ke `users.roblox.com/v1/users/authenticated`
   pake curl (401 = logout, cache 600 detik). Token ga boleh masuk log.
 - **Clone belum login ga pernah di-force-stop.** Force-stop clone kosong bikin clone
-  lain ikut FC.
+  lain ikut FC. Logout akun (`CookieInjector.logout`) cuma force-stop kalau cookie-nya
+  masih ada, lalu kasih tau engine lewat `data/auth_forget.txt` (`Auth.forget`).
 - **Window App Cloner**: `/data/data/<pkg>/shared_prefs/<pkg>_preferences.xml`, key
   `app_cloner_current_window_{left,top,right,bottom}`. Ditulis **pas clone mati**,
   pake `cat >` biar inode-nya tetep. File `.bak` juga ikut diurus. Kalau file belum

@@ -412,6 +412,24 @@ function H.restart(args, ctx)
     return true, "rejoin: " .. table.concat(names, ", ")
 end
 
+-- Log the Roblox account of the chosen clones out (cookie removed, app closed). A
+-- logged-out clone is never rejoined; it only gets reopened at the login screen when
+-- relaunchNoLogin is on.
+function H.logout(args)
+    local refs = args.clones or args.clone
+    if refs == nil or refs == "all" then return false, "pilih clone yang mau di-logout (all tidak boleh)" end
+    local list, err = findClones(refs)
+    if not list then return false, err end
+    local CookieInjector = require("managers.cookie_injector")
+    local done, lines = 0, {}
+    for _, inst in ipairs(list) do
+        local okCall, ok, msg = pcall(CookieInjector.logout, inst)
+        if okCall and ok then done = done + 1 end
+        lines[#lines + 1] = cloneLabel(inst) .. ": " .. tostring(okCall and msg or "error")
+    end
+    return done > 0, table.concat(lines, "; ")
+end
+
 function H.launch_all(args, ctx)
     ctx.requestRejoin({ "all" })
     return true, "Launch All dimulai (login duluan, satu per satu)"

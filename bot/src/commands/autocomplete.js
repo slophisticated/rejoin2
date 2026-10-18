@@ -30,7 +30,7 @@ export function autocomplete(store, path, values, focused) {
     list = d.snapshot.instances.filter(i => !used.has(i.id))
       .filter(i => `${i.name} ${i.username || ''} ${i.package} ${i.id}`.toLowerCase().includes(tail))
       .map(i => choice(`${i.name} — ${i.username || '-'} — ${i.status}`, [...prefix, String(i.id)].join(', ')));
-    if (focused.name === 'clones' && !prefix.length) list.unshift(choice('all — semua clone', 'all'));
+    if (focused.name === 'clones' && !prefix.length && path !== 'clone logout') list.unshift(choice('all — semua clone', 'all'));
     return list.filter(c => c.value.length <= 100).slice(0, 25);
   } else if (focused.name === 'name' && (path.startsWith('script') || path.startsWith('autoexec'))) {
     const remove = path === 'autoexec remove';

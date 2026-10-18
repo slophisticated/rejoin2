@@ -21,6 +21,7 @@ const mappings = [
   ['clone add', { name: 'Clone4', package: 'com.apengjers.v7' }, 'instance_add', { name: 'Clone4', package: 'com.apengjers.v7' }],
   ['clone edit', { clone: 'Clone1', preset: 'default', link: '-' }, 'instance_edit', { clone: 1, preset: 'default', link: '-' }],
   ['clone remove', { clone: 'com.apengjers.v5' }, 'instance_remove', { clone: 3 }],
+  ['clone logout', { clones: 'Clone1, 3' }, 'logout', { clones: [1, 3] }],
   ['restart', { clones: '1,Clone3' }, 'restart', { clones: [1, 3] }],
   ['restart', { clones: 'all' }, 'launch_all', {}],
   ['screenshot', {}, 'screenshot', {}],
@@ -44,6 +45,12 @@ for (const [path, values, type, args] of mappings) {
     assert.deepEqual(planDevice(path, values, h.device()), [{ type, args }]);
   });
 }
+
+test('clone logout refuses all and needs confirmation', () => {
+  const h = harness();
+  assert.throws(() => planDevice('clone logout', { clones: 'all' }, h.device()), /tidak ditemukan/);
+  assert.equal(routes['clone logout'].confirm, true);
+});
 
 test('all shortcut options map to individual dynamic-schema config_set commands', () => {
   const h = harness();

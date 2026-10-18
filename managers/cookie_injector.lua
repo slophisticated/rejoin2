@@ -425,6 +425,60 @@ function CookieInjector.inject(instance, token)
     return true, detail
 end
 
+-- Log a clone's Roblox account out on this device: stop the app, back up each Cookies
+-- DB, then delete its `.ROBLOSECURITY` rows. The session is not revoked at Roblox, so
+-- the same cookie can be injected again later. Only a logged-in clone is stopped (a
+-- force-stopped empty clone makes the other clones FC). Returns (ok, message).
+function CookieInjector.logout(instance)
+    local pkg = instance and instance.package
+    if not pkg then return false, "Instance tidak punya package" end
+    local base = Auth.getBaseDir(instance)
+    if not base then return false, "Tidak bisa tentukan base dir instance" end
+    local dbs = locateCookieDbs(base)
+    if dbs == nil then return false, "Base dir tidak bisa dibaca (periksa izin root)." end
+    if #dbs == 0 then return false, "Cookies DB tidak ditemukan; clone belum pernah login." end
+    local runner = resolveSqlite3(dbs[1])
+    if not runner then return false, "sqlite3 tidak bisa dijalankan (pkg install sqlite)" end
+
+    local rows = 0
+    for _, db in ipairs(dbs) do
+        local n = tonumber((exec(string.format(
+            "%s %s \"SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%%.roblox.com%%';\"",
+            runner, quote(db))) or ""):match("^%s*(%d+)%s*$")) or 0
+        rows = rows + n
+    end
+    if rows == 0 then
+        if Auth.forget then Auth.forget(pkg) end
+        return false, "Clone ini memang sudah logout."
+    end
+
+    -- Tell a running engine (another process when called from Menu 7) to drop its
+    -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
+    local sig = io.open("data/auth_forget.txt", "a")
+    if sig then sig:write(pkg, "\n"); sig:close() end
+    APK.forceStop(pkg)
+    Timer.sleep(1)
+    local stamp = os.date("%Y%m%d-%H%M%S")
+    local failures = {}
+    for _, db in ipairs(dbs) do
+        local backup = db .. ".bak-" .. stamp
+        local backupOut = exec(runner .. " " .. quote(db) .. " " .. quote(".backup " .. quote(backup)))
+        if not backupOut or not existsFile(backup) then
+            failures[#failures + 1] = "backup gagal, DB tidak diubah"
+        else
+            local out = exec(runner .. " " .. quote(db) .. " \"DELETE FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%.roblox.com%'; PRAGMA wal_checkpoint(FULL);\"")
+            if not out then failures[#failures + 1] = "hapus cookie gagal" end
+        end
+    end
+    if Auth.forget then Auth.forget(pkg) end
+    if #failures > 0 then
+        Logger.warn("CookieInjector: logout " .. pkg .. " sebagian gagal: " .. table.concat(failures, "; "))
+        return false, "Logout gagal sebagian: " .. table.concat(failures, "; ")
+    end
+    Logger.info("CookieInjector: logout " .. pkg .. " (" .. rows .. " cookie dihapus, backup ." .. "bak-" .. stamp .. ")")
+    return true, "logout, app ditutup. Login lagi lewat app atau Inject Cookie."
+end
+
 -- Debug: dump every cookie row of EVERY Cookies DB under the instance. The
 -- `.ROBLOSECURITY` value is shown as its length only (no token leak). Returns
 -- (ok, message).
