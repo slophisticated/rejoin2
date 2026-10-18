@@ -158,4 +158,8 @@ rejoin/
 
 ## Lisensi / Kontribusi
 
-Project ini dikembangkan mandiri untuk keperluan otomatisasi. Gunakan dengan bijak sesuai ketentuan platform Roblox dan kebijakan masing-masing perangkat.
+Rejoin dirilis dengan lisensi **GNU GPL v3.0 atau lebih baru** ([LICENSE](LICENSE)). Bebas dipakai, dipelajari, diubah, dan dibagikan; versi modifikasi yang dibagikan atau dijual **wajib** tetap open source dengan lisensi yang sama dan mencantumkan sumber aslinya.
+
+Mau kontribusi? Baca **[CONTRIBUTING.md](CONTRIBUTING.md)** (cara tes, gaya kode, aturan penting) lalu kirim pull request.
+
+Gunakan dengan bijak sesuai ketentuan platform Roblox dan kebijakan masing-masing perangkat.

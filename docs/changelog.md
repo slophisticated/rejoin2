@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Lisensi GPL-3.0-or-later** (`LICENSE`) + `CONTRIBUTING.md` (cara tes, gaya, aturan penting) biar orang bisa kontribusi.
+
 - **Monitor ga rejoin cuma gara-gara RAM turun sekali**: clone tanpa heartbeat yang RSS-nya sekali di bawah `minRss` dicek lagi siklus berikutnya dulu; app yang beneran ketutup atau heartbeat "kicked" tetap langsung ditangani.
 - **Launch All: 1 clone tanpa heartbeat ga bikin sisa clone ga ditunggu**: clone berikutnya tetap ditunggu heartbeat-nya; baru setelah 2 clone berturut-turut ga ada heartbeat, sisa clone pakai jeda `launchSettleDelay`.
 
