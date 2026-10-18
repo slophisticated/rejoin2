@@ -1,12 +1,12 @@
 # Rejoin Engine
 
-Rejoin menjalankan dan menjaga banyak clone Roblox (App Cloner + Delta) di cloud phone Android yang sudah di-root. Ditulis dalam **Lua** dan jalan di **Termux**. Clone dibuka satu per satu, dipantau terus, dan langsung di-rejoin kalau ke-kick, freeze, atau force close. Data utama disimpan di device; kontrol Discord opsional memakai bot terpisah di Render.
+Rejoin menjalankan dan menjaga banyak clone Roblox (App Cloner + Delta) di cloud phone Android yang sudah di-root. Ditulis dalam **Lua** dan jalan di **Termux**. Clone dibuka satu per satu, dipantau terus, dan langsung di-rejoin kalau ke-kick, freeze, atau force close. Data utama disimpan di device; kontrol Discord opsional memakai bot terpisah (Render atau Railway).
 
 > Panduan langkah demi langkah yang siap dibagikan: **[setup.md](setup.md)**
 
 > Bot Discord sekarang tersedia di **[bot/](bot/README.md)**: slash command ephemeral,
 > screenshot, preset, multi-clone, setting, Scripts dan Autoexecute. Deploy lewat
-> **[render.yaml](render.yaml)**; Node/npm hanya diperlukan di hosting bot, bukan di device.
+> **[render.yaml](render.yaml)** atau Railway ([panduan](bot/README.md#deploy-railway)); Node/npm hanya diperlukan di hosting bot, bukan di device.
 
 ---
 

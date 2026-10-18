@@ -45,6 +45,30 @@ bisa sekitar satu menit. Sync device biasanya menjaga service aktif. Disarankan
 monitor gratis UptimeRobot/cron-job.org **GET `/health` tiap lima menit** agar bot
 tetap terjangkau saat semua device mati; batas kuota Render tetap berlaku.
 
+## Deploy Railway
+
+Alternatif kalau Render minta kartu. Railway pakai kredit trial; kalau kredit habis
+service berhenti, pindah akun tinggal ulangi langkah ini.
+
+1. **New Project → Deploy from GitHub repo** → `slophisticated/rejoin2` (kalau repo
+   tidak muncul: *Configure GitHub App* → beri akses repo itu).
+2. Service → **Settings**:
+   - Root Directory: `bot`
+   - Start Command: `node src/index.js` (build otomatis `npm ci`; Node 24 dibaca dari
+     `engines` di `package.json`)
+   - Healthcheck Path: `/health`
+   - Watch Paths: `bot/**` (biar push kode Lua tidak deploy ulang)
+   - Region: Asia/Singapore kalau tersedia
+3. **Variables**: `DISCORD_TOKEN`, `APP_ID`, `GUILD_ID`, `OWNER_IDS`, `DEVICE_SECRET`
+   (≥32 karakter). `PORT` diisi Railway sendiri.
+4. **Settings → Networking → Generate Domain** → URL tetap
+   `https://<service>.up.railway.app`. Cek `<url>/health` → `{"ok":true,"devices":0}`.
+5. Isi URL itu di `remote_url.txt` lalu push (lanjut ke bagian berikut).
+
+Railway tidak menidurkan service, jadi tidak perlu monitor uptime. **Pindah akun:** buat
+`DEVICE_SECRET` yang **sama persis**, generate domain baru, ganti baris di
+`remote_url.txt`; device pindah sendiri setelah 5x sync gagal (±10–20 menit).
+
 ## Sambungkan device
 
 1. Setelah deploy, isi URL HTTPS sebenarnya di `remote_url.txt` pada root repo lalu
