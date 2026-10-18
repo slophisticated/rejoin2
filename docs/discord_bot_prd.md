@@ -96,12 +96,17 @@ Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):
   "device": "RF-07",
   "version": "f6aac49",
   "time": 1760780000,
-  "presets": { "A": { "name": "Grow a Garden", "link": "https://www.roblox.com/games/..." },
+  "presets": { "A": { "name": "Steal an Egg", "link": "https://www.roblox.com/games/..." },
                "B": { "name": "Fisch", "link": "https://www.roblox.com/share?code=...&type=Server" } },
+  "defaultPreset": "A",
   "instances": [
-    { "id": 1, "name": "Clone1", "package": "com.apengjers.v3", "preset": "A",
+    { "id": 1, "name": "Clone1", "package": "com.apengjers.v3",
+      "preset": "A", "presetSource": "default", "game": "Steal an Egg",
       "link": "https://www.roblox.com/games/...", "status": "ingame",
-      "username": "Fahmssz239", "fps": 15, "mem": 420 }
+      "username": "Fahmssz239", "fps": 15, "mem": 420 },
+    { "id": 3, "name": "Clone3", "package": "com.apengjers.v5",
+      "preset": "B", "presetSource": "khusus", "game": "Fisch",
+      "link": "https://www.roblox.com/share?code=...", "status": "ingame" }
   ],
   "settings": [
     { "key": "launchJoinTimeout", "type": "int", "label": "Maks tunggu clone masuk game (dtk)",
@@ -115,6 +120,10 @@ Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):
   identitas device** di bot. Kalau nama berubah, device lama otomatis jadi "offline"
   (tidak sync lagi) dan entri baru muncul — bot boleh menggabungkan kalau command
   `device_rename` yang menyebabkannya (lihat §5.4).
+- **Preset default**: tiap clone ikut `defaultPreset`, kecuali punya preset sendiri.
+  `presetSource` per clone: `default` (ikut default), `khusus` (preset sendiri),
+  `link` (pakai link sendiri, preset `-`), `none` (belum ada link). `preset` = preset
+  yang **benar-benar dipakai**, `game` = nama game, `link` = link yang dipakai join.
 - `status` per clone: `ingame`, `starting`, `recovery`, `nologin`, `kicked`, `freeze`,
   `stuck`, `offline`, `unknown`.
 - `username`, `fps`, `mem` opsional.
@@ -165,14 +174,15 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | type | args | Efek di device |
 |---|---|---|
 | `status` | `{}` | Balas ringkasan + `data` = snapshot lengkap |
-| `game` | `{preset, clones?: [..] \| "all", rejoin?: bool=true}` | Set preset clone (default semua), simpan, rejoin berurutan |
+| `default_set` | `{preset, rejoin?: bool=true}` | Ganti preset **default**; clone yang ikut default di-rejoin berurutan |
+| `game` | `{preset, clones?: [..] \| "all", rejoin?: bool=true}` | Tanpa `clones` / `"all"`: preset itu jadi default **dan semua clone ikut default** (preset khusus dilepas). Dengan `clones`: clone itu dapat preset **khusus**. Rejoin berurutan |
 | `set_preset` | sama dengan `game` | alias |
 | `restart` | `{clone}` atau `{clones:[..]}` | Rejoin clone itu (berurutan) |
 | `launch_all` | `{}` | Rejoin semua (login duluan, satu per satu) |
-| `preset_set` | `{key, name, link, rejoin?: bool}` | Tambah/ubah preset. `key` `^[A-Za-z0-9_-]{1,16}$`; `link` harus `https://*roblox.com/...` atau `roblox://...`. `rejoin:true` → clone pemakai preset di-rejoin |
-| `preset_remove` | `{key}` | Hapus preset; clone pemakainya kembali ke link sendiri |
-| `instance_add` | `{name, package, preset?, link?}` | Tambah clone ke daftar (package `com.x.y`, unik) |
-| `instance_edit` | `{clone, name?, package?, preset?, link?}` | Ubah clone. `preset:""`/`"-"` = lepas preset; `link:""`/`"-"` = hapus link sendiri |
+| `preset_set` | `{key, name, link, rejoin?: bool}` | Tambah/ubah preset. `key` `^[A-Za-z0-9_]{1,16}$` (bukan `default`); `link` harus `https://*roblox.com/...` atau `roblox://...`. Preset pertama otomatis jadi default. `rejoin:true` → clone pemakai preset di-rejoin |
+| `preset_remove` | `{key}` | Hapus preset (ditolak kalau itu default); clone yang khusus ke preset itu jadi ikut default |
+| `instance_add` | `{name, package, preset?, link?}` | Tambah clone ke daftar (package `com.x.y`, unik). Tanpa `preset` = ikut default |
+| `instance_edit` | `{clone, name?, package?, preset?, link?}` | Ubah clone. `preset`: kode = khusus, `""`/`"default"` = ikut default, `"-"` = pakai link sendiri (butuh `link` / link lama). `link:""`/`"-"` = hapus link sendiri |
 | `instance_remove` | `{clone}` | Hapus dari daftar (app tidak di-uninstall) |
 | `config_set` | `{key, value}` | Ubah 1 setting dari daftar §6 (key lain ditolak) |
 | `device_rename` | `{name}` | = `config_set webhook.deviceName` |
@@ -240,7 +250,8 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 |---|---|---|
 | `/status` | `device?` | tampil dari snapshot (tanpa antri). Tombol "🔄 Refresh" → antri `status` |
 | `/devices` | – | daftar device: nama, versi, online/offline (lastSeen), jumlah clone ingame/total |
-| `/game` | `preset`, `device?` (bisa `all`), `clone?`, `rejoin?` (default true) | `game` (ke semua device kalau `all`) |
+| `/game` | `preset`, `device?` (bisa `all`), `clone?`, `rejoin?` (default true) | tanpa `clone` → `game` (preset jadi default, semua clone ikut); dengan `clone` → `game` clones=[clone] (khusus) |
+| `/default` | `preset`, `device?` (bisa `all`), `rejoin?` | `default_set` (clone khusus tidak ikut pindah) |
 | `/preset list` | `device?` | dari snapshot |
 | `/preset set` | `key`, `name`, `link`, `device?`(+`all`), `rejoin?` | `preset_set` |
 | `/preset remove` | `key`, `device?`(+`all`) | `preset_remove` |
@@ -277,8 +288,16 @@ menampilkan hasil per item.
    berlaku 15 menit; setelah itu ack hanya dicatat di log bot.
 
 ### Tampilan `/status`
-Embed per device: judul `📊 RF-07 — v f6aac49 — online (12 dtk lalu)`, baris per clone
-`🟢 Clone1 · Fahmssz239 · [A] Grow a Garden · 15fps 420MB`. Ikon status sama dengan
+Embed per device: judul `📊 RF-07 — v f6aac49 — online (12 dtk lalu)`, baris
+`Default: [A] Steal an Egg`, lalu **per clone**:
+```
+🟢 Clone1 · ||Fahmssz239|| · 15fps 420MB
+   [A] Steal an Egg (ikut default) · link: <https://www.roblox.com/games/...>
+🟢 Clone3 · ||jivo9635||
+   [B] Fisch (khusus) · link: <https://www.roblox.com/share?code=...>
+```
+Link dibungkus `<...>` biar Discord tidak bikin preview. Kalau lebih dari batas embed,
+pecah per halaman (tombol ◀ ▶). Ikon status sama dengan
 webhook rejoin: ingame 🟢, starting/recovery 🟡, nologin ⚪, kicked/freeze/stuck/offline 🔴.
 Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari settings).
 
@@ -299,7 +318,9 @@ Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari setti
 2. Device dengan `remote.url` + `remote.secret` muncul di `/devices` ≤ 1 menit setelah
    monitor jalan; secret salah → device tidak muncul, bot log 401 (tanpa secret).
 3. `/preset set key:A …` lalu `/game preset:A` → ack ✅ di balasan ephemeral, device
-   rejoin clone berurutan, `/status` menampilkan `[A]`.
+   rejoin clone berurutan, `/status` menampilkan `[A] … (ikut default)` + link per clone.
+   `/game preset:B clone:Clone3` → hanya Clone3 pindah (khusus); `/default preset:A`
+   tidak memindahkan Clone3.
 4. `/config set key:webhook.interval value:600` → ✅; `value:5` → ❌ dengan pesan batas
    dari device.
 5. `/device replace` dengan link pesan status lama → ✅, laporan webhook berikutnya
@@ -325,6 +346,7 @@ curl -s -X POST "$URL/api/ack" -H "Authorization: Bearer $SECRET" \
 ## 11. Referensi di repo rejoin2
 
 - Klien device: `managers/remote.lua` (schema setting, handler command, format sync/ack).
-- Preset: `core/preset_cli.lua`, `managers/instance.lua` (`gameLink`).
+- Preset: `core/preset_cli.lua`, `managers/instance.lua` (`presetOf`, `gameLink`,
+  `migrateToPresets`).
 - Antrian rejoin: `managers/monitor.lua` (`Monitor.requestRejoin`, `runRejoinQueue`).
 - Webhook status & nama device: `managers/webhook.lua`.

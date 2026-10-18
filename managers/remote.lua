@@ -215,10 +215,15 @@ local function snapshot(instances)
     local list = JSON.array({})
     for _, inst in ipairs(instances or {}) do
         local hb = okH and Heartbeat.read and select(2, pcall(Heartbeat.read, inst)) or nil
+        local key, source, link = nil, "none", inst.privateServer
+        if okI and Instances.presetOf then key, source, link = Instances.presetOf(inst) end
+        local p = key and presets[key] or nil
         local e = {
             id = inst.id, name = inst.name or "", package = inst.package or "",
-            preset = inst.preset or "",
-            link = okI and Instances.gameLink and Instances.gameLink(inst) or (inst.privateServer or ""),
+            preset = key or "",                 -- preset actually used ("" = none)
+            presetSource = source,              -- khusus / default / link / none
+            game = p and p.name or (source == "link" and "link sendiri" or ""),
+            link = link or "",
             status = okS and Status.statusOf and Status.statusOf(inst.id) or "unknown",
         }
         if okU and Username.get then
@@ -238,6 +243,7 @@ local function snapshot(instances)
         version = version(),
         time = os.time(),
         presets = presets,
+        defaultPreset = conf.defaultPreset or "",
         instances = list,
         settings = settingsSnapshot(conf),
     }
@@ -273,20 +279,55 @@ end
 local H = {}
 
 function H.status(args, ctx, instances)
-    local n, ingame = 0, 0
-    local okS, Status = pcall(require, "managers.status")
-    for _, inst in ipairs(instances or {}) do
-        n = n + 1
-        if okS and Status.statusOf and Status.statusOf(inst.id) == "ingame" then ingame = ingame + 1 end
+    local snap = snapshot(instances)
+    local ingame, lines = 0, {}
+    for _, e in ipairs(snap.instances) do
+        if e.status == "ingame" then ingame = ingame + 1 end
+        lines[#lines + 1] = string.format("%s: %s%s (%s) — %s", e.name,
+            e.preset ~= "" and ("[" .. e.preset .. "] ") or "", e.game, e.presetSource, e.status)
     end
-    return true, string.format("%d/%d clone di dalam game", ingame, n), snapshot(instances)
+    table.insert(lines, 1, string.format("%d/%d clone di dalam game", ingame, #snap.instances))
+    return true, table.concat(lines, "\n"), snap
 end
 
-function H.game(args, ctx)
+local function presetOrError(key)
     local conf = Config.get() or {}
-    local key = tostring(args.preset or "")
     local p = type(conf.presets) == "table" and conf.presets[key] or nil
-    if type(p) ~= "table" or not validLink(p.link) then return false, "preset '" .. key .. "' tidak ada / link kosong" end
+    if type(p) ~= "table" or not validLink(p.link) then return nil, "preset '" .. tostring(key) .. "' tidak ada / link kosong" end
+    return p, conf
+end
+
+-- Default preset: every clone without its own preset follows it.
+function H.default_set(args, ctx)
+    local key = tostring(args.preset or "")
+    local p, conf = presetOrError(key)
+    if not p then return false, conf end
+    conf.defaultPreset = key
+    local Instances = require("managers.instance")
+    local ids, names = {}, {}
+    for _, inst in ipairs(Instances.getAll()) do
+        local _, source = Instances.presetOf(inst)
+        if source == "default" then ids[#ids + 1] = inst.id; names[#names + 1] = cloneLabel(inst) end
+    end
+    local ok, err = save(conf)
+    if not ok then return false, err end
+    if args.rejoin ~= false and #ids > 0 then ctx.requestRejoin(ids) end
+    return true, string.format("default → %s (%s); %d clone ikut default%s", key, p.name or "", #ids,
+        (args.rejoin ~= false and #ids > 0) and (", rejoin: " .. table.concat(names, ", ")) or "")
+end
+
+-- Move clones to a preset. Without `clones` (or "all"): that preset becomes the
+-- default and every clone follows it. With clones: those clones get it as their own.
+function H.game(args, ctx)
+    local key = tostring(args.preset or "")
+    local p, conf = presetOrError(key)
+    if not p then return false, conf end
+    local Instances = require("managers.instance")
+    if args.clones == nil or args.clones == "all" or (type(args.clones) == "table" and #args.clones == 0) then
+        for _, inst in ipairs(Instances.getAll()) do inst.preset = nil end
+        conf.instances = Instances.getAll()
+        return H.default_set({ preset = key, rejoin = args.rejoin }, ctx)
+    end
     local list, err = findClones(args.clones)
     if not list then return false, err end
     local ids, names = {}, {}
@@ -295,10 +336,10 @@ function H.game(args, ctx)
         ids[#ids + 1] = inst.id
         names[#names + 1] = cloneLabel(inst)
     end
-    local ok, e = require("managers.instance").save()
+    local ok, e = Instances.save()
     if not ok then return false, tostring(e) end
     if args.rejoin ~= false then ctx.requestRejoin(ids) end
-    return true, string.format("%s → %s (%s)%s", table.concat(names, ", "), key, p.name or "",
+    return true, string.format("%s → %s (%s, khusus)%s", table.concat(names, ", "), key, p.name or "",
         args.rejoin ~= false and ", rejoin berurutan" or "")
 end
 H.set_preset = H.game
@@ -320,27 +361,35 @@ end
 
 function H.preset_set(args, ctx)
     local key = tostring(args.key or "")
-    if not key:match("^[%w_%-]+$") or #key > 16 then return false, "kode preset harus huruf/angka (maks 16)" end
+    if not key:match("^[%w_]+$") or #key > 16 or key == "default" then return false, "kode preset harus huruf/angka (maks 16)" end
     if not validLink(args.link) then return false, "link harus link roblox.com atau roblox://" end
     local conf = Config.get() or {}
     conf.presets = type(conf.presets) == "table" and conf.presets or {}
     local existed = conf.presets[key] ~= nil
     conf.presets[key] = { name = tostring(args.name or key):sub(1, 60), link = args.link }
+    local becameDefault = false
+    if conf.defaultPreset == nil or conf.defaultPreset == "" then
+        conf.defaultPreset = key
+        becameDefault = true
+    end
     local ok, err = save(conf)
     if not ok then return false, err end
+    local Instances = require("managers.instance")
     local used = {}
-    for _, inst in ipairs(require("managers.instance").getAll()) do
-        if inst.preset == key then used[#used + 1] = inst.id end
+    for _, inst in ipairs(Instances.getAll()) do
+        if Instances.presetOf(inst) == key then used[#used + 1] = inst.id end
     end
     if args.rejoin and #used > 0 then ctx.requestRejoin(used) end
-    return true, string.format("preset %s %s (%d clone pakai preset ini%s)", key,
-        existed and "diubah" or "ditambah", #used, (args.rejoin and #used > 0) and ", rejoin" or "")
+    return true, string.format("preset %s %s%s (%d clone pakai preset ini%s)", key,
+        existed and "diubah" or "ditambah", becameDefault and ", jadi DEFAULT" or "", #used,
+        (args.rejoin and #used > 0) and ", rejoin" or "")
 end
 
 function H.preset_remove(args)
     local key = tostring(args.key or "")
     local conf = Config.get() or {}
     if type(conf.presets) ~= "table" or conf.presets[key] == nil then return false, "preset '" .. key .. "' tidak ada" end
+    if conf.defaultPreset == key then return false, "preset " .. key .. " adalah DEFAULT; set default lain dulu" end
     conf.presets[key] = nil
     local n = 0
     for _, inst in ipairs(require("managers.instance").getAll()) do
@@ -348,7 +397,7 @@ function H.preset_remove(args)
     end
     local ok, err = save(conf)
     if not ok then return false, err end
-    return true, string.format("preset %s dihapus (%d clone kembali ke link sendiri)", key, n)
+    return true, string.format("preset %s dihapus (%d clone sekarang ikut default)", key, n)
 end
 
 local function validPackage(p) return type(p) == "string" and p:match("^[%w_]+%.[%w_%.]+$") ~= nil end
@@ -361,13 +410,19 @@ function H.instance_add(args)
     end
     local conf = Config.get() or {}
     local inst = { name = tostring(args.name or args.package):sub(1, 40), package = args.package }
-    if args.preset and args.preset ~= "" then
-        if type(conf.presets) ~= "table" or not conf.presets[args.preset] then return false, "preset tidak ada" end
-        inst.preset = args.preset
-    end
     if args.link and args.link ~= "" then
         if not validLink(args.link) then return false, "link tidak valid" end
         inst.privateServer = args.link
+    end
+    if args.preset and args.preset ~= "" and args.preset ~= "default" then
+        if args.preset == "-" then
+            if not inst.privateServer then return false, "preset '-' butuh link" end
+            inst.preset = "-"
+        elseif type(conf.presets) ~= "table" or not conf.presets[args.preset] then
+            return false, "preset tidak ada"
+        else
+            inst.preset = args.preset
+        end
     end
     local ok, res = Instances.add(inst)
     if not ok then return false, tostring(res) end
@@ -384,9 +439,17 @@ function H.instance_edit(args)
         if not validPackage(args.package) then return false, "package tidak valid" end
         inst.package = args.package
     end
+    if args.link ~= nil and args.link ~= "" and args.link ~= "-" and not validLink(args.link) then
+        return false, "link tidak valid"
+    end
     if args.preset ~= nil then
-        if args.preset == "" or args.preset == "-" then
+        if args.preset == "" or args.preset == "default" then
             inst.preset = nil
+        elseif args.preset == "-" then
+            if not (inst.privateServer or (args.link and args.link ~= "" and args.link ~= "-")) then
+                return false, "preset '-' (link sendiri) butuh link"
+            end
+            inst.preset = "-"
         elseif type(conf.presets) == "table" and conf.presets[args.preset] then
             inst.preset = args.preset
         else

@@ -45,8 +45,10 @@ return {
     },
     -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
     deltaLicensePath = "",
-    -- Preset game (Main Menu 11 / bot): clone dengan preset = "A" join ke presets.A.link.
+    -- Preset game (Main Menu 11 / bot). Clone ikut defaultPreset, kecuali punya preset
+    -- khusus (preset = "B") atau preset = "-" (pakai privateServer sendiri).
     presets = {},
+    defaultPreset = "",
     -- Kontrol dari bot Discord (Main Menu 9 -> 9/10). url / secret kosong = mati.
     remote = {
         url = "",

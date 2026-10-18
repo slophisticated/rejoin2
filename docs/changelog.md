@@ -2,6 +2,9 @@
 
 ## Unreleased / Bug fixes
 
+- **Preset default**: `defaultPreset` di config. Clone tanpa preset sendiri ikut default; `preset = "B"` = khusus; `preset = "-"` = link sendiri (`InstanceManager.presetOf` → key, sumber, link). Menu 11: set default (clone yang ikut default di-rejoin), atur clone (khusus / ikut default / link sendiri), semua clone ikut default; preset pertama otomatis jadi default; preset default tidak bisa dihapus. Menu 2 (tambah/edit clone) nanya preset, bukan link. Migrasi sekali (`--migrate-presets`, update.sh + installer): link tiap clone jadi preset (satu per link, nama dari URL game), yang paling banyak dipakai jadi default. Bot: command `default_set`; `game` tanpa clone = jadikan default + semua ikut; snapshot kirim `defaultPreset`, `presetSource`, `game`, `link` per clone (PRD: `/default`, `/status` per clone + link).
+- **Fix urutan clone berubah setelah config disimpan**: `InstanceManager.load` sekarang urut sesuai key (dulu `pairs()` pada key eksplisit `[1] = ...` bisa mengacak urutan launch & slot jendela).
+
 - **Preset game + kontrol dari bot Discord**:
   - `presets = { A = { name, link } }` + `preset` per clone; link efektif lewat `InstanceManager.gameLink` (fallback `privateServer`), dipakai recovery. Main Menu `11) Preset Game` (tambah/ubah/hapus preset, preset per clone, ganti semua clone sekaligus). Rejoin hasil ganti preset lewat antrian monitor (berurutan, aturan Launch All); dari menu saat engine boot jalan lewat `data/rejoin_request.txt`.
   - `managers/remote.lua`: device POST `/api/sync` tiap `remote.interval` (30 dtk) ke bot, jalankan command (`game`, `restart`, `launch_all`, `preset_set/remove`, `instance_add/edit/remove`, `config_set` hanya untuk key di SCHEMA, `device_rename`, `webhook_use_message`, `webhook_test`, `status`), lalu POST `/api/ack`. curl sebagai user Termux, secret lewat header file 0600, tidak pernah di-log. 5x gagal → baca `remote_url.txt` di repo untuk URL bot baru.

@@ -172,6 +172,12 @@ case "$WL" in
     *)    warn "auto atur jendela belum bisa dinyalakan (${WL:-tidak ada output})" ;;
 esac
 
+# Clones' game links -> presets with a default (Main Menu 11); nothing when presets exist.
+PM=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --migrate-presets </dev/null 2>/dev/null | tail -1)
+case "$PM" in
+    OK:*) ok "preset game: ${PM#OK: }" ;;
+esac
+
 # Heartbeat script into the Delta autoexecute folder (status from inside the game).
 HB=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --install-heartbeat </dev/null 2>/dev/null | tail -1)
 case "$HB" in

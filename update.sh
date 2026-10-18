@@ -53,6 +53,8 @@ migrate_device() {
 }
 run_migrations() {
     migrate window-layout-on --enable-window-layout
+    # Game links -> presets with a default preset (Main Menu 11).
+    migrate presets-default --migrate-presets
     # Back to smallest width 600dp on devices an earlier update moved to 900dp
     # (a value the user picked with SMALLEST_WIDTH=... is kept).
     migrate_device sw600

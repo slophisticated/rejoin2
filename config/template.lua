@@ -82,10 +82,13 @@ return {
     },
     -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
     deltaLicensePath = "",
-    -- Game presets (Main Menu 11 / bot): a clone with `preset = "A"` joins presets.A.link
-    -- instead of its own privateServer. Example:
-    --   presets = { A = { name = "Grow a Garden", link = "https://www.roblox.com/games/..." } },
+    -- Game presets (Main Menu 11 / bot). Clones follow `defaultPreset` unless they have
+    -- their own `preset = "B"` ("khusus"), or `preset = "-"` (use their own
+    -- privateServer). Example:
+    --   presets = { A = { name = "Steal an Egg", link = "https://www.roblox.com/games/..." } },
+    --   defaultPreset = "A",
     presets = {},
+    defaultPreset = "",
     -- Remote control through the Discord bot (docs/discord_bot_prd.md). url or secret
     -- empty = off. Commands run while the monitor / Launch All is running.
     remote = {

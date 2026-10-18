@@ -47,6 +47,7 @@ local configSource = nil
 local dryRun = false
 local doctorFlag = false
 local installHeartbeatFlag = false
+local migratePresetsFlag = false
 local enableWindowLayoutFlag = false
 for i = 1, #args do
     local a = args[i]
@@ -58,6 +59,7 @@ for i = 1, #args do
     if a == "--doctor" then doctorFlag = true end
     if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
+    if a == "--migrate-presets" then migratePresetsFlag = true end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then
@@ -79,7 +81,7 @@ end
 do
     local okC, c = pcall(dofile, "config/config.lua")
     local rootOff = okC and type(c) == "table" and c.useRoot == false
-    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or rootOff) then
+    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or rootOff) then
         local RootCheck = require("core.root_check")
         if not RootCheck.ok() then
             Logger.error("Root belum aktif; rejoin berhenti")
@@ -132,6 +134,20 @@ if doctorFlag then
 end
 
 -- One-shot (installer): switch the floating window grid on in the user's config.
+-- One-shot (update.sh migration): turn the clones' own game links into presets with a
+-- default preset. Does nothing when presets already exist.
+if migratePresetsFlag then
+    local c = Config.get() or {}
+    local msg = InstanceManager.migrateToPresets(c)
+    if not msg then
+        print("OK: preset tidak perlu dipindah")
+        os.exit(0)
+    end
+    local saved, err = Config.save(c)
+    print(saved and ("OK: " .. msg) or ("GAGAL: " .. tostring(err)))
+    os.exit(saved and 0 or 1)
+end
+
 if enableWindowLayoutFlag then
     local c = Config.get() or {}
     c.windowLayout = type(c.windowLayout) == "table" and c.windowLayout or {}

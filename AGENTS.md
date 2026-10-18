@@ -64,7 +64,8 @@ core/                 menu CLI (settings_cli = Menu 3, item 13 jeda launch; webh
 managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack, SCHEMA setting yang boleh
                       diubah bot, handler command (game, preset_set, config_set, ...).
                       Kontrak lengkap: docs/discord_bot_prd.md (bot dibuat terpisah)
-managers/instance.lua InstanceManager.gameLink (preset -> link, fallback privateServer), find, save
+managers/instance.lua presetOf/gameLink (preset khusus -> defaultPreset -> privateServer;
+                      preset "-" = link sendiri), migrateToPresets, find, save, load (urut key)
 utils/json.lua        JSON encode/decode pure Lua (cjson kalau ada)
 managers/monitor.lua  loop monitor + runSequentialLaunch (urutan launch, tunggu heartbeat),
                       antrian rejoin (Monitor.requestRejoin / data/rejoin_request.txt dari menu)
@@ -92,7 +93,7 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
 `relaunchNoLogin`, `noLoginCooldown`, `windowLayout{enabled,columns,gap,overlap}`,
 `heartbeat{enabled,saver{...}}`, `webhook{url,interval,screenshot,events,hideNames,deviceName}`,
 `deltaLicensePath`, `useRoot`, `appAutoExecutePath`, `presets{A={name,link}}`,
-`remote{url,secret,interval}`, `instances{...,preset}`.
+`defaultPreset`, `remote{url,secret,interval}`, `instances{...,preset}`.
 
 ## 4. Aturan teknis wajib (masing-masing dari bug nyata)
 

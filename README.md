@@ -43,7 +43,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Heartbeat Delta.** Script di Autoexecute Delta melaporkan status dari dalam game: in-game atau ke-kick, FPS, ping, dan memori. Kalau ke-kick, langsung rejoin tanpa menunggu.
 - **Mode hemat.** Render 3D mati, FPS dibatasi, grafik paling rendah, suara mati. CPU dan RAM per clone turun banyak.
 - **Auto atur jendela.** Jendela floating clone disusun jadi grid (4 clone → 2×2). Baris atas sedikit lebih tinggi supaya menu Roblox kelihatan sampai *More*. Posisi dicek terus.
-- **Preset game.** Simpan link tiap game sebagai preset (mis. `A` = Grow a Garden, `B` = Fisch). Clone tinggal pilih preset, dan **ganti semua clone ke game lain cukup sekali pilih** (Menu `11`). Rejoin-nya berurutan biar RAM ga numpuk.
+- **Preset game + preset default.** Simpan link tiap game sebagai preset (mis. `A` = Steal an Egg, `B` = Fisch) dan pilih satu jadi **default**. Semua clone ikut default, kecuali yang dikasih preset khusus. **Ganti game semua clone = ganti default sekali** (Menu `11`). Rejoin-nya berurutan biar RAM ga numpuk. Link lama tiap clone otomatis dijadiin preset pas update.
 - **Kontrol dari bot Discord.** Semua setting (preset, pindah game, clone, webhook, nama device, ganti device, jendela, mode hemat, jeda launch) bisa diatur dari slash command dengan balasan ephemeral. Device yang nanya ke bot tiap ±30 detik, jadi ga perlu IP publik dan bebannya cuma 1 request kecil. Bot-nya dibuat terpisah (spesifikasi: [docs/discord_bot_prd.md](docs/discord_bot_prd.md)), sambungin di Menu `9` → `9`/`10`.
 - **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 9).
 - **Cek login.** Akun diverifikasi ke Roblox. Clone yang belum login **tidak pernah di-force-stop**, tapi dibuka lagi kalau tertutup.
@@ -75,7 +75,7 @@ cd ~/rejoin && lua main.lua
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
 | `9` Discord (Webhook & Bot) | URL webhook, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama, URL + secret bot, tes koneksi bot |
 | `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
-| `11` Preset Game | Tambah/ubah/hapus preset, atur preset per clone, ganti semua clone ke satu preset (+ rejoin) |
+| `11` Preset Game | Tambah/ubah/hapus preset, set preset default, atur clone (khusus / ikut default / link sendiri), semua clone ikut default (+ rejoin) |
 | `0` Exit | |
 
 Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.
