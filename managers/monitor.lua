@@ -295,6 +295,9 @@ local function runSequentialLaunch(conf, only)
             local settled = 0
             local limit = hbWorking and joinTimeout or settle
             local sawHeartbeat = false
+            -- RSS dips below minRss while Roblox loads a place, so a low reading is not a
+            -- crash. Only a process that is really gone on two checks in a row counts.
+            local goneChecks = 0
             while active and running and settled < limit do
                 local alive, why = Heartbeat.alive(inst)
                 if alive == true then
@@ -311,7 +314,9 @@ local function runSequentialLaunch(conf, only)
                 settled = settled + step
                 keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
-                if not isActiveNow() then
+                local okR, isUp = pcall(function() return apkManager.isRunning(pkg) end)
+                if okR and isUp == false then goneChecks = goneChecks + 1 else goneChecks = 0 end
+                if goneChecks >= 2 then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
                     sawHeartbeat = true -- not the heartbeat's fault
                     break

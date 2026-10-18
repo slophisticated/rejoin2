@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix Launch All ga nunggu clone berikutnya**: RAM (RSS) Roblox sempet turun di bawah `minRss` pas loading game, dan sekali turun langsung dianggap "dropped while loading" → clone berikutnya langsung dibuka. Sekarang clone baru dianggap mati kalau prosesnya beneran ga ada 2x cek berturut-turut.
+
 - **Main Menu: `1` = Start Monitor, `5` = Launch All + Monitor** (ditukar). Yang paling sering dipake (nyalain monitor + bot lagi tanpa launch ulang clone) jadi nomor 1; menu lain tetap. Engine boot ga berubah (`--auto-launch`).
 
 - **Fix device keliatan offline di bot selama Launch All / rejoin berurutan**: engine sekarang tetep sync ke bot (`Remote.tick`) waktu nunggu clone kebuka / masuk game, jadi device ga dianggap offline dan command bot tetep diterima.
