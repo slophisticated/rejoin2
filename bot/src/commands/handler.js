@@ -58,7 +58,12 @@ export class Handler {
       }
       await this.queue(i, path, values, devices);
     } catch (e) {
-      if (i.isAutocomplete()) { try { await i.respond([]); } catch {} return; }
+      if (i.isAutocomplete()) {
+        // Only the error kind and route go to the log, never option values.
+        this.log(`autocomplete_failed ${interactionPath(i)} ${e?.code || e?.name || 'error'}`);
+        try { await i.respond([]); } catch {}
+        return;
+      }
       const content = `❌ ${escape(e.message || 'Ada kesalahan; coba lagi.').slice(0, 1700)}`;
       try {
         if (i.deferred || i.replied) await i.editReply({ content, components: [], allowedMentions: mentions });
