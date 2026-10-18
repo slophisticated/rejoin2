@@ -140,7 +140,7 @@ function CLI.run()
         elseif choice == "9" or choice == "10" then
             conf.remote = type(conf.remote) == "table" and conf.remote or {}
             if choice == "9" then
-                local v = (prompt("URL bot (mis. https://nama-bot.up.railway.app; '-' = hapus): ") or ""):gsub("%s+", "")
+                local v = (prompt("URL bot (mis. https://nama-bot.onrender.com; '-' = hapus): ") or ""):gsub("%s+", "")
                 if v == "-" then conf.remote.url = ""; save(conf)
                 elseif v == "" then print("Tidak diubah.")
                 elseif v:match("^https://[%w%.%-]+") then conf.remote.url = v:gsub("/+$", ""); save(conf)

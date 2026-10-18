@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **PRD bot untuk Render**: deploy Render free (Root Directory `bot`, health check `/health`, build filter `bot/**`, `render.yaml`), state cuma di memori, slash command didaftarkan otomatis, catatan service tidur + saran ping uptime. Device: timeout sync 20 dtk dan **backoff** (interval x2…x10) kalau bot ga bisa dihubungi, biar monitor ga nunggu timeout tiap siklus.
+
 - **Preset default**: `defaultPreset` di config. Clone tanpa preset sendiri ikut default; `preset = "B"` = khusus; `preset = "-"` = link sendiri (`InstanceManager.presetOf` → key, sumber, link). Menu 11: set default (clone yang ikut default di-rejoin), atur clone (khusus / ikut default / link sendiri), semua clone ikut default; preset pertama otomatis jadi default; preset default tidak bisa dihapus. Menu 2 (tambah/edit clone) nanya preset, bukan link. Migrasi sekali (`--migrate-presets`, update.sh + installer): link tiap clone jadi preset (satu per link, nama dari URL game), yang paling banyak dipakai jadi default. Bot: command `default_set`; `game` tanpa clone = jadikan default + semua ikut; snapshot kirim `defaultPreset`, `presetSource`, `game`, `link` per clone (PRD: `/default`, `/status` per clone + link).
 - **Fix urutan clone berubah setelah config disimpan**: `InstanceManager.load` sekarang urut sesuai key (dulu `pairs()` pada key eksplisit `[1] = ...` bisa mengacak urutan launch & slot jendela).
 

@@ -13,7 +13,7 @@ local JSON = require("utils.json")
 -- Config:
 --   remote = { url = "", secret = "", interval = 30 }   -- url or secret empty = off
 --
--- When the bot moves (new Railway account / URL), set the new URL once in
+-- When the bot moves (new hosting / URL), set the new URL once in
 -- remote_url.txt on GitHub: after 5 failed syncs in a row the device reads it and
 -- switches over by itself.
 
@@ -82,7 +82,7 @@ local function request(path, payload)
     if not fb then os.remove(hdr); return 0, "" end
     fb:write(JSON.encode(payload))
     fb:close()
-    local cmd = "curl -s -m 15 -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(body)
+    local cmd = "curl -s -m 20 -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(body)
         .. " -w '\\n%{http_code}' " .. shq(base .. path) .. " </dev/null 2>/dev/null"
     local p = io.popen(cmd)
     local out = p and p:read("*a") or ""
@@ -594,7 +594,10 @@ end
 function Remote.tick(instances, ctx)
     if not Remote.enabled() then return false end
     local now = os.time()
-    if now - lastSync < interval() then return false end
+    -- Bot unreachable / asleep: back off (x2, x3 … up to x10) so a dead bot does not
+    -- stall the monitor with curl timeouts every cycle.
+    local wait = interval() * math.min(failures + 1, 10)
+    if now - lastSync < wait then return false end
     lastSync = now
     Remote.sync(instances, ctx)
     return true
