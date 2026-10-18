@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Inject Cookie: kemungkinan penyebab kalau tetep logout**: abis `[VERDICT]`, menu nampilin penjelasan dari hasil probe (`CookieInjector.hints`): app ga buka cookie store WebView (versi Roblox beda → bandingin `versionName`), cookie dihapus app (Roblox nolak sesi / proteksi lokasi → cek 7 > 3, 401 = revoke), atau cookie dibaca tapi tetep logout (proteksi lokasi). Ditambah negara IP device (`ipinfo.io/country`, curl tanpa su & tanpa token) + tips ambil cookie dari negara/jaringan yang sama. `probeToken` balikin `info` sebagai nilai ke-3.
+
 - **URL bot otomatis dari `remote_url.txt`**: device yang secret bot-nya diisi tapi URL bot kosong ngambil URL dari `remote_url.txt` di repo (maks sekali per 10 menit, `Remote.tick`; `Tes koneksi bot` langsung ngecek). Tiap device cukup diisi secret (Menu 9 → 10). URL yang diisi manual tetap dipakai; fallback 5x gagal tetap jalan. Menu 9 nampilin `kosong = ambil dari remote_url.txt`.
 
 - **Bot: screenshot + pilih banyak clone + sync cepat**: command `screenshot` (device `screencap` → `POST /api/upload/<id>` PNG mentah → ack `data.uploaded`; bot menaruh gambar di balasan ephemeral). `clones` boleh teks dipisah koma (`"Clone1,Clone3"`) di `restart` / `game`. Setelah menerima command, device sync tiap 5 dtk selama 2 menit (mode cepat). `Webhook.captureScreen()` dipakai bersama. PRD: §4.2b upload, `/screenshot`, opsi `clones` multi-pilih.
