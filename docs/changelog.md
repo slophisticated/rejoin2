@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: pilih device dulu**: command yang opsinya diisi dari data device (preset, clone, clones, script, key setting) sekarang wajib `device` dan `device` jadi opsi pertama, biar autocomplete clone/preset langsung keluar sesuai device yang dipilih.
+
 - **Fix nama device di bot ga ikut ganti**: engine yang lagi jalan sekarang ngecek `config/config.lua` tiap siklus dan langsung pakai setting webhook/bot dari Menu 9 (nama device, URL, secret) tanpa restart. Device ngirim `deviceId` (acak, `data/device_id.txt`); bot gabungin entri nama lama ke nama baru (antrian ikut) setelah nama lama diam ±1 menit, dan nandain ⚠️ di `/devices` kalau 2 device online pakai nama sama (mis. nama kosong = model HP).
 
 - **Bot: device terpisah per owner** (`OWNERS=idDiscord:secret,...`): secret yang dipakai device menentukan akunnya; `/devices`, `/status`, autocomplete, `device:all` dan semua command cuma menyentuh device milik pemanggil, nama device boleh sama antar akun, ACK/upload dari akun lain ditolak. `OWNER_IDS` + `DEVICE_SECRET` tetap jalan. State persist versi 2 (versi 1 tetap kebaca).

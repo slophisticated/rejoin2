@@ -11,7 +11,10 @@ const name = s('name', true);
 const key = s('key', true, true);
 const script = s('name', true, true);
 const rejoin = b('rejoin');
-const route = (description, options = [], extra = {}) => ({ description, options: [...options, device], ...extra });
+// Options autocompleted from a device's snapshot (preset, clone, script, setting key) need
+// the device picked first; Discord lists required options first, so device leads there.
+const route = (description, options = [], extra = {}) => ({ description,
+  options: options.some(o => o.autocomplete) ? [{ ...device, required: true }, ...options] : [...options, device], ...extra });
 
 export const routes = {
   status: route('Lihat status clone dari snapshot terakhir.'),
@@ -47,7 +50,7 @@ export const routes = {
 };
 
 const descriptions = {
-  device: 'Nama device; kosong kalau cuma satu, all kalau didukung.',
+  device: 'Pilih device dulu (all = semua device kalau didukung).',
   preset: 'Kode preset game.', clones: 'Nama, ID, atau package; pisahkan dengan koma. all = semua.',
   clone: 'Nama, ID, atau package clone.', rejoin: 'Rejoin setelah perubahan?',
   key: 'Kode preset atau key setting.', value: 'Nilai baru; bool: true/false/on/off/ya/tidak/1/0.',
