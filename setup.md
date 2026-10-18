@@ -1,5 +1,19 @@
 ## 📝 Rejoin Installation Guide
 
+## 🤖 Bot Discord (opsional)
+
+Kode bot ada di **[bot/](bot/README.md)** dan blueprint Render ada di
+**[render.yaml](render.yaml)**. Ikuti panduan bot untuk membuat aplikasi Discord,
+invite, mengisi env dan deploy. Setelah URL hosting tersedia, isi `remote_url.txt`
+lalu push ke `main`; tiap device cukup memakai secret yang sama (menu `9` → `10`).
+Jalankan monitor supaya command diproses. Node/npm hanya dipasang di hosting bot;
+installer, boot, dan auto-update device tetap dipakai seperti biasa.
+
+Balasan bot seluruhnya ephemeral dan hanya untuk owner yang didaftarkan. Mulai
+dengan `/devices`, `/status`, lalu `/screenshot`. Banyak device Redfinger boleh
+berbagi IP: pembatas 60 request/menit per IP hanya berlaku untuk auth gagal.
+Command yang timeout tetap antre dan dijalankan ketika device online lagi.
+
 ## ⚡ Step 1: Root, Termux & Termux:Boot
 1. **Root** harus aktif (**Magisk** / **KernelSU**). Buka **Superuser** → pastikan **Termux** diizinkan.
 2. Install **[Termux](https://f-droid.org/packages/com.termux/)** dan **[Termux:Boot](https://f-droid.org/packages/com.termux.boot/)** dari **sumber yang sama** (dua-duanya F-Droid, atau dua-duanya GitHub).

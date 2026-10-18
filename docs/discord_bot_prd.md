@@ -50,7 +50,7 @@ buat bypass key system), upload file bebas ke device (APK / file apa pun selain 
 
 ## 3. Stack & deploy
 
-- Node.js 20+, `discord.js` v14, server HTTP pakai `node:http` (tanpa framework, tanpa
+- Implementasi bot: Node.js 24, `discord.js` v14, server HTTP pakai `node:http` (tanpa framework, tanpa
   database). Satu proses: bot gateway + HTTP API pada `PORT`.
 - Penyimpanan: **memori saja** (Render free tidak punya disk persisten). Opsional
   `DATA_DIR` → file JSON `state.json` (tulis atomik, debounce ±2 dtk) kalau nanti pindah
@@ -108,7 +108,7 @@ buat bypass key system), upload file bebas ke device (APK / file apa pun selain 
       buildCommand: npm ci
       startCommand: node src/index.js
       healthCheckPath: /health
-      autoDeploy: true
+      autoDeployTrigger: commit
       buildFilter:
         paths:
           - bot/**
@@ -416,8 +416,12 @@ Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari setti
 
 - Hanya `OWNER_IDS`. Cek di setiap interaction (termasuk autocomplete & tombol).
 - `DEVICE_SECRET` dibandingkan timing-safe; jangan pernah di-log / ditampilkan.
-- Rate limit API: maks 1 sync / 4 dtk per device (lebih → 429; device mode cepat sync
-  tiap 5 dtk), 60 request/menit per IP. Upload maks 8 MB, hanya untuk id command
+- Rate limit API untuk secret valid: maks 1 sync / 4 dtk per device (lebih → 429;
+  mode cepat sync tiap 5 dtk). ACK dan upload valid tidak memakai pembatas sync.
+  Batas 60 request/menit per IP **hanya menghitung request gagal auth** (secret salah /
+  Bearer kosong); kegagalan berikutnya → 429. Request dengan secret valid tetap
+  diterima meskipun IP terkena pembatas auth gagal, supaya banyak device Redfinger
+  yang berbagi IP tidak saling memblokir. Upload maks 8 MB, hanya untuk id command
   `screenshot` yang sedang menunggu.
 - Screenshot berisi layar semua clone (termasuk username) → hanya dikirim ephemeral ke
   owner, tidak disimpan di disk, tidak di-log.

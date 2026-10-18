@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: rejoin-bot
+    runtime: node
+    plan: free
+    branch: main
+    rootDir: bot
+    buildCommand: npm ci
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - bot/**
+    envVars:
+      - key: NODE_VERSION
+        value: "24.20.0"
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: APP_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: OWNER_IDS
+        sync: false
+      - key: DEVICE_SECRET
+        generateValue: true

@@ -2,6 +2,16 @@
 
 ## Unreleased / Bug fixes
 
+- **Rejoin Control Bot siap deploy**: implementasi Node.js 24 + discord.js v14 di
+  `bot/`, blueprint Render Free di root, registrasi slash command guild otomatis,
+  seluruh command PRD dengan balasan ephemeral owner-only, screenshot dan attachment
+  script, config dari schema device, antrean FIFO/resend/timeout, serta persistence
+  opsional. Rename memindahkan snapshot/antrean dan menerima ACK batch lama.
+  Limit IP hanya menghitung auth gagal (60/menit); secret valid dibatasi satu sync
+  per empat detik per device sehingga shared IP Redfinger tetap jalan. Disertai
+  tes HTTP localhost + mock Discord dan panduan deploy. Tidak mengubah engine Lua,
+  installer, updater, atau boot device.
+
 - **Inject Cookie: kemungkinan penyebab kalau tetep logout**: abis `[VERDICT]`, menu nampilin penjelasan dari hasil probe (`CookieInjector.hints`): app ga buka cookie store WebView (versi Roblox beda → bandingin `versionName`), cookie dihapus app (Roblox nolak sesi / proteksi lokasi → cek 7 > 3, 401 = revoke), atau cookie dibaca tapi tetep logout (proteksi lokasi). Ditambah negara IP device (`ipinfo.io/country`, curl tanpa su & tanpa token) + tips ambil cookie dari negara/jaringan yang sama. `probeToken` balikin `info` sebagai nilai ke-3.
 
 - **URL bot otomatis dari `remote_url.txt`**: device yang secret bot-nya diisi tapi URL bot kosong ngambil URL dari `remote_url.txt` di repo (maks sekali per 10 menit, `Remote.tick`; `Tes koneksi bot` langsung ngecek). Tiap device cukup diisi secret (Menu 9 → 10). URL yang diisi manual tetap dipakai; fallback 5x gagal tetap jalan. Menu 9 nampilin `kosong = ambil dari remote_url.txt`.

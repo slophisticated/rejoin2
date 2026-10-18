@@ -7,3 +7,15 @@ data/webhook_msg.txt
 data/clone_pids.txt
 data/delta_license_path.txt
 data/rejoin_request.txt
+
+# Discord bot dependencies, credentials and local runtime state.
+node_modules/
+.env
+.env.*
+!.env.example
+bot/state/
+bot/.state/
+bot/data/
+state.json
+state.json.tmp
+bot/coverage/

@@ -1,0 +1,13 @@
+{
+  "name": "rejoin-control-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.17.0 <25" },
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node scripts/register.js",
+    "test": "node --test"
+  },
+  "dependencies": { "discord.js": "14.27.0" }
+}
