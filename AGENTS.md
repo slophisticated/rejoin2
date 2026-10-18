@@ -64,6 +64,7 @@ core/                 menu CLI (settings_cli = Menu 3, item 13 jeda launch; webh
 managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack, SCHEMA setting yang boleh
                       diubah bot, handler command (game, preset_set, config_set, ...).
                       Kontrak lengkap: docs/discord_bot_prd.md (bot dibuat terpisah)
+                      URL kosong + secret ada -> ambil URL dari remote_url.txt (repo)
 managers/instance.lua presetOf/gameLink (preset khusus -> defaultPreset -> privateServer;
                       preset "-" = link sendiri), migrateToPresets, find, save, load (urut key)
 utils/json.lua        JSON encode/decode pure Lua (cjson kalau ada)

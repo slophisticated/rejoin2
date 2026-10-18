@@ -41,7 +41,7 @@ function CLI.run()
         print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         local rm = type(conf.remote) == "table" and conf.remote or {}
         print("  -- Bot Discord (kontrol jarak jauh) --")
-        print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong") .. "]")
+        print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong = ambil dari remote_url.txt") .. "]")
         print(" 10) Secret bot            [" .. ((type(rm.secret) == "string" and rm.secret ~= "") and "diset" or "kosong") .. "]")
         print(" 11) Tes koneksi bot")
         print("  0) Kembali")

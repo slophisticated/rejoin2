@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **URL bot otomatis dari `remote_url.txt`**: device yang secret bot-nya diisi tapi URL bot kosong ngambil URL dari `remote_url.txt` di repo (maks sekali per 10 menit, `Remote.tick`; `Tes koneksi bot` langsung ngecek). Tiap device cukup diisi secret (Menu 9 → 10). URL yang diisi manual tetap dipakai; fallback 5x gagal tetap jalan. Menu 9 nampilin `kosong = ambil dari remote_url.txt`.
+
 - **Bot: screenshot + pilih banyak clone + sync cepat**: command `screenshot` (device `screencap` → `POST /api/upload/<id>` PNG mentah → ack `data.uploaded`; bot menaruh gambar di balasan ephemeral). `clones` boleh teks dipisah koma (`"Clone1,Clone3"`) di `restart` / `game`. Setelah menerima command, device sync tiap 5 dtk selama 2 menit (mode cepat). `Webhook.captureScreen()` dipakai bersama. PRD: §4.2b upload, `/screenshot`, opsi `clones` multi-pilih.
 
 - **Script Manager (Scripts + Autoexecute)**: script disimpan di folder **Scripts** Delta (`scriptsPath`, "" = `Scripts`/`scripts` di sebelah Autoexecute). Autoexecute cuma diisi lewat **copy dari Scripts** (`AutoExecute.autoAdd`) dan dikosongkan dengan `autoRemove`; ganti isi script di Scripts ikut memperbarui copy di Autoexecute. Nama divalidasi (`[A-Za-z0-9_.-]`, maks 64), isi maks 200 KB, `rejoin_heartbeat.lua` dilindungi. Menu 6 jadi "Script Manager" (tambah/ganti, dari loadstring URL, hapus, masukkan/keluarkan Autoexecute, edit, tawaran rejoin). Bot: command `script_add` (content / url), `script_remove`, `script_get`, `auto_add`, `auto_remove`; snapshot kirim `scripts` + `autoexecute`; PRD: `/script` + `/autoexec`.

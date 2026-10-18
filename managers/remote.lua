@@ -13,9 +13,9 @@ local JSON = require("utils.json")
 -- Config:
 --   remote = { url = "", secret = "", interval = 30 }   -- url or secret empty = off
 --
--- When the bot moves (new hosting / URL), set the new URL once in
--- remote_url.txt on GitHub: after 5 failed syncs in a row the device reads it and
--- switches over by itself.
+-- The bot URL can live in remote_url.txt on GitHub: a device with a secret but no
+-- url takes it from there (so only the secret has to be typed per device), and after
+-- 5 failed syncs in a row the device re-reads it, so moving the bot = edit that file.
 
 local Remote = {}
 
@@ -627,8 +627,10 @@ function Remote.run(cmd, ctx, instances)
 end
 
 -- Sync -------------------------------------------------------------------------------
-local function fallbackUrl()
-    if os.time() - lastFallback < 600 then return end
+-- Read the bot URL from remote_url.txt on GitHub and store it when it differs.
+-- Throttled to once per 10 minutes unless forced. Returns the URL found (or nil).
+local function fetchRepoUrl(force)
+    if not force and os.time() - lastFallback < 600 then return end
     lastFallback = os.time()
     local p = io.popen("curl -s -m 10 " .. shq(REMOTE_URL_FILE) .. " </dev/null 2>/dev/null")
     local text = p and p:read("*a") or ""
@@ -643,6 +645,17 @@ local function fallbackUrl()
         failures = 0
         Logger.info("Remote: URL bot pindah ke " .. url .. " (remote_url.txt)")
     end
+    return url
+end
+
+local function hasSecret()
+    local r = section()
+    return type(r.secret) == "string" and r.secret ~= ""
+end
+
+local function hasUrl()
+    local r = section()
+    return type(r.url) == "string" and r.url:match("^https?://") ~= nil
 end
 
 -- One sync: send the snapshot, run the commands, ack each. Returns the HTTP code.
@@ -655,7 +668,7 @@ function Remote.sync(instances, ctx)
     if code < 200 or code >= 300 then
         failures = failures + 1
         warnOnce("http" .. code, "sync gagal (HTTP " .. code .. ")")
-        if failures >= 5 then pcall(fallbackUrl) end
+        if failures >= 5 then pcall(fetchRepoUrl) end
         return code
     end
     failures = 0
@@ -684,6 +697,12 @@ end
 
 -- Called once per monitor cycle.
 function Remote.tick(instances, ctx)
+    -- Secret set but no URL yet: take the URL from remote_url.txt.
+    if hasSecret() and not hasUrl() then
+        local okF, url = pcall(fetchRepoUrl)
+        if okF and url then warned.nourl = nil
+        elseif not hasUrl() then warnOnce("nourl", "URL bot kosong dan remote_url.txt belum berisi URL") end
+    end
     if not Remote.enabled() then return false end
     local now = os.time()
     -- Bot unreachable / asleep: back off (x2, x3 … up to x10) so a dead bot does not
@@ -698,7 +717,11 @@ end
 
 -- Menu "tes koneksi": one sync without running anything heavy. Returns ok, message.
 function Remote.test()
-    if not Remote.enabled() then return false, "URL bot / secret belum diisi" end
+    if not hasSecret() then return false, "secret bot belum diisi" end
+    if not hasUrl() then pcall(fetchRepoUrl, true) end
+    if not hasUrl() then
+        return false, "URL bot kosong (isi di sini atau taruh URL di remote_url.txt repo)"
+    end
     local Instances = require("managers.instance")
     local code = Remote.sync(Instances.getAll(), { requestRejoin = function() end })
     if code >= 200 and code < 300 then return true, "terhubung (HTTP " .. code .. ")" end

@@ -233,11 +233,13 @@ Dipakai command `screenshot`: device mengunggah gambar **sebelum** mengirim ack.
 `200 {"ok":true,"devices":N}` tanpa auth (health check Render + monitor uptime). Harus
 cepat (tanpa memanggil Discord). Jangan bocorkan nama device / data lain.
 
-### 4.4 Pindah URL (ganti hosting / service baru)
-Device yang gagal sync 5x berturut-turut membaca
+### 4.4 URL dari repo + pindah URL (ganti hosting / service baru)
+Device yang `remote.secret`-nya diisi tapi `remote.url` kosong mengambil URL dari file
+yang sama (maks sekali per 10 menit), jadi tiap device cukup diisi secret.
+Device yang gagal sync 5x berturut-turut juga membaca
 `https://raw.githubusercontent.com/slophisticated/rejoin2/main/remote_url.txt`
 (URL https pertama di file itu) dan pindah sendiri. README bot harus menjelaskan:
-setelah deploy di akun/URL baru → edit `remote_url.txt` di repo `rejoin2` → push.
+setelah deploy pertama / di akun/URL baru → edit `remote_url.txt` di repo `rejoin2` → push.
 `DEVICE_SECRET` harus tetap sama.
 
 ## 5. Command yang dikenal device (`type` + `args`)
