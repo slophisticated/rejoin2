@@ -195,6 +195,12 @@ local function checkWindow(inst)
     end
 end
 
+-- A Launch All / sequential rejoin can wait minutes per clone; keep syncing with the
+-- bot meanwhile so the device is not shown offline (Remote.tick has its own interval).
+local function keepRemoteAlive()
+    pcall(Remote.tick, instanceManager.getAll(), { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end })
+end
+
 local function runSequentialLaunch(conf, only)
     -- Logged-in clones first (each waited for until in game), clones without an account
     -- last; within each group the Menu 2 order. Unknown login counts as logged in.
@@ -256,6 +262,7 @@ local function runSequentialLaunch(conf, only)
                 -- the same instant can stop this one's floating window from appearing.
                 Logger.info(string.format("Monitor: %s not logged in; short pause %ds", name, emptyDelay))
                 Timer.sleepInterruptible(emptyDelay, stopped)
+                keepRemoteAlive()
                 launched = false
             end
 
@@ -278,6 +285,7 @@ local function runSequentialLaunch(conf, only)
                 end
                 Timer.sleepInterruptible(poll, stopped)
                 waited = waited + poll -- bounded; sleepInterruptible may stop earlier on Ctrl+C
+                keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
             end
 
@@ -301,6 +309,7 @@ local function runSequentialLaunch(conf, only)
                 local step = math.min(poll, limit - settled)
                 Timer.sleepInterruptible(step, stopped)
                 settled = settled + step
+                keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
                 if not isActiveNow() then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))

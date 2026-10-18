@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix device keliatan offline di bot selama Launch All / rejoin berurutan**: engine sekarang tetep sync ke bot (`Remote.tick`) waktu nunggu clone kebuka / masuk game, jadi device ga dianggap offline dan command bot tetep diterima.
+
 - **Logout akun clone** (Menu 7 → 4, bot `/clone logout clones:...` dengan konfirmasi): `CookieInjector.logout` force-stop clone (cuma kalau masih login), backup tiap Cookies DB lalu hapus baris `.ROBLOSECURITY` (cookie lain tetap). Engine dikasih tau lewat `data/auth_forget.txt` / `Auth.forget` biar langsung nganggep clone itu belum login dan ga nge-rejoin. Session ga di-revoke di Roblox, jadi cookie-nya bisa di-inject lagi. Menu 7 sekarang `0) Kembali`.
 
 - **Bot: pilih device dulu**: command yang opsinya diisi dari data device (preset, clone, clones, script, key setting) sekarang wajib `device` dan `device` jadi opsi pertama, biar autocomplete clone/preset langsung keluar sesuai device yang dipilih.
