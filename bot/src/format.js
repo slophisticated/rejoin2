@@ -21,7 +21,7 @@ export function chunks(lines, limit = 1800) {
 export function age(store, d) { return `${Math.max(0, Math.floor((store.now() - d.lastSeen) / 1000))} dtk lalu`; }
 
 export function deviceLines(store) {
-  return [...store.devices.values()].map(d => `${store.online(d) ? '🟢' : '🔴'} **${escape(d.name)}** · v ${escape(d.snapshot.version)} · ${store.online(d) ? 'online' : 'offline'} (${age(store, d)}) · ${d.snapshot.instances.filter(i => i.status === 'ingame').length}/${d.snapshot.instances.length} clone ingame`);
+  return [...store.devices.values()].map(d => `${store.online(d) ? '🟢' : '🔴'} **${escape(d.name)}** · v ${escape(d.snapshot.version)} · ${store.online(d) ? 'online' : 'offline'} (${age(store, d)}) · ${d.snapshot.instances.filter(i => i.status === 'ingame').length}/${d.snapshot.instances.length} clone ingame${d.clashUntil > store.now() ? ' · ⚠️ 2 device pakai nama ini, ganti nama di Menu 9 → 7' : ''}`);
 }
 
 export function statusPages(store, d) {

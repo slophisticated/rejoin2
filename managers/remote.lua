@@ -23,6 +23,8 @@ local Remote = {}
 local REMOTE_URL_FILE = "https://raw.githubusercontent.com/slophisticated/rejoin2/main/remote_url.txt"
 local PROTOCOL = 1
 
+local DEVICE_ID_FILE = "data/device_id.txt"
+local deviceIdCache = nil
 local lastSync = 0
 local fastUntil = 0      -- poll every FAST_INTERVAL s until then (right after a command)
 local FAST_INTERVAL = 5
@@ -53,6 +55,29 @@ end
 local function interval()
     local r = section()
     return math.max(10, math.floor(tonumber(r.interval) or 30))
+end
+
+-- Random id generated once per device (data/ is kept on update). Lets the bot follow a
+-- device renamed from Menu 9 instead of listing the old name as a second device.
+local function deviceId()
+    if deviceIdCache then return deviceIdCache end
+    local f = io.open(DEVICE_ID_FILE, "r")
+    local id = f and f:read("*l") or nil
+    if f then f:close() end
+    if not (id and id:match("^%x+$") and #id >= 16 and #id <= 64) then
+        local r = io.open("/dev/urandom", "rb")
+        local b = r and r:read(8) or nil
+        if r then r:close() end
+        if b and #b == 8 then
+            id = b:gsub(".", function(c) return string.format("%02x", c:byte()) end)
+        else
+            id = string.format("%08x%08x", math.random(0, 0x7fffffff), os.time() % 0x7fffffff)
+        end
+        local w = io.open(DEVICE_ID_FILE, "w")
+        if w then w:write(id, "\n"); w:close() end
+    end
+    deviceIdCache = id
+    return id
 end
 
 local function version()
@@ -264,6 +289,7 @@ local function snapshot(instances)
         scripts = scripts,
         autoexecute = auto,
         device = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "-",
+        deviceId = deviceId(),
         version = version(),
         time = os.time(),
         presets = presets,

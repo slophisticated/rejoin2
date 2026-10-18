@@ -15,6 +15,7 @@ export function validateSnapshot(b) {
   if (!b.instances.every(i => object(i) && (typeof i.id === 'number' || typeof i.id === 'string')
     && typeof i.name === 'string' && typeof i.package === 'string' && typeof i.status === 'string')) throw fail(400, 'invalid_instances');
   if (!b.settings.every(s => object(s) && typeof s.key === 'string' && ['int', 'bool', 'string'].includes(s.type))) throw fail(400, 'invalid_settings');
+  if (b.deviceId != null && (typeof b.deviceId !== 'string' || !/^[0-9a-f]{16,64}$/i.test(b.deviceId))) throw fail(400, 'invalid_device_id');
   for (const key of ['scripts', 'autoexecute']) {
     if (b[key] != null && (!Array.isArray(b[key]) || !b[key].every(s => object(s) && typeof s.name === 'string'))) throw fail(400, 'invalid_scripts');
   }

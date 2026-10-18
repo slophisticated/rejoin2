@@ -92,11 +92,15 @@ Railway tidak menidurkan service, jadi tidak perlu monitor uptime. **Pindah akun
    push ke `main`. Device mengambil **URL HTTPS pertama**: jangan menaruh URL contoh
    di komentar sebelum URL yang benar.
 2. Termux menu `9` → `10`: isi secret yang sama dengan `DEVICE_SECRET`.
-3. URL device boleh kosong agar diambil dari repo, atau diisi manual di `9` → `9`.
+3. Nama device = Menu `9` → `7` (sama dengan nama di webhook). **Isi unik per device**;
+   kalau kosong dipakai model HP yang biasanya sama di semua Redfinger, dan `/devices`
+   menandai ⚠️ kalau dua device online pakai nama sama. Ganti nama dari menu langsung
+   dipakai engine yang jalan; entri nama lama di `/devices` hilang sendiri ±1 menit.
+4. URL device boleh kosong agar diambil dari repo, atau diisi manual di `9` → `9`.
    URL yang diisi manual (mis. bot milik sendiri) **tidak pernah diganti** oleh
    `remote_url.txt`; isi `-` untuk kembali ikut repo.
-4. `9` → `11`: tes koneksi; jalankan monitor (menu `1` atau monitor saja).
-5. Device terlihat di `/devices` pada sync berikutnya, default sekitar 30 detik.
+5. `9` → `11`: tes koneksi; jalankan monitor (menu `1` atau monitor saja).
+6. Device terlihat di `/devices` pada sync berikutnya, default sekitar 30 detik.
 
 Command diproses hanya saat monitor aktif. Setelah menerima command, device polling
 tiap lima detik selama dua menit. Jika hosting pindah, ubah URL di `remote_url.txt`

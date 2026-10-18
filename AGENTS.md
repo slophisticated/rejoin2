@@ -71,7 +71,8 @@ managers/instance.lua presetOf/gameLink (preset khusus -> defaultPreset -> priva
                       preset "-" = link sendiri), migrateToPresets, find, save, load (urut key)
 utils/json.lua        JSON encode/decode pure Lua (cjson kalau ada)
 managers/monitor.lua  loop monitor + runSequentialLaunch (urutan launch, tunggu heartbeat),
-                      antrian rejoin (Monitor.requestRejoin / data/rejoin_request.txt dari menu)
+                      antrian rejoin (Monitor.requestRejoin / data/rejoin_request.txt dari menu),
+                      syncMenuSettings: setting webhook/remote dari Menu 9 dipakai tanpa restart
 managers/recovery.lua launchAndJoin (force-stop -> window layout -> deep link), reopenNoLogin
 managers/status.lua   klasifikasi status + dashboard
 managers/heartbeat.lua install script ke Autoexecute, baca hb file (alive / isUp)

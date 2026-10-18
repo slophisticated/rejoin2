@@ -151,6 +151,7 @@ Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):
 {
   "protocol": 1,
   "device": "RF-07",
+  "deviceId": "de66d5e6b3038d94",
   "version": "f6aac49",
   "time": 1760780000,
   "presets": { "A": { "name": "Steal an Egg", "link": "https://www.roblox.com/games/..." },
@@ -178,7 +179,10 @@ Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):
 }
 ```
 - `device` = nama device (diatur dari `device_rename`; default model HP). **Kunci
-  identitas device** di bot. Kalau nama berubah, device lama otomatis jadi "offline"
+  identitas device** di bot. `deviceId` (hex acak, dibuat sekali per device di
+  `data/device_id.txt`): kalau nama baru muncul dengan `deviceId` sama dan nama lama sudah
+  diam ≥2× interval, entri lama digabung ke nama baru (antrian ikut pindah); dua device
+  online dengan nama sama tapi `deviceId` beda ditandai ⚠️ di `/devices`. Kalau nama berubah, device lama otomatis jadi "offline"
   (tidak sync lagi) dan entri baru muncul — bot boleh menggabungkan kalau command
   `device_rename` yang menyebabkannya (lihat §5.4).
 - **Preset default**: tiap clone ikut `defaultPreset`, kecuali punya preset sendiri.

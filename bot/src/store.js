@@ -7,6 +7,8 @@ import { join } from 'node:path';
 // setup uses account '' so its keys stay the plain device name.
 export const keyOf = (account, name) => account ? `${account}\u0000${name}` : name;
 
+const intervalOf = d => Number(d?.snapshot.settings.find(s => s.key === 'remote.interval')?.value) || 30;
+
 export const renameTarget = (type, args) => type === 'device_rename' ? args.name
   : type === 'config_set' && args.key === 'webhook.deviceName' ? args.value : null;
 
@@ -85,8 +87,26 @@ export class Store extends EventEmitter {
 
   online(device) {
     const d = typeof device === 'string' ? this.devices.get(device) : device;
-    const interval = Number(d?.snapshot.settings.find(s => s.key === 'remote.interval')?.value) || 30;
-    return Boolean(d && this.now() - d.lastSeen <= interval * 3000);
+    return Boolean(d && this.now() - d.lastSeen <= intervalOf(d) * 3000);
+  }
+
+  // A device renamed on the device itself (Menu 9) syncs under a new name with the same
+  // deviceId: fold the old entry into the new one once the old name has gone quiet
+  // (2 intervals), so copies of one device that share an id never steal each other.
+  absorbRenamed(snapshot, account, key, now) {
+    const id = snapshot.deviceId;
+    if (typeof id !== 'string' || !id) return;
+    for (const d of [...this.devices.values()]) {
+      if (d.account !== account || d.key === key || d.snapshot.deviceId !== id) continue;
+      if (now - d.lastSeen < intervalOf(d) * 2000) continue;
+      this.devices.delete(d.key);
+      for (const c of this.commands.values()) {
+        if (c.device !== d.key) continue;
+        c.device = key;
+        c.name = snapshot.device;
+        if (!c.acceptedDevices.includes(key)) c.acceptedDevices.push(key);
+      }
+    }
   }
 
   // Devices of one account, keyed by their plain name (what commands and autocomplete show).
@@ -125,7 +145,11 @@ export class Store extends EventEmitter {
     const key = keyOf(account, snapshot.device);
     const old = this.devices.get(key);
     if (old?.lastSync != null && now - old.lastSync < 4000) return null;
-    this.devices.set(key, { key, account, name: snapshot.device, snapshot: structuredClone(snapshot), lastSeen: now, lastSync: now });
+    this.absorbRenamed(snapshot, account, key, now);
+    // Two live devices reporting the same name (e.g. both left on the phone model): flag it.
+    const clash = old && this.online(old) && old.snapshot.deviceId && snapshot.deviceId && old.snapshot.deviceId !== snapshot.deviceId
+      ? now + intervalOf(old) * 3000 : (old?.clashUntil > now ? old.clashUntil : 0);
+    this.devices.set(key, { key, account, name: snapshot.device, snapshot: structuredClone(snapshot), lastSeen: now, lastSync: now, clashUntil: clash });
     const commands = [];
     for (const c of this.commands.values()) {
       if (c.device !== key || c.state === 'awaiting_upload') continue;

@@ -385,7 +385,44 @@ local function runRejoinQueue(conf)
     Status.setProgress(nil)
 end
 
+-- Menu 9 (webhook / bot: device name, URLs, secret) runs in another process and only
+-- writes config/config.lua. Copy those sections into the running engine when the file
+-- changes, so a renamed device or a new bot secret applies without a restart.
+local CONFIG_FILE = "config/config.lua"
+local configText = nil
+
+local function readConfigText()
+    local f = io.open(CONFIG_FILE, "r")
+    if not f then return nil end
+    local text = f:read("*a")
+    f:close()
+    return text
+end
+
+local function sameFields(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, v in pairs(a) do if b[k] ~= v then return false end end
+    for k, v in pairs(b) do if a[k] ~= v then return false end end
+    return true
+end
+
+local function syncMenuSettings()
+    local text = readConfigText()
+    if not text or text == configText then return end
+    configText = text
+    local chunk = load(text, "config", "t", {})
+    local ok, fresh = pcall(chunk or error)
+    if not ok or type(fresh) ~= "table" then return end
+    if type(fresh.remote) == "table" then monitorConf.remote = fresh.remote end
+    if type(fresh.webhook) == "table" and not sameFields(fresh.webhook, monitorConf.webhook) then
+        monitorConf.webhook = fresh.webhook
+        Webhook.configure(monitorConf)
+        Logger.info("Monitor: setting webhook / nama device dari menu dipakai")
+    end
+end
+
 function Monitor.start(conf, opts)
+    configText = readConfigText()
     interval = conf and conf.monitorInterval or interval
     monitorConf = type(conf) == "table" and conf or {}
     Webhook.configure(monitorConf)
@@ -563,6 +600,7 @@ function Monitor.start(conf, opts)
         -- Print the per-instance status table for the user to see.
         Status.setProgress(nil)
         Status.printSummary(instances)
+        pcall(syncMenuSettings)
         Webhook.tick(instances)
         pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin })
         if running then pcall(runRejoinQueue, conf) end
