@@ -545,8 +545,10 @@ function CookieInjector.probeToken(instance, token)
     -- post-launch = the app never touched this cookie store -> it can't be a login issue
     -- in the DB, it is happening before the store is even read.
     lines[#lines + 1] = "Live store (apakah WebView app benar-benar membuka cookie store):"
+    local walAny, walNone = false, (dbs ~= nil and #dbs > 0)
     for _, db in ipairs(dbs or {}) do
         local walPath = db .. "-wal"
+        if existsFile(walPath) then walAny = true; walNone = false end
         local walSize = existsFile(walPath) and exec("wc -c < " .. quote(walPath) .. " 2>/dev/null") or "0"
         walSize = tostring(walSize or "0"):gsub("%s+", "")
         local state = existsFile(walPath)
@@ -588,7 +590,48 @@ function CookieInjector.probeToken(instance, token)
     else
         verdict = "NEED_MANUAL_CHECK -> state tak terduga; tutup app lalu cek menu 7>3."
     end
-    return table.concat(lines, "\n"), verdict
+    local info = { rotated = seenRotated, same = seenSame, missing = seenMissing,
+        walAny = walAny, walNone = walNone, package = instance and instance.package }
+    return table.concat(lines, "\n"), verdict, info
+end
+
+-- Country of the device's public IP (2-letter code) or nil. Plain curl as the Termux
+-- user (no su, no token).
+local function deviceCountry()
+    local p = io.popen("curl -s -m 5 https://ipinfo.io/country </dev/null 2>/dev/null")
+    if not p then return nil end
+    local out = p:read("*a") or ""
+    p:close()
+    return out:match("^%s*(%u%u)%s*$")
+end
+
+-- Human-readable likely causes when the clone still shows the login screen after an
+-- inject, from probeToken's info table. Empty when the login is already confirmed.
+function CookieInjector.hints(info)
+    if type(info) ~= "table" or info.rotated then return {} end
+    local pkg = tostring(info.package or "<package>")
+    local out = {}
+    if info.walNone then
+        out[#out + 1] = "- App Roblox belum/ga baca cookie WebView. Kemungkinan versi Roblox di clone ini beda"
+        out[#out + 1] = "  (nyimpen login di tempat lain). Bandingin versi di device yang bisa vs yang gagal:"
+        out[#out + 1] = "  su -c \"dumpsys package " .. pkg .. " | grep versionName\""
+        out[#out + 1] = "  Solusi: login manual sekali di clone ini."
+    end
+    if info.missing then
+        out[#out + 1] = "- Cookie dihapus app pas kebuka = Roblox nolak sesinya. Kemungkinan besar proteksi"
+        out[#out + 1] = "  lokasi / sesi dianggap dibajak. Tutup app, lalu cek token di menu 7 > 3: 401 = di-revoke."
+    elseif info.same and info.walAny then
+        out[#out + 1] = "- Cookie udah dibaca app. Kalau di layar tetep logout, kemungkinan besar proteksi lokasi"
+        out[#out + 1] = "  Roblox (cookie diambil dari negara/jaringan lain dari device ini)."
+    end
+    if #out == 0 then
+        out[#out + 1] = "- Status ga jelas. Tutup app, lalu cek token di menu 7 > 3 (401 = di-revoke Roblox)."
+    end
+    local country = deviceCountry()
+    if country then out[#out + 1] = "- IP device ini: " .. country end
+    out[#out + 1] = "- Tips: ambil cookie dari login di negara/jaringan yang sama kayak device ini, atau login"
+    out[#out + 1] = "  manual. 1 cookie jangan dipake di banyak device/negara."
+    return out
 end
 
 -- Schema/version diagnostic for one Cookies DB (used by `--doctor` to compare two devices).

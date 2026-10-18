@@ -50,7 +50,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Auto start + auto update saat boot** lewat Termux:Boot, tanpa jendela Termux. Config tidak tertimpa.
 - **Setting device otomatis.** Animasi, freeform, smallest width, dan izin background diatur sekali dari installer.
 - **Dashboard live** dengan username tiap clone, status berwarna, FPS/RAM dari heartbeat, dan progres launch.
-- **Inject Cookie.** Masukkan token `.ROBLOSECURITY` ke clone. Token diverifikasi dulu sebelum ditulis.
+- **Inject Cookie.** Masukkan token `.ROBLOSECURITY` ke clone. Token diverifikasi dulu sebelum ditulis. Kalau abis inject clone tetep logout, menu ngasih tau kemungkinan penyebabnya (proteksi lokasi Roblox / app ga baca cookie WebView) plus negara IP device.
 - **Script Manager.** Script disimpan di folder **Scripts** Delta (tambah / ganti / hapus, bisa dari 1 baris loadstring URL). **Autoexecute ngambil dari Scripts**: masukin = copy dari Scripts, keluarin = hapus copy-nya. Berlaku buat semua clone di device itu. Bisa dari Menu `6` atau bot Discord (`/script`, `/autoexec`).
 - **Cek root di awal.** Kalau root belum diizinkan, `lua main.lua` langsung berhenti dengan petunjuk cara mengaktifkannya.
 - **Prioritas rendah.** Clone di-`renice` / `ionice` supaya Termux dan sistem tetap responsif.

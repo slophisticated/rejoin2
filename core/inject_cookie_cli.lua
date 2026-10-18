@@ -120,7 +120,7 @@ function CLI.run()
                                 print("")
                                 print("Periksa rotasi session (baca DB saja, TANPA panggil server —")
                                 print("menghindari 2 client pakai token sama serentak yg memicu revoke):")
-                                local probeOk, probeText, probeVerdict = pcall(CookieInjector.probeToken, inst, token)
+                                local probeOk, probeText, probeVerdict, probeInfo = pcall(CookieInjector.probeToken, inst, token)
                                 if not probeOk then
                                     probeText = "Probe gagal; periksa Cookies DB setelah app ditutup."
                                     probeVerdict = "NEED_MANUAL_CHECK"
@@ -130,6 +130,13 @@ function CLI.run()
                                 print("[VERDICT] " .. tostring(probeVerdict))
                                 Logger.info("Probe:\n" .. tostring(probeText))
                                 Logger.info("VERDICT: " .. tostring(probeVerdict))
+                                local hOk, hints = pcall(CookieInjector.hints, probeOk and probeInfo or nil)
+                                if hOk and type(hints) == "table" and #hints > 0 then
+                                    print("")
+                                    print("Kemungkinan penyebab kalau clone tetep logout:")
+                                    for _, h in ipairs(hints) do print(h) end
+                                    Logger.info("Hints:\n" .. table.concat(hints, "\n"))
+                                end
                                 print("")
                                 print("JANGAN verifikasi token (7>3) SELAMA app masih terbuka.")
                                 finish("Inject + launch selesai.")
