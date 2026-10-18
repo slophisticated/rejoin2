@@ -80,6 +80,8 @@ local function deviceId()
     return id
 end
 
+Remote.deviceId = deviceId
+
 local function version()
     if versionCache then return versionCache end
     local p = io.popen("git rev-parse --short HEAD 2>/dev/null")
@@ -107,6 +109,8 @@ local function request(path, payload, rawFile, contentType)
     if not fh then return 0, "" end
     fh:write("Content-Type: " .. (contentType or "application/json") .. "\n")
     fh:write("Authorization: Bearer " .. tostring(r.secret or "") .. "\n")
+    -- HWID: with a per-device key (RJ-...) the bot checks the key against this id.
+    fh:write("X-Rejoin-Hwid: " .. deviceId() .. "\n")
     fh:close()
     local dataFile = rawFile
     if not dataFile then
@@ -763,7 +767,7 @@ end
 
 -- Menu "tes koneksi": one sync without running anything heavy. Returns ok, message.
 function Remote.test()
-    if not hasSecret() then return false, "secret bot belum diisi" end
+    if not hasSecret() then return false, "secret / key bot belum diisi (HWID device: " .. deviceId() .. ")" end
     if not hasUrl() then pcall(fetchRepoUrl, true) end
     if not hasUrl() then
         return false, "URL bot kosong (isi di sini atau taruh URL di remote_url.txt repo)"
@@ -771,7 +775,7 @@ function Remote.test()
     local Instances = require("managers.instance")
     local code = Remote.sync(Instances.getAll(), { requestRejoin = function() end })
     if code >= 200 and code < 300 then return true, "terhubung (HTTP " .. code .. ")" end
-    if code == 401 or code == 403 then return false, "secret ditolak bot (HTTP " .. code .. ")" end
+    if code == 401 or code == 403 then return false, "secret / key ditolak bot (HTTP " .. code .. "); key HWID cuma berlaku di device ini" end
     if code == 0 then return false, "bot tidak bisa dihubungi (URL / internet)" end
     return false, "bot membalas HTTP " .. code
 end

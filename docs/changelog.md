@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Key HWID per device**: device punya HWID (acak, `data/device_id.txt`; tampil di akhir installer, Menu 9, `lua main.lua --hwid`). `/hwid redeem hwid:...` di Discord bikin key `RJ-...` (HMAC `HWID_MASTER` atas HWID + ID Discord), di-paste di Menu 9 → 10. Device kirim HWID di header `X-Rejoin-Hwid`; bot verifikasi tanpa penyimpanan, key cuma jalan di HWID itu, device masuk akun orang yang redeem. Env baru `HWID_MASTER`, `HWID_USERS`, `HWID_REVOKED`; secret lama (`DEVICE_SECRET`/`OWNERS`) tetap jalan.
+
 - **Lisensi GPL-3.0-or-later** (`LICENSE`) + `CONTRIBUTING.md` (cara tes, gaya, aturan penting) biar orang bisa kontribusi.
 
 - **Monitor ga rejoin cuma gara-gara RAM turun sekali**: clone tanpa heartbeat yang RSS-nya sekali di bawah `minRss` dicek lagi siklus berikutnya dulu; app yang beneran ketutup atau heartbeat "kicked" tetap langsung ditangani.

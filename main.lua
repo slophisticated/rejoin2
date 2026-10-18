@@ -60,6 +60,11 @@ for i = 1, #args do
     if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
     if a == "--migrate-presets" then migratePresetsFlag = true end
+    if a == "--hwid" then
+        -- Print this device's HWID (for a bot key) and stop; needs no root.
+        print(require("managers.remote").deviceId())
+        os.exit(0)
+    end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then

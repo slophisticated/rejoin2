@@ -40,9 +40,11 @@ function CLI.run()
         print("  7) Nama device          [" .. (dn ~= "" and dn or "kosong = model device") .. "]")
         print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         local rm = type(conf.remote) == "table" and conf.remote or {}
-        print("  -- Bot Discord (kontrol jarak jauh) --")
+        local okR, Remote = pcall(require, "managers.remote")
+        print("  -- Bot Discord (kontrol jarak jauh) --   HWID: " .. (okR and Remote.deviceId() or "?"))
         print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong = ambil dari remote_url.txt") .. (rm.urlManual and ", manual" or "") .. "]")
-        print(" 10) Secret bot            [" .. ((type(rm.secret) == "string" and rm.secret ~= "") and "diset" or "kosong") .. "]")
+        local sec = type(rm.secret) == "string" and rm.secret or ""
+        print(" 10) Key / secret bot      [" .. (sec == "" and "kosong" or (sec:match("^RJ%-") and "key HWID diset" or "diset")) .. "]")
         print(" 11) Tes koneksi bot")
         print("  0) Kembali")
         local choice = (prompt("Pilih: ") or "0"):match("^%s*(.-)%s*$")
@@ -148,7 +150,9 @@ function CLI.run()
                     conf.remote.url = v:gsub("/+$", ""); conf.remote.urlManual = true; save(conf)
                 else print("URL harus diawali https://") end
             else
-                local v = (prompt("Secret bot (sama dengan DEVICE_SECRET di bot; '-' = hapus): ") or ""):gsub("%s+", "")
+                print("Key HWID: kirim HWID di atas ke owner / ketik /hwid redeem di Discord, lalu paste key RJ-... di sini.")
+                print("Atau secret lama (sama dengan DEVICE_SECRET / OWNERS di bot).")
+                local v = (prompt("Key / secret bot ('-' = hapus): ") or ""):gsub("%s+", "")
                 if v == "-" then conf.remote.secret = ""; save(conf)
                 elseif v == "" then print("Tidak diubah.")
                 else conf.remote.secret = v; save(conf) end

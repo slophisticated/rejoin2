@@ -231,3 +231,12 @@ else
 fi
 [ -n "$NEED_REBOOT" ] && echo "Reboot sekali supaya freeform / resizable aktif."
 echo "Jalankan manual: cd ~/rejoin && lua main.lua   |   Update manual: sh ~/rejoin/update.sh"
+# Bot Discord: the per-device key is issued for this HWID (/hwid redeem), then entered
+# in Menu 9 -> 10. Skipped when the device is already connected.
+HWID=$(cd "$DIR" && lua main.lua --hwid </dev/null 2>/dev/null | tail -1)
+if [ -n "$HWID" ] && ! grep -q 'secret = "[^"]' "$DIR/config/config.lua" 2>/dev/null; then
+    echo
+    echo "Bot Discord (opsional): HWID device ini = $HWID"
+    echo "  Ketik /hwid redeem hwid:$HWID di Discord (atau kirim HWID ke owner),"
+    echo "  lalu masukkan key RJ-... di: lua main.lua -> 9 -> 10"
+fi

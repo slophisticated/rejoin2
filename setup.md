@@ -6,6 +6,9 @@ Kode bot ada di **[bot/](bot/README.md)** dan blueprint Render ada di
 **[render.yaml](render.yaml)**. Kalau Render minta kartu, pakai Railway (bagian *Deploy Railway* di panduan bot). Ikuti panduan bot untuk membuat aplikasi Discord,
 invite, mengisi env dan deploy. Setelah URL hosting tersedia, isi `remote_url.txt`
 lalu push ke `main`; tiap device cukup memakai secret yang sama (menu `9` → `10`).
+Cara paling gampang: **key HWID**. HWID device muncul di akhir installer / Menu `9`;
+ketik `/hwid redeem hwid:<HWID>` di Discord, terus paste key `RJ-...` di Menu `9` → `10`.
+(Owner bot sekali isi env `HWID_MASTER` + `HWID_USERS` di Railway.)
 Mau berbagi bot sama temen tapi device-nya terpisah? Tambah env `OWNERS`
 (`idDiscord:secret`, satu secret per owner) — tiap orang cuma lihat device miliknya.
 Jalankan monitor supaya command diproses. Node/npm hanya dipasang di hosting bot;

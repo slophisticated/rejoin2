@@ -67,7 +67,9 @@ managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack, SCHEMA setti
                       Kontrak lengkap: docs/discord_bot_prd.md (bot dibuat terpisah)
                       URL kosong + secret ada -> ambil URL dari remote_url.txt (repo)
                       remote.urlManual (URL diketik di Menu 9) -> ga pernah diganti remote_url.txt
-bot/                  bot Discord (Node). Device per owner: env OWNERS=idDiscord:secret (secret = akun)
+bot/                  bot Discord (Node). Device per owner: env OWNERS=idDiscord:secret (secret = akun),
+                      atau key HWID per device (bot/src/hwid.js, HWID_MASTER, /hwid redeem;
+                      device kirim header X-Rejoin-Hwid = Remote.deviceId, `lua main.lua --hwid`)
 managers/instance.lua presetOf/gameLink (preset khusus -> defaultPreset -> privateServer;
                       preset "-" = link sendiri), migrateToPresets, find, save, load (urut key)
 utils/json.lua        JSON encode/decode pure Lua (cjson kalau ada)

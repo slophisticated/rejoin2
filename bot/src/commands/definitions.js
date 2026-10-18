@@ -19,6 +19,7 @@ const route = (description, options = [], extra = {}) => ({ description,
 export const routes = {
   status: route('Lihat status clone dari snapshot terakhir.'),
   devices: { description: 'Lihat semua device yang dikenal.', options: [] },
+  'hwid redeem': { description: 'Bikin key bot buat HWID device (HWID ada di Termux Menu 9).', options: [s('hwid', true)] },
   game: route('Pindah game semua clone atau clone pilihan.', [preset, s('clones', false, true), rejoin], { all: true }),
   default: route('Ganti default; preset khusus tetap dipakai.', [preset, rejoin], { all: true }),
   'preset list': route('Lihat preset game.'),
@@ -60,6 +61,7 @@ const descriptions = {
   link: 'Link Roblox; edit clone: - untuk hapus link sendiri.', url: 'URL HTTPS.',
   file: 'Attachment teks .lua atau .txt, maksimal 200 KB.', code: 'Isi script pendek; jangan diisi bersama file atau url.',
   message_link: 'Link pesan status Discord lama atau ID pesan.',
+  hwid: 'HWID dari Termux (Menu 9 / akhir installer), hex 16–64 karakter.',
 };
 
 function addOptions(builder, options) {

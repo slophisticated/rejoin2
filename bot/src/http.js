@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { HWID_PATTERN, isHwidKey, verifyKey } from './hwid.js';
 
 export const JSON_LIMIT = 512 * 1024;
 export const PNG_LIMIT = 8 * 1024 * 1024;
@@ -39,7 +40,7 @@ async function body(req, limit) {
   return Buffer.concat(chunks);
 }
 
-export function createApi({ store, secret, secrets = [{ account: '', secret }], now = Date.now, render = false, log = () => {} }) {
+export function createApi({ store, secret, secrets = [{ account: '', secret }], hwid = null, accounts = null, now = Date.now, render = false, log = () => {} }) {
   const expected = secrets.map(s => ({ account: s.account, digest: digest(s.secret) }));
   // Compare against every secret (no early exit) so timing does not reveal which one matched.
   const accountFor = token => {
@@ -62,7 +63,13 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
       if (!['/api/sync', '/api/ack'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
       const header = req.headers.authorization || '';
       const bearer = /^Bearer (.+)$/.exec(header);
-      const account = bearer ? accountFor(bearer[1]) : null;
+      let account = null;
+      if (bearer && hwid && isHwidKey(bearer[1])) {
+        // Per-device key: valid only with the HWID it was issued for, for an allowed owner.
+        const deviceHwid = String(req.headers['x-rejoin-hwid'] || '').toLowerCase();
+        const owner = HWID_PATTERN.test(deviceHwid) && !hwid.revoked.has(deviceHwid) ? verifyKey(hwid.master, deviceHwid, bearer[1]) : null;
+        if (owner && accounts?.has(owner)) account = accounts.get(owner);
+      } else if (bearer) account = accountFor(bearer[1]);
       if (account === null) {
         const ip = render ? String(req.headers['x-forwarded-for'] || req.socket.remoteAddress).split(',').at(-1).trim() : req.socket.remoteAddress;
         const time = now();
