@@ -12,6 +12,7 @@ local JSON = require("utils.json")
 --
 -- Config:
 --   remote = { url = "", secret = "", interval = 30 }   -- url or secret empty = off
+--   remote.urlManual = true when the URL was typed in Menu 9 (never replaced from the repo)
 --
 -- The bot URL can live in remote_url.txt on GitHub: a device with a secret but no
 -- url takes it from there (so only the secret has to be typed per device), and after
@@ -668,7 +669,8 @@ function Remote.sync(instances, ctx)
     if code < 200 or code >= 300 then
         failures = failures + 1
         warnOnce("http" .. code, "sync gagal (HTTP " .. code .. ")")
-        if failures >= 5 then pcall(fetchRepoUrl) end
+        -- A URL typed in by the user (another bot) must not be swapped for this repo's one.
+        if failures >= 5 and not section().urlManual then pcall(fetchRepoUrl) end
         return code
     end
     failures = 0

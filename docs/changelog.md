@@ -2,6 +2,9 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: device terpisah per owner** (`OWNERS=idDiscord:secret,...`): secret yang dipakai device menentukan akunnya; `/devices`, `/status`, autocomplete, `device:all` dan semua command cuma menyentuh device milik pemanggil, nama device boleh sama antar akun, ACK/upload dari akun lain ditolak. `OWNER_IDS` + `DEVICE_SECRET` tetap jalan. State persist versi 2 (versi 1 tetap kebaca).
+- **URL bot manual tidak ketimpa `remote_url.txt`**: URL yang diketik di Menu 9 → 9 ditandai `remote.urlManual`, fallback 5x gagal ga ganti URL itu (biar device yang pakai bot sendiri ga nyasar ke bot repo). Isi `-` untuk kembali ikut repo.
+
 - **Panduan deploy bot di Railway** (`bot/README.md`): root `bot`, healthcheck `/health`, watch path `bot/**`, generate domain → `remote_url.txt`, pindah akun dengan `DEVICE_SECRET` yang sama. Kode bot tidak berubah.
 
 - **Rejoin Control Bot siap deploy**: implementasi Node.js 24 + discord.js v14 di

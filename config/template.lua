@@ -95,7 +95,8 @@ return {
     -- Remote control through the Discord bot (docs/discord_bot_prd.md). url or secret
     -- empty = off. Commands run while the monitor / Launch All is running.
     remote = {
-        url = "",       -- e.g. https://my-bot.onrender.com
+        url = "",       -- e.g. https://my-bot.onrender.com ("" = take it from remote_url.txt)
+        -- urlManual = true is set when the URL is typed in Menu 9: remote_url.txt never replaces it
         secret = "",    -- same as the bot's DEVICE_SECRET
         interval = 30,  -- seconds between syncs
     },

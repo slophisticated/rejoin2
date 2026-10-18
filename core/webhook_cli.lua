@@ -41,7 +41,7 @@ function CLI.run()
         print("  8) Pakai pesan status lama (paste link pesan dari device lama)")
         local rm = type(conf.remote) == "table" and conf.remote or {}
         print("  -- Bot Discord (kontrol jarak jauh) --")
-        print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong = ambil dari remote_url.txt") .. "]")
+        print("  9) URL bot               [" .. ((type(rm.url) == "string" and rm.url ~= "") and rm.url or "kosong = ambil dari remote_url.txt") .. (rm.urlManual and ", manual" or "") .. "]")
         print(" 10) Secret bot            [" .. ((type(rm.secret) == "string" and rm.secret ~= "") and "diset" or "kosong") .. "]")
         print(" 11) Tes koneksi bot")
         print("  0) Kembali")
@@ -141,9 +141,11 @@ function CLI.run()
             conf.remote = type(conf.remote) == "table" and conf.remote or {}
             if choice == "9" then
                 local v = (prompt("URL bot (mis. https://nama-bot.onrender.com; '-' = hapus): ") or ""):gsub("%s+", "")
-                if v == "-" then conf.remote.url = ""; save(conf)
+                -- A typed URL is never replaced by remote_url.txt (urlManual); '-' goes back to it.
+                if v == "-" then conf.remote.url = ""; conf.remote.urlManual = nil; save(conf)
                 elseif v == "" then print("Tidak diubah.")
-                elseif v:match("^https://[%w%.%-]+") then conf.remote.url = v:gsub("/+$", ""); save(conf)
+                elseif v:match("^https://[%w%.%-]+") then
+                    conf.remote.url = v:gsub("/+$", ""); conf.remote.urlManual = true; save(conf)
                 else print("URL harus diawali https://") end
             else
                 local v = (prompt("Secret bot (sama dengan DEVICE_SECRET di bot; '-' = hapus): ") or ""):gsub("%s+", "")
