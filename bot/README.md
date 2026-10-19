@@ -152,6 +152,9 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/preset list/set/remove` | Kelola preset; default tidak bisa dihapus |
 | `/clone list/add/edit/remove` | Kelola daftar; remove perlu konfirmasi, bukan uninstall |
 | `/clone logout clones:"Clone2"` | Logout akun Roblox clone pilihan (cookie dihapus, app ditutup, ga di-rejoin). Konfirmasi dulu; `all` ga boleh |
+| `/cookie inject device:<device> clone:<clone>` | Buka input privat untuk inject cookie ke satu clone; device harus online |
+| `/alarm set` | Jadwalkan logout satu clone pada tanggal dan waktu WIB; sekali atau berulang tiap hari |
+| `/alarm list/remove` | Lihat atau hapus jadwal logout per device/clone |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
 | `/screenshot` | Gambar layar cloud phone sekarang |
 | `/config get/set` | Setting dari schema snapshot device |
@@ -186,7 +189,12 @@ link, FPS/memori, dan username spoiler jika `webhook.hideNames` aktif.
   boleh sebelum/sesudah ACK; setelah ACK, tunggu maksimal 30 detik. Buffer hanya di
   memori, dihapus setelah terkirim atau lima menit. Banyak gambar dipecah sesuai
   batas ukuran Discord dan maksimal sepuluh file per pesan; semua tetap ephemeral.
-- Tidak ada fitur login/cookie atau bypass key Delta.
+- Cookie dikirim lewat modal privat, command bersifat sementara di memori bot, tidak
+  ditulis ke `state.json`, tidak dicatat ke log, dan tidak dikirim ulang otomatis.
+  Jika device belum menerima command dalam 90 detik, command dihapus dan perlu dikirim
+  ulang. Setelah diterima, device memverifikasi token ke Roblox sebelum menulisnya ke
+  Cookies DB. Gunakan hanya cookie akun milikmu.
+- Tidak ada bypass key Delta.
 
 ## Antrean, timeout, rename, dan keamanan
 

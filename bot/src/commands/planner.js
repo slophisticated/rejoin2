@@ -73,6 +73,18 @@ export function planDevice(path, v, device) {
       const refs = cloneRefs(device, v.clones, false);
       return cmd('logout', { clones: refs });
     }
+    case 'cookie inject': return cmd('cookie_inject', { clone: findClone(device, v.clone).id });
+    case 'alarm set': {
+      const current = findClone(device, v.clone);
+      if (!/^(\d{2})\/(\d{2})(?:\/(\d{4}))?$/.test(String(v.date || ''))) throw new Error('Tanggal harus format DD/MM atau DD/MM/YYYY.');
+      const [, dayText, monthText, yearText] = v.date.match(/^(\d{2})\/(\d{2})(?:\/(\d{4}))?$/);
+      const day = Number(dayText), month = Number(monthText), year = yearText ? Number(yearText) : 2024;
+      const monthDays = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      if (month < 1 || month > 12 || day < 1 || day > monthDays[month - 1]) throw new Error('Tanggal kalender tidak valid.');
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v.time || ''))) throw new Error('Waktu harus format HH:MM WIB, misalnya 12:00.');
+      return cmd('logout_alarm_set', { clone: current.id, date: v.date, time: v.time, daily: v.daily === true });
+    }
+    case 'alarm remove': return cmd('logout_alarm_remove', { clone: findClone(device, v.clone).id });
     case 'restart': {
       const refs = cloneRefs(device, v.clones);
       return refs === 'all' ? cmd('launch_all') : cmd('restart', { clones: refs });

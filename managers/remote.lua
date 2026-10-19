@@ -267,6 +267,12 @@ local function snapshot(instances)
             presetSource = source,              -- khusus / default / link / none
             game = p and p.name or (source == "link" and "link sendiri" or ""),
             link = link or "",
+            logoutAlarm = type(inst.logoutAlarm) == "table" and {
+                date = inst.logoutAlarm.date,
+                time = inst.logoutAlarm.time,
+                daily = inst.logoutAlarm.daily == true,
+                nextAt = inst.logoutAlarm.nextAt,
+            } or nil,
             status = okS and Status.statusOf and Status.statusOf(inst.id) or "unknown",
         }
         if okU and Username.get then
@@ -443,6 +449,36 @@ function H.logout(args)
         lines[#lines + 1] = cloneLabel(inst) .. ": " .. tostring(okCall and msg or "error")
     end
     return done > 0, table.concat(lines, "; ")
+end
+
+-- Inject a cookie typed into the bot's private modal. The token only lives in this
+-- command; it is never logged (Remote.sync hides this command's message).
+function H.cookie_inject(args, ctx)
+    if ctx and ctx.launchBusy then return false, "antrean launch masih aktif; coba lagi setelah clone stabil" end
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    if type(args.token) ~= "string" or #args.token > 2048 or args.token:find("[%c'\" ]") then
+        return false, "format cookie tidak valid"
+    end
+    local okCall, ok, message = pcall(require("managers.cookie_injector").inject, list[1], args.token)
+    if not okCall then return false, "inject cookie gagal (error internal)" end
+    return ok, tostring(message or (ok and "cookie berhasil diinjeksi" or "inject cookie gagal"))
+end
+
+-- Scheduled logout (managers/logout_alarm.lua), one clone at a time.
+function H.logout_alarm_set(args)
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    return require("managers.logout_alarm").set(list[1].id, args.date, args.time, args.daily)
+end
+
+function H.logout_alarm_remove(args)
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    return require("managers.logout_alarm").remove(list[1].id)
 end
 
 function H.launch_all(args, ctx)
@@ -741,7 +777,7 @@ function Remote.sync(instances, ctx)
     for _, cmd in ipairs(cmds) do
         local ok, msg, extra = Remote.run(cmd, ctx, instances)
         Logger.info(string.format("Remote: %s %s -> %s %s", tostring(cmd.type), tostring(cmd.id),
-            ok and "OK" or "GAGAL", tostring(msg)))
+            ok and "OK" or "GAGAL", cmd.type == "cookie_inject" and "(detail disembunyikan)" or tostring(msg)))
         request("/api/ack", {
             protocol = PROTOCOL,
             device = device,

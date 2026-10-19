@@ -55,6 +55,13 @@ export function localLines(path, d, values) {
   const header = `**${escape(d.name)}**`;
   if (path === 'preset list') return [header, `Default: ${escape(snap.defaultPreset || '-')}`, ...Object.entries(snap.presets).map(([k, p]) => `[${escape(k)}] ${escape(p.name)} · <${String(p.link).replace(/[<>\r\n]/g, '')}>`)];
   if (path === 'clone list') return [header, ...snap.instances.map(i => `${escape(i.name)}${i.slot ? ` (${escape(i.slot)})` : ''} · ${escape(i.username || (i.status === 'nologin' ? 'belum login' : '-'))} · id ${escape(i.id)} · ${escape(i.package)} · [${escape(i.preset || '-')}] ${escape(i.presetSource)} · ${icons[i.status] || '❔'} ${escape(i.status)}`)];
+  if (path === 'alarm list') return [header, ...snap.instances.map(i => {
+    if (!i.logoutAlarm) return `${escape(i.name)} · tanpa alarm logout`;
+    const next = Number.isFinite(i.logoutAlarm.nextAt)
+      ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(i.logoutAlarm.nextAt * 1000))
+      : i.logoutAlarm.time;
+    return `${escape(i.name)} · logout ${escape(i.logoutAlarm.date || '')} ${escape(i.logoutAlarm.time)} WIB${i.logoutAlarm.daily ? ' tiap hari' : ' sekali'} · berikutnya ${escape(next)} WIB`;
+  })];
   if (path === 'config get') {
     const settings = values.key ? snap.settings.filter(s => s.key === values.key) : snap.settings;
     if (values.key && !settings.length) throw new Error('Setting itu tidak ada di schema device.');

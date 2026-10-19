@@ -214,11 +214,14 @@ end
 
 -- A Launch All / sequential rejoin can wait minutes per clone; keep syncing with the
 -- bot meanwhile so the device is not shown offline (Remote.tick has its own interval).
+local launching = false -- true while runSequentialLaunch runs (bot cookie inject waits)
+
 local function keepRemoteAlive()
-    pcall(Remote.tick, instanceManager.getAll(), { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end })
+    pcall(Remote.tick, instanceManager.getAll(), { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end,
+        launchBusy = launching })
 end
 
-local function runSequentialLaunch(conf, only)
+local function launchInOrder(conf, only)
     -- Logged-in clones first (each waited for until in game), clones without an account
     -- last; within each group the Menu 2 order. Unknown login counts as logged in.
     -- Window slots follow the Menu 2 order, so positions do not change.
@@ -363,6 +366,14 @@ local function runSequentialLaunch(conf, only)
             Status.printSummary(instanceManager.getAll())
         end
     end
+end
+
+-- Marks the launch as busy (the bot's cookie inject waits) and always clears it again.
+local function runSequentialLaunch(conf, only)
+    launching = true
+    local ok, err = pcall(launchInOrder, conf, only)
+    launching = false
+    if not ok then error(err, 0) end
 end
 
 -- Rejoin requests (preset change from Menu 11, the remote bot, ...). Processed one
@@ -672,7 +683,8 @@ function Monitor.start(conf, opts)
         Status.printSummary(instances)
         pcall(syncMenuSettings)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = false })
+        pcall(require("managers.logout_alarm").tick, instances, false)
         if running then pcall(runRejoinQueue, conf) end
 
         -- Make sure Ctrl+C still generates SIGINT, even if an interrupted root command

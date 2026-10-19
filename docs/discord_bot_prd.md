@@ -279,6 +279,9 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `instance_add` | `{name, package, preset?, link?}` | Tambah clone ke daftar (package `com.x.y`, unik). Tanpa `preset` = ikut default |
 | `instance_edit` | `{clone, name?, package?, preset?, link?}` | Ubah clone. `preset`: kode = khusus, `""`/`"default"` = ikut default, `"-"` = pakai link sendiri (butuh `link` / link lama). `link:""`/`"-"` = hapus link sendiri |
 | `instance_remove` | `{clone}` | Hapus dari daftar (app tidak di-uninstall) |
+| `logout_alarm_set` | `{clone, date, time, daily?}` | Simpan alarm logout per clone pada tanggal + `HH:MM` WIB; `date` format `DD/MM` (kejadian mendatang terdekat) atau `DD/MM/YYYY`. Sekali atau berulang harian mulai tanggal itu. Dieksekusi lokal oleh monitor |
+| `logout_alarm_remove` | `{clone}` | Hapus alarm logout clone |
+| `cookie_inject` | `{clone, token}` | Verifikasi lalu inject cookie ke tepat satu clone; ditolak saat Launch All jalan. Command transient: token tidak dipersist ke state bot, tidak dicatat ke log, tidak diretry, dihapus setelah ACK atau timeout 90 detik |
 | `logout` | `{clones:[id/nama]}` | Logout akun Roblox: app di-force-stop (cuma kalau masih login), baris `.ROBLOSECURITY` dihapus dari Cookies DB (backup `.bak-*`), cache login dilupakan. Session tidak di-revoke di Roblox (cookie bisa di-inject lagi). `all` ditolak |
 | `config_set` | `{key, value}` | Ubah 1 setting dari daftar §6 (key lain ditolak) |
 | `device_rename` | `{name}` | = `config_set webhook.deviceName` |
@@ -369,6 +372,10 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone add` | `name`, `package`, `preset?`, `link?`, `device?` | `instance_add` |
 | `/clone edit` | `clone`, `name?`, `package?`, `preset?`, `link?`, `device?` | `instance_edit` |
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
+| `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
+| `/alarm list` | `device?` | Dari snapshot per clone (`logoutAlarm`) |
+| `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |
+| `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; satu clone, device harus online |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
 | `/screenshot` | `device?` (bisa `all`) | `screenshot` → gambar layar cloud phone di balasan ephemeral (≤10 gambar per balasan untuk `all`; lebih → follow-up ephemeral) |

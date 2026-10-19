@@ -22,6 +22,8 @@ const mappings = [
   ['clone edit', { clone: 'Clone1', preset: 'default', link: '-' }, 'instance_edit', { clone: 1, preset: 'default', link: '-' }],
   ['clone remove', { clone: 'com.apengjers.v5' }, 'instance_remove', { clone: 3 }],
   ['clone logout', { clones: 'Clone1, 3' }, 'logout', { clones: [1, 3] }],
+  ['alarm set', { clone: 'Clone1', date: '20/10', time: '12:00', daily: true }, 'logout_alarm_set', { clone: 1, date: '20/10', time: '12:00', daily: true }],
+  ['alarm remove', { clone: 'Clone3' }, 'logout_alarm_remove', { clone: 3 }],
   ['restart', { clones: '1,Clone3' }, 'restart', { clones: [1, 3] }],
   ['restart', { clones: 'all' }, 'launch_all', {}],
   ['screenshot', {}, 'screenshot', {}],
@@ -72,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 17);
+  assert.equal(definitions.length, 19);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -87,7 +89,7 @@ test('registration covers every route, valid Discord option ordering and device 
   }
   assert.deepEqual(seen.sort(), Object.keys(routes).sort());
   const lua = await readFile(new URL('../../managers/remote.lua', import.meta.url), 'utf8');
-  for (const type of new Set([...mappings.map(m => m[2]), 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
+  for (const type of new Set([...mappings.map(m => m[2]), 'cookie_inject', 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
 });
 
 test('schema validation supports device-provided new settings without a hardcoded config list', () => {
@@ -130,6 +132,11 @@ test('early validation rejects protected scripts, conflicting sources, bad clone
     ['preset remove', { key: 'A' }],
     ['preset set', { key: 'default', name: 'x', link: 'https://www.roblox.com/games/1' }],
     ['preset set', { key: 'C', name: 'x', link: 'https://example.com/games/1' }],
+    ['alarm set', { clone: 'Clone1', time: '24:00' }],
+    ['alarm set', { clone: 'Clone1', time: '12:60' }],
+    ['alarm set', { clone: 'Clone1', time: 'noon' }],
+    ['alarm set', { clone: 'Clone1', date: '31/02', time: '12:00' }],
+    ['alarm set', { clone: 'Clone1', date: '1/10', time: '12:00' }],
   ];
   for (const [path, values] of invalid) assert.throws(() => planDevice(path, values, h.device()), path);
   assert.equal(scriptName('egg'), 'egg.lua');
@@ -169,6 +176,8 @@ test('status formatting, secret redaction, and pagination fit Discord limits', (
   assert.doesNotMatch(statusPages(h.store, h.device())[0].embeds[0].description, /\|\|/);
   const lines = localLines('config get', h.device(), {});
   assert.ok(lines.some(l => l.includes('webhook.url = diset')));
+  h.device().snapshot.instances[0].logoutAlarm = { date: '20/10/2026', time: '12:00', daily: true };
+  assert.ok(localLines('alarm list', h.device(), {}).some(l => l.includes('12:00 WIB tiap hari')));
   h.device().snapshot.instances = Array.from({ length: 100 }, (_, id) => ({ ...snapshot().instances[0], id, name: `Clone${id}` }));
   pages = statusPages(h.store, h.device());
   assert.ok(pages.length > 1); assert.ok(pages.every(p => p.embeds[0].description.length <= 4096));
@@ -209,6 +218,25 @@ test('confirmation is required, single-use, bound to owner and expires', async (
   const next = [...h.handler.sessions.keys()][0]; h.advance(60_000); h.handler.tick();
   const expired = interaction('', {}, { isButton: () => true, customId: `confirm:${next}` });
   await h.handler.handle(expired); assert.equal(h.store.commands.size, 1);
+  h.replies.close();
+});
+
+test('cookie injection requires the private modal and queues one transient clone command', async () => {
+  const h = handlerHarness();
+  const start = interaction('cookie inject', { device: 'RF-07', clone: 'Clone1' });
+  await h.handler.handle(start);
+  assert.ok(start.modal);
+  assert.equal(h.store.commands.size, 0);
+  const id = [...h.handler.sessions.keys()][0];
+  const token = 'cookie-secret-test-value';
+  const submit = interaction('', {}, { isModalSubmit: () => true, customId: `cookie:${id}`,
+    fields: { getTextInputValue: () => token } });
+  await h.handler.handle(submit);
+  const command = [...h.store.commands.values()][0];
+  assert.equal(command.type, 'cookie_inject');
+  assert.deepEqual({ clone: command.args.clone, token: command.args.token }, { clone: 1, token });
+  assert.equal(command.sensitive, true);
+  assert.equal(submit.deferPayload.flags, MessageFlags.Ephemeral);
   h.replies.close();
 });
 

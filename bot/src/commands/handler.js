@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { routes, interactionPath, interactionValues } from './definitions.js';
 import { autocomplete } from './autocomplete.js';
 import { planDevice, selectDevices } from './planner.js';
@@ -7,7 +7,7 @@ import { downloadScript, present, setting } from './validate.js';
 import { renameTarget } from '../store.js';
 import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
 
-const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list']);
+const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list', 'alarm list']);
 const button = (id, label, style = ButtonStyle.Secondary, disabled = false) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style).setDisabled(disabled);
 
 export class Handler {
@@ -34,12 +34,14 @@ export class Handler {
         return await i.respond(autocomplete(this.view(i), path, interactionValues(i, path), i.options.getFocused(true)));
       }
       if (i.isButton()) return await this.component(i);
+      if (i.isModalSubmit()) return await this.cookieModal(i);
       if (!i.isChatInputCommand()) return;
-      await i.deferReply({ flags: MessageFlags.Ephemeral });
       const path = interactionPath(i);
       if (!routes[path]) throw new Error('Command tidak dikenal. Daftarkan ulang command bot.');
       const values = interactionValues(i, path);
       const view = this.view(i);
+      if (path === 'cookie inject') return await this.openCookieModal(i, values, view);
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
       if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
       if (path === 'hwid redeem' || path === 'hwid remove') return await this.hwid(i, path, String(values.hwid || '').trim().toLowerCase());
       const devices = selectDevices(view, path, values.device);
@@ -71,6 +73,38 @@ export class Handler {
         else await i.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: mentions });
       } catch { this.log('discord_interaction_failed'); }
     }
+  }
+
+  async openCookieModal(i, values, view) {
+    const device = selectDevices(view, 'cookie inject', values.device)[0];
+    if (!this.store.online(device)) throw new Error('Device sedang offline; cookie tidak dikirim.');
+    const clone = planDevice('cookie inject', values, device)[0].args.clone;
+    const id = randomUUID();
+    this.sessions.set(id, { kind: 'cookie', owner: i.user.id, expires: this.now() + 60_000, device: device.key, clone });
+    const modal = new ModalBuilder().setCustomId(`cookie:${id}`).setTitle('Inject cookie Roblox');
+    const input = new TextInputBuilder().setCustomId('token').setLabel('Cookie .ROBLOSECURITY')
+      .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(2048)
+      .setPlaceholder('Tempel cookie Roblox yang kamu miliki');
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    await i.showModal(modal);
+  }
+
+  async cookieModal(i) {
+    const [kind, id] = i.customId.split(':');
+    const session = kind === 'cookie' ? this.sessions.get(id) : null;
+    if (!session || session.kind !== 'cookie' || session.owner !== i.user.id || session.expires <= this.now()) {
+      return await i.reply({ content: '⌛ Input cookie kedaluwarsa. Jalankan /cookie inject lagi.', flags: MessageFlags.Ephemeral });
+    }
+    this.sessions.delete(id);
+    const token = i.fields.getTextInputValue('token').trim();
+    if (!token || token.length > 2048 || /[\s'"\u0000-\u001f]/.test(token)) throw new Error('Format cookie tidak valid.');
+    const device = this.store.devices.get(session.device);
+    if (!device || !this.store.online(device)) throw new Error('Device sedang offline; cookie tidak dikirim.');
+    if (!device.snapshot.instances.some(instance => instance.id === session.clone)) throw new Error('Clone berubah atau sudah dihapus; jalankan /cookie inject lagi.');
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
+    const command = this.store.enqueue(device.key, 'cookie_inject', { clone: session.clone, token }, { sensitive: true });
+    const group = this.replies.create(i, [{ command, interval: Number(setting(device, 'remote.interval')?.value) || 30, offline: false }]);
+    await group.chain;
   }
 
   // Register / unregister a device HWID for the caller; the device then syncs with it alone.
