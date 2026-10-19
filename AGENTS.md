@@ -82,6 +82,8 @@ managers/heartbeat.lua install script ke Autoexecute, baca hb file (alive / isUp
 managers/webhook.lua  laporan Discord (POST ?wait=true lalu PATCH /messages/<id>)
 managers/window_layout.lua grid floating window App Cloner
 managers/auth.lua     cek login (cookie + verifikasi curl)
+managers/logout_alarm.lua  logout terjadwal per clone (WIB), dipanggil tiap siklus monitor
+                      (bot /alarm; /cookie inject = command transient, token ga dipersist/log)
 managers/delta_key.lua cek file "license" Delta (notif minta key)
 managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute
                       (autoAdd = copy dari Scripts, autoRemove). Menu 6 = core/autoexecute_cli.lua
