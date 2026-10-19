@@ -25,10 +25,11 @@ dengan balasan **ephemeral** (cuma pemilik yang lihat, channel tidak spam):
 - rejoin **beberapa clone sekaligus** (pilih banyak clone)
 - **script Delta**: upload/tambah script ke folder Scripts, hapus, lihat; masukkan /
   keluarkan dari Autoexecute (copy dari Scripts, per device)
+- inject cookie Roblox milik sendiri ke satu clone lewat modal privat
 - lihat status semua device
 
-**Bukan tujuan (v1):** login akun / inject cookie, ambil key Delta (dilarang — jangan
-buat bypass key system), upload file bebas ke device (APK / file apa pun selain script
+**Bukan tujuan (v1):** ambil key Delta (dilarang — jangan buat bypass key system),
+upload file bebas ke device (APK / file apa pun selain script
 `.lua`/`.txt` ≤200 KB lewat `/script add`, yang **termasuk v1**), kontrol non-owner.
 
 ## 2. Arsitektur
@@ -219,6 +220,8 @@ Response 200:
   `sent` (jangan dihapus sampai ack / timeout). Kalau sync berikutnya datang dan
   command `sent` belum di-ack > 60 dtk, kirim ulang sekali (device idempoten untuk
   setting; untuk `restart`/`launch_all` boleh tidak dikirim ulang).
+- `cookie_inject` adalah pengecualian: tidak dipersist ke file bot, tidak diretry,
+  dan dihapus setelah ACK atau timeout 90 detik.
 - Antrian kosong → `{"commands":[]}`.
 - Bot menyimpan snapshot + `lastSeen = now`.
 
@@ -280,6 +283,7 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `instance_edit` | `{clone, name?, package?, preset?, link?}` | Ubah clone. `preset`: kode = khusus, `""`/`"default"` = ikut default, `"-"` = pakai link sendiri (butuh `link` / link lama). `link:""`/`"-"` = hapus link sendiri |
 | `instance_remove` | `{clone}` | Hapus dari daftar (app tidak di-uninstall) |
 | `logout` | `{clones:[id/nama]}` | Logout akun Roblox: app di-force-stop (cuma kalau masih login), baris `.ROBLOSECURITY` dihapus dari Cookies DB (backup `.bak-*`), cache login dilupakan. Session tidak di-revoke di Roblox (cookie bisa di-inject lagi). `all` ditolak |
+| `cookie_inject` | `{clone, token}` | Verifikasi lalu inject cookie ke tepat satu clone; ditolak saat antrean launch aktif. Command transient, token tidak dipersist ke state bot, tidak dicatat ke log, dan tidak diretry otomatis |
 | `logout_alarm_set` | `{clone, date, time, daily?}` | Simpan alarm logout per clone pada tanggal + `HH:MM` WIB; `date` format `DD/MM` (kejadian mendatang terdekat) atau `DD/MM/YYYY`. Sekali atau berulang harian mulai tanggal itu. Dieksekusi lokal oleh monitor |
 | `logout_alarm_remove` | `{clone}` | Hapus alarm logout clone |
 | `config_set` | `{key, value}` | Ubah 1 setting dari daftar §6 (key lain ditolak) |
@@ -390,6 +394,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone edit` | `clone`, `name?`, `package?`, `preset?`, `link?`, `device?` | `instance_edit` |
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
+| `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; hanya satu clone dan device harus online |
 | `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
 | `/alarm list` | `device?` | Dari snapshot per clone |
 | `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |

@@ -74,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 18);
+  assert.equal(definitions.length, 19);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -89,7 +89,7 @@ test('registration covers every route, valid Discord option ordering and device 
   }
   assert.deepEqual(seen.sort(), Object.keys(routes).sort());
   const lua = await readFile(new URL('../../managers/remote.lua', import.meta.url), 'utf8');
-  for (const type of new Set([...mappings.map(m => m[2]), 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
+  for (const type of new Set([...mappings.map(m => m[2]), 'cookie_inject', 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
 });
 
 test('schema validation supports device-provided new settings without a hardcoded config list', () => {
@@ -218,6 +218,25 @@ test('confirmation is required, single-use, bound to owner and expires', async (
   const next = [...h.handler.sessions.keys()][0]; h.advance(60_000); h.handler.tick();
   const expired = interaction('', {}, { isButton: () => true, customId: `confirm:${next}` });
   await h.handler.handle(expired); assert.equal(h.store.commands.size, 1);
+  h.replies.close();
+});
+
+test('cookie injection requires the private modal and queues one transient clone command', async () => {
+  const h = handlerHarness();
+  const start = interaction('cookie inject', { device: 'RF-07', clone: 'Clone1' });
+  await h.handler.handle(start);
+  assert.ok(start.modal);
+  assert.equal(h.store.commands.size, 0);
+  const id = [...h.handler.sessions.keys()][0];
+  const token = 'cookie-secret-test-value';
+  const submit = interaction('', {}, { isModalSubmit: () => true, customId: `cookie:${id}`,
+    fields: { getTextInputValue: () => token } });
+  await h.handler.handle(submit);
+  const command = [...h.store.commands.values()][0];
+  assert.equal(command.type, 'cookie_inject');
+  assert.deepEqual({ clone: command.args.clone, token: command.args.token }, { clone: 1, token });
+  assert.equal(command.sensitive, true);
+  assert.equal(submit.deferPayload.flags, MessageFlags.Ephemeral);
   h.replies.close();
 });
 

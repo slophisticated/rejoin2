@@ -14,6 +14,9 @@
 - **Alarm auto-logout Discord**: atur alarm per device/clone pada tanggal dan jam WIB, sekali atau
   berulang harian. Jadwal disimpan dan diproses lokal oleh monitor; `/alarm list`
   menampilkan jadwal dan `/alarm remove` membatalkannya.
+- **Inject cookie dari Discord**: `/cookie inject` membuka modal privat untuk satu
+  device/clone. Token diverifikasi di device, command transient tidak ditulis ke
+  `state.json` atau log, dan tidak diretry otomatis.
 
 - **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
   satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan

@@ -32,6 +32,7 @@ export const routes = {
   'clone remove': route('Hapus clone dari daftar dengan konfirmasi.', [clone], { confirm: true }),
   'clone logout': route('Logout akun Roblox clone pilihan (app ditutup, tidak di-rejoin).', [s('clones', true, true)], {
     confirm: true, confirmText: 'logout akun Roblox clone ini (cookie dihapus, perlu login / inject lagi)' }),
+  'cookie inject': route('Inject cookie Roblox ke satu clone lewat input privat.', [clone]),
   'alarm set': route('Jadwalkan logout clone pada tanggal dan waktu WIB.', [clone, s('date', true), s('time', true), b('daily')]),
   'alarm remove': route('Hapus jadwal logout clone.', [clone]),
   'alarm list': route('Lihat jadwal logout clone.'),

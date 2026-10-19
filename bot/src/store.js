@@ -63,7 +63,7 @@ export class Store extends EventEmitter {
     const content = JSON.stringify({
       version: 2,
       devices: [...this.devices.values()].map(({ account, name, snapshot, lastSeen }) => ({ account, name, snapshot, lastSeen })),
-      commands: [...this.commands.values()].filter(c => c.state !== 'awaiting_upload').map(c => ({
+      commands: [...this.commands.values()].filter(c => c.state !== 'awaiting_upload' && !c.sensitive).map(c => ({
         id: c.id, device: c.device, type: c.type, args: c.args, createdAt: c.createdAt,
         state: c.state, sentAt: c.sentAt, resent: c.resent, timedOut: c.timedOut,
         acceptedDevices: c.acceptedDevices,
@@ -125,7 +125,7 @@ export class Store extends EventEmitter {
     }
   }
 
-  enqueue(key, type, args = {}) {
+  enqueue(key, type, args = {}, { sensitive = false } = {}) {
     const d = this.devices.get(key);
     if (!d) throw new Error('Device belum dikenal.');
     this.assertRename(key, renameTarget(type, args));
@@ -133,7 +133,7 @@ export class Store extends EventEmitter {
     const c = {
       id: `c_${randomUUID().replaceAll('-', '')}`, device, name: d.name, account: d.account, type, args: structuredClone(args),
       state: 'queued', createdAt: this.now(), sentAt: null, resent: false,
-      timedOut: false, acceptedDevices: [device],
+      timedOut: false, acceptedDevices: [device], sensitive,
     };
     this.commands.set(c.id, c);
     this.changed();
@@ -153,7 +153,7 @@ export class Store extends EventEmitter {
     const commands = [];
     for (const c of this.commands.values()) {
       if (c.device !== key || c.state === 'awaiting_upload') continue;
-      if (c.state === 'queued' || (c.state === 'sent' && !c.resent && now - c.sentAt > 60_000
+      if (c.state === 'queued' || (!c.sensitive && c.state === 'sent' && !c.resent && now - c.sentAt > 60_000
         && !['restart', 'launch_all'].includes(c.type))) {
         if (c.state === 'sent') c.resent = true;
         c.state = 'sent';
@@ -228,6 +228,7 @@ export class Store extends EventEmitter {
 
   finish(c, result) {
     this.commands.delete(c.id);
+    if (c.sensitive) delete c.args.token;
     const uploaded = this.uploads.get(c.id);
     this.uploads.delete(c.id);
     this.changed();
@@ -241,6 +242,10 @@ export class Store extends EventEmitter {
       if (c.state === 'awaiting_upload' && now - c.ackAt >= 30_000) {
         this.finish(c, { ok: false, message: 'ACK diterima, tapi upload screenshot belum masuk dalam 30 detik.' });
       } else if (!c.timedOut && now - c.createdAt >= this.timeoutMs) {
+        if (c.sensitive) {
+          this.finish(c, { ok: false, message: 'Device belum menerima cookie. Jalankan /cookie inject lagi.' });
+          continue;
+        }
         c.timedOut = true;
         this.emit('timeout', c);
         this.changed();

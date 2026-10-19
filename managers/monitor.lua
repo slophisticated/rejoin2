@@ -284,7 +284,7 @@ function Monitor.start(conf, opts)
         Status.printSummary(instances)
         pcall(checkKey)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = queue.active ~= nil })
         pcall(require("managers.logout_alarm").tick, instances, queue.active ~= nil)
         -- Expensive probes do not run on every loading poll.
         if os.time() - lastDiagnostics >= 30 then

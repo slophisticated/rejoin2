@@ -34,6 +34,8 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   [panduan bot](bot/README.md). Tes koneksi hanya memakai `/api/ping`.
 - Bot bisa menjadwalkan auto-logout per clone lewat `/alarm set` dengan tanggal dan
   waktu WIB. Monitor device harus aktif saat alarm berjalan.
+- Bot juga mendukung `/cookie inject` untuk satu clone. Masukkan cookie milikmu lewat
+  modal privat; device harus online dan monitor aktif.
 
 ## Jalankan
 

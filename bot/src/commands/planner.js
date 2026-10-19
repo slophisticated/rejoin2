@@ -73,6 +73,7 @@ export function planDevice(path, v, device) {
       const refs = cloneRefs(device, v.clones, false);
       return cmd('logout', { clones: refs });
     }
+    case 'cookie inject': return cmd('cookie_inject', { clone: findClone(device, v.clone).id });
     case 'alarm set': {
       const current = findClone(device, v.clone);
       if (!/^(\d{2})\/(\d{2})(?:\/(\d{4}))?$/.test(String(v.date || ''))) throw new Error('Tanggal harus format DD/MM atau DD/MM/YYYY.');

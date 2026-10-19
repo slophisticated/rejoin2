@@ -83,6 +83,8 @@ Bot opsional ada di [bot/README.md](bot/README.md); kontrak device di
 bot. Menu 8 memuat URL/secret bot dan tes koneksi; `/hwid redeem` menghubungkan device.
 Bot juga dapat menjadwalkan auto-logout per clone lewat `/alarm set` pada tanggal dan
 jam WIB, sekali atau setiap hari. Jadwal tersimpan di device dan dijalankan saat monitor aktif.
+Cookie akun yang kamu miliki juga bisa dikirim lewat `/cookie inject` dengan input
+privat, lalu pilih device dan clone. Monitor harus aktif dan antrean launch sedang kosong.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
 

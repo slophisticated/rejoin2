@@ -55,7 +55,8 @@ export function interaction(path = 'restart', values = { clones: 'Clone1' }, ove
   const i = {
     user: { id: owner }, guildId: guild, commandName, options, createdTimestamp: 1_000_000,
     attachmentSizeLimit: 8 * 1024 * 1024, edits, follows, updates, responses,
-    isAutocomplete: () => false, isButton: () => false, isChatInputCommand: () => true,
+    isAutocomplete: () => false, isButton: () => false, isModalSubmit: () => false, isChatInputCommand: () => true,
+    async showModal(modal) { i.modal = modal; },
     async deferReply(payload) { i.deferred = true; i.deferPayload = payload; },
     async deferUpdate() { i.deferred = true; },
     async editReply(payload) { edits.push(payload); return { id: 'original' }; },

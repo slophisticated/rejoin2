@@ -5728,7 +5728,7 @@ function Monitor.start(conf, opts)
         Status.printSummary(instances)
         pcall(checkKey)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = queue.active ~= nil })
         pcall(require("managers.logout_alarm").tick, instances, queue.active ~= nil)
         -- Expensive probes do not run on every loading poll.
         if os.time() - lastDiagnostics >= 30 then
@@ -6548,6 +6548,19 @@ function H.logout(args)
     return done > 0, table.concat(lines, "; ")
 end
 
+function H.cookie_inject(args, ctx)
+    if ctx and ctx.launchBusy then return false, "antrean launch masih aktif; coba lagi setelah clone stabil" end
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    if type(args.token) ~= "string" or #args.token > 2048 or args.token:find("[%c'\" ]") then
+        return false, "format cookie tidak valid"
+    end
+    local okCall, ok, message = pcall(require("managers.cookie_injector").inject, list[1], args.token)
+    if not okCall then return false, "inject cookie gagal (error internal)" end
+    return ok, tostring(message or (ok and "cookie berhasil diinjeksi" or "inject cookie gagal"))
+end
+
 function H.logout_alarm_set(args)
     local list, err = findClones(args.clone)
     if not list then return false, err end
@@ -6858,7 +6871,7 @@ function Remote.sync(instances, ctx)
     for _, cmd in ipairs(cmds) do
         local ok, msg, extra = Remote.run(cmd, ctx, instances)
         Logger.info(string.format("Remote: %s %s -> %s %s", tostring(cmd.type), tostring(cmd.id),
-            ok and "OK" or "GAGAL", tostring(msg)))
+            ok and "OK" or "GAGAL", cmd.type == "cookie_inject" and "(detail disembunyikan)" or tostring(msg)))
         request("/api/ack", {
             protocol = PROTOCOL,
             device = device,

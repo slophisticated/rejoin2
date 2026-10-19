@@ -43,6 +43,22 @@ test('timeout keeps queued command; late ACK finishes once; wrong device ignored
   assert.equal(results, 1);
 });
 
+test('sensitive cookie commands are single-delivery, transient, and scrubbed on ACK or timeout', () => {
+  const h = harness({ timeoutMs: 1000 });
+  const token = 'cookie-secret-value';
+  const acknowledged = h.store.enqueue('RF-07', 'cookie_inject', { clone: 1, token }, { sensitive: true });
+  h.advance(4000); h.store.sync(snapshot());
+  h.advance(4000); const delivered = h.store.sync(snapshot());
+  assert.equal(delivered.length, 0);
+  h.store.ack(ack(acknowledged));
+  assert.equal(acknowledged.args.token, undefined);
+
+  const expired = h.store.enqueue('RF-07', 'cookie_inject', { clone: 1, token }, { sensitive: true });
+  h.advance(1000); h.store.tick();
+  assert.equal(h.store.commands.has(expired.id), false);
+  assert.equal(expired.args.token, undefined);
+});
+
 for (const type of ['device_rename', 'config_set']) {
   test(`${type}: rename moves queue and accepts old ACKs for the whole old batch`, () => {
     const h = harness();
@@ -111,11 +127,13 @@ test('atomic persistence restores snapshots and pending commands, without upload
   const h = harness({ dataDir });
   const c = h.store.enqueue('RF-07', 'status');
   const shot = h.store.enqueue('RF-07', 'screenshot');
+  h.store.enqueue('RF-07', 'cookie_inject', { clone: 1, token: 'sensitive-cookie-value' }, { sensitive: true });
   h.advance(4000); h.store.sync(snapshot()); h.store.upload(shot.id, png);
   await h.store.close();
   const disk = await readFile(join(dataDir, 'state.json'), 'utf8');
   assert.equal(disk.includes('attachment'), false);
-  assert.equal(disk.includes('token'), false);
+  assert.equal(disk.includes('sensitive-cookie-value'), false);
+  assert.equal(disk.includes('cookie_inject'), false);
   const restored = new Store({ now: h.now, dataDir }); await restored.load();
   assert.equal(restored.devices.size, 1); assert.equal(restored.commands.has(c.id), true);
   assert.equal(restored.uploads.size, 0);
