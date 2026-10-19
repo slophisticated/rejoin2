@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Inject cookie lewat bot langsung kepake**: abis `/cookie inject` sukses, engine langsung nganggep clone itu login (`Auth.markLoggedIn`) dan buka ulang clone-nya ke game lewat antrean rejoin (kayak Menu 7), tanpa lewat jalur "belum login". Cek token ke Roblox ditahan sampai `loginVerifyInterval` (600 dtk) biar app yang baru login ga "dibalap" client kedua (bisa bikin sesi di-revoke).
+
 - **Petunjuk clone di bot saat grid jendela mati**: kalau auto-atur jendela (Menu 10) mati, pilihan clone nampilin nomor urut Menu 2 (`#2`) sebagai pengganti posisi jendela.
 
 - **Port dari versi publish (Apeng): logout terjadwal + inject cookie lewat bot.** `/alarm set|remove|list`: logout akun clone di tanggal + jam WIB (sekali / tiap hari), dijalankan monitor (`managers/logout_alarm.lua`, alarm disimpan di instance `logoutAlarm`). `/cookie inject`: cookie diisi di modal Discord privat, dikirim sebagai command transient (ga dipersist, ga diretry, ga di-log, dihapus setelah ACK / 90 dtk), ditolak selama Launch All. Ditambah tes regresi alarm + tes bot.

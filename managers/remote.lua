@@ -466,9 +466,20 @@ function H.cookie_inject(args, ctx)
     if type(args.token) ~= "string" or #args.token > 2048 or args.token:find("[%c'\" ]") then
         return false, "format cookie tidak valid"
     end
-    local okCall, ok, message = pcall(require("managers.cookie_injector").inject, list[1], args.token)
+    local inst = list[1]
+    local okCall, ok, message = pcall(require("managers.cookie_injector").inject, inst, args.token)
     if not okCall then return false, "inject cookie gagal (error internal)" end
-    return ok, tostring(message or (ok and "cookie berhasil diinjeksi" or "inject cookie gagal"))
+    message = tostring(message or (ok and "cookie berhasil diinjeksi" or "inject cookie gagal"))
+    if ok then
+        -- Like Menu 7: the engine knows at once the clone is logged in and opens it into
+        -- the game through the rejoin queue (no "not logged in" detour, no extra check).
+        require("managers.auth").markLoggedIn(inst.package, args.token)
+        if ctx and ctx.requestRejoin then
+            ctx.requestRejoin({ inst.id })
+            message = message .. "; clone dibuka ulang ke game"
+        end
+    end
+    return ok, message
 end
 
 -- Scheduled logout (managers/logout_alarm.lua), one clone at a time.

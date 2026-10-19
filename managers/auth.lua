@@ -317,6 +317,17 @@ function Auth.forget(pkg)
     remote[pkg] = nil
 end
 
+-- A cookie was just injected (and checked with Roblox by the injector): treat the clone
+-- as logged in right away and skip the Roblox check for this token until the usual
+-- loginVerifyInterval passes, so the app is not raced by a second client right after
+-- it starts (Roblox may revoke the session as hijacked). The token is never logged.
+function Auth.markLoggedIn(pkg, token)
+    local now = os.time()
+    cache[pkg] = { result = true, at = now }
+    remote[pkg] = { result = true, at = now, token = token }
+    Logger.info(string.format("[LOGIN] %s login = true (cookie baru di-inject)", tostring(pkg)))
+end
+
 -- Clear the cache (e.g. after a login/logout or on monitor start).
 function Auth.resetCache()
     cache = {}
