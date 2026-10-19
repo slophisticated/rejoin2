@@ -89,8 +89,10 @@ jam WIB, sekali atau setiap hari. Jadwal tersimpan di device dan dijalankan saat
 Cookie akun yang kamu miliki juga bisa dikirim lewat `/cookie inject` dengan input
 privat, lalu pilih device dan clone. Monitor harus aktif dan antrean launch sedang kosong.
 Key Delta yang kamu dapatkan sendiri bisa dimasukkan lewat Menu 14 atau `/delta input-key`;
-bot memakai modal privat dan command sementara. Key ditulis ke
-`/sdcard/delta/internal/cache/license` dan tidak disimpan di config atau log.
+bot memakai modal privat dan command sementara. Key ditulis ke path license yang
+dikonfigurasi atau dideteksi dari instalasi Delta; jika belum ditemukan, dipakai
+`/sdcard/delta/internal/cache/license`. Key tidak disimpan di config atau log. Setelah
+penyimpanan berhasil, semua clone diminta rejoin melalui antrean satu-per-satu.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
 

@@ -1,4 +1,5 @@
 local DeltaKey = require("managers.delta_key")
+local Config = require("core.config")
 
 local CLI = {}
 
@@ -30,7 +31,20 @@ function CLI.run()
     else
         local called, ok, message = pcall(DeltaKey.input, key)
         key = nil
-        print((called and ok and "Berhasil: " or "Gagal: ") .. tostring(called and message or "input key Delta gagal (error internal)"))
+        if called and ok then
+            local Monitor = require("managers.monitor")
+            if Monitor.requestRejoinFile({ "all" }) then
+                print("Berhasil: key tersimpan; rejoin semua clone dijadwalkan lewat antrean.")
+                local started = Monitor.start(Config.get())
+                if not started then
+                    print("Engine monitor lain akan mengambil antrean; jika tidak ada, request tetap tersimpan untuk monitor berikutnya.")
+                end
+            else
+                print("Key tersimpan, tetapi request rejoin gagal dibuat. Jalankan Menu 1 atau minta rejoin dari bot.")
+            end
+        else
+            print("Gagal: " .. tostring(called and message or "input key Delta gagal (error internal)"))
+        end
     end
     prompt("Tekan Enter untuk kembali ke menu utama")
 end

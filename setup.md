@@ -40,7 +40,7 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   modal privat; device harus online dan monitor aktif.
 - `/delta input-key` membuka modal privat untuk key Delta yang kamu dapatkan sendiri.
   Key dikirim sekali ke device online dan tidak disimpan bot; device menulisnya ke file
-  license Delta.
+  license Delta lalu mengantrekan rejoin semua clone satu-per-satu.
 - Force-stop saat logout, inject cookie, atau recovery menyasar package clone pada user
   Android aktif. Pastikan satu package hanya dipakai satu instance; Rejoin membatalkan
   force-stop jika package terdaftar ganda.

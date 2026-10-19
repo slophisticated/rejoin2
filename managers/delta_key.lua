@@ -90,10 +90,9 @@ function DeltaKey.input(key)
         return false, "format key tidak valid (1–256 karakter tanpa spasi)"
     end
 
-    local okConfig, c = pcall(Config.get)
-    c = okConfig and type(c) == "table" and c or {}
-    local configured = type(c.deltaLicensePath) == "string" and c.deltaLicensePath:gsub("%s+$", "") or ""
-    local path = configured ~= "" and configured or DEFAULT_LICENSE
+    -- Reuse the exact path the monitor detected/remembered. Delta builds can store
+    -- this entry outside the fallback cache path (and paths are case-sensitive).
+    local path = DeltaKey.path() or DEFAULT_LICENSE
     local dir = path:match("^(.*)/[^/]+$")
     if not dir or dir == "" or path:find("[%c]") then return false, "path license Delta tidak valid" end
     -- Create the shared-storage folder as Termux, so the following Lua file write
@@ -113,7 +112,7 @@ function DeltaKey.input(key)
     cached = path
     File.write(REMEMBER, path .. "\n")
     Logger.info("[KEY] input key Delta tersimpan di file license")
-    return true, "key Delta tersimpan; buka ulang Delta bila layar key belum berubah"
+    return true, "key Delta tersimpan di " .. path .. "; buka ulang Delta bila layar key belum berubah"
 end
 
 return DeltaKey

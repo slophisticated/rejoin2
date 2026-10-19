@@ -502,6 +502,7 @@ return Config]]
 
 __ya_sources["core.delta_key_cli"] = [[
 local DeltaKey = require("managers.delta_key")
+local Config = require("core.config")
 
 local CLI = {}
 
@@ -533,7 +534,20 @@ function CLI.run()
     else
         local called, ok, message = pcall(DeltaKey.input, key)
         key = nil
-        print((called and ok and "Berhasil: " or "Gagal: ") .. tostring(called and message or "input key Delta gagal (error internal)"))
+        if called and ok then
+            local Monitor = require("managers.monitor")
+            if Monitor.requestRejoinFile({ "all" }) then
+                print("Berhasil: key tersimpan; rejoin semua clone dijadwalkan lewat antrean.")
+                local started = Monitor.start(Config.get())
+                if not started then
+                    print("Engine monitor lain akan mengambil antrean; jika tidak ada, request tetap tersimpan untuk monitor berikutnya.")
+                end
+            else
+                print("Key tersimpan, tetapi request rejoin gagal dibuat. Jalankan Menu 1 atau minta rejoin dari bot.")
+            end
+        else
+            print("Gagal: " .. tostring(called and message or "input key Delta gagal (error internal)"))
+        end
     end
     prompt("Tekan Enter untuk kembali ke menu utama")
 end
@@ -4412,10 +4426,9 @@ function DeltaKey.input(key)
         return false, "format key tidak valid (1–256 karakter tanpa spasi)"
     end
 
-    local okConfig, c = pcall(Config.get)
-    c = okConfig and type(c) == "table" and c or {}
-    local configured = type(c.deltaLicensePath) == "string" and c.deltaLicensePath:gsub("%s+$", "") or ""
-    local path = configured ~= "" and configured or DEFAULT_LICENSE
+    -- Reuse the exact path the monitor detected/remembered. Delta builds can store
+    -- this entry outside the fallback cache path (and paths are case-sensitive).
+    local path = DeltaKey.path() or DEFAULT_LICENSE
     local dir = path:match("^(.*)/[^/]+$")
     if not dir or dir == "" or path:find("[%c]") then return false, "path license Delta tidak valid" end
     -- Create the shared-storage folder as Termux, so the following Lua file write
@@ -4435,7 +4448,7 @@ function DeltaKey.input(key)
     cached = path
     File.write(REMEMBER, path .. "\n")
     Logger.info("[KEY] input key Delta tersimpan di file license")
-    return true, "key Delta tersimpan; buka ulang Delta bila layar key belum berubah"
+    return true, "key Delta tersimpan di " .. path .. "; buka ulang Delta bila layar key belum berubah"
 end
 
 return DeltaKey
@@ -6679,11 +6692,13 @@ function H.cookie_inject(args, ctx)
 end
 
 -- The user supplies a key obtained from Delta. Never fetch or derive keys here.
-function H.delta_key_input(args)
+function H.delta_key_input(args, ctx)
     if type(args.key) ~= "string" then return false, "key tidak valid" end
     local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
     if not okCall then return false, "input key Delta gagal (error internal)" end
-    return ok, tostring(message or (ok and "key Delta tersimpan" or "gagal menyimpan key Delta"))
+    if not ok then return false, tostring(message or "gagal menyimpan key Delta") end
+    if ctx and type(ctx.requestRejoin) == "function" then ctx.requestRejoin({ "all" }) end
+    return true, "key Delta tersimpan; rejoin semua clone sudah masuk antrean"
 end
 
 function H.logout_alarm_set(args)

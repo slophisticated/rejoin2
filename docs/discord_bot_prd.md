@@ -396,7 +396,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; hanya satu clone dan device harus online |
-| `/delta input-key` | `device` | Modal ephemeral meminta key yang user dapatkan sendiri; `delta_key_input` dikirim satu kali dan tidak dipersist/log oleh bot, device menulis ke `/sdcard/delta/internal/cache/license` |
+| `/delta input-key` | `device` | Modal ephemeral meminta key yang user dapatkan sendiri; `delta_key_input` dikirim satu kali dan tidak dipersist/log oleh bot, device menulis ke path license yang dikonfigurasi/dideteksi (fallback `/sdcard/delta/internal/cache/license`) lalu meminta rejoin semua clone melalui antrean |
 | `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
 | `/alarm list` | `device?` | Dari snapshot per clone |
 | `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |

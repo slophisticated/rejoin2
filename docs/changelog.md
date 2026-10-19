@@ -25,8 +25,10 @@
   dibatalkan; logout/inject tidak mengedit cookie ketika proses gagal ditutup. Ini
   mencegah salah target dan menolak konfigurasi clone yang tidak bisa ditutup terpisah.
 - **Input Key Delta**: Menu 14 dan `/delta input-key` menerima key yang dimasukkan user
-  secara manual. Device menulis key ke `/sdcard/delta/internal/cache/license`; input bot lewat
-  modal privat, command tidak dipersist atau dicatat ke log.
+  secara manual. Device memakai path license yang dikonfigurasi/dideteksi, dengan fallback
+  `/sdcard/delta/internal/cache/license`; input bot lewat
+  modal privat, command tidak dipersist atau dicatat ke log. Setelah tersimpan, semua clone
+  diantrikan untuk rejoin satu-per-satu.
 
 - **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
   satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan

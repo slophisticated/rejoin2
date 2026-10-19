@@ -465,11 +465,13 @@ function H.cookie_inject(args, ctx)
 end
 
 -- The user supplies a key obtained from Delta. Never fetch or derive keys here.
-function H.delta_key_input(args)
+function H.delta_key_input(args, ctx)
     if type(args.key) ~= "string" then return false, "key tidak valid" end
     local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
     if not okCall then return false, "input key Delta gagal (error internal)" end
-    return ok, tostring(message or (ok and "key Delta tersimpan" or "gagal menyimpan key Delta"))
+    if not ok then return false, tostring(message or "gagal menyimpan key Delta") end
+    if ctx and type(ctx.requestRejoin) == "function" then ctx.requestRejoin({ "all" }) end
+    return true, "key Delta tersimpan; rejoin semua clone sudah masuk antrean"
 end
 
 function H.logout_alarm_set(args)

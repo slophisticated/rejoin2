@@ -153,7 +153,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/clone list/add/edit/remove` | Kelola daftar; remove perlu konfirmasi, bukan uninstall |
 | `/clone logout clones:"Clone2"` | Logout akun Roblox clone pilihan (cookie dihapus, app ditutup, ga di-rejoin). Konfirmasi dulu; `all` ga boleh |
 | `/cookie inject device:<device> clone:<clone>` | Buka input privat untuk inject cookie ke satu clone; device harus online |
-| `/delta input-key device:<device>` | Buka modal privat untuk key Delta yang user dapatkan sendiri; dikirim sekali ke device online |
+| `/delta input-key device:<device>` | Buka modal privat untuk key Delta yang user dapatkan sendiri; dikirim sekali, disimpan ke license, lalu semua clone diantrikan untuk rejoin |
 | `/alarm set` | Jadwalkan logout satu clone pada tanggal dan waktu WIB; sekali atau berulang tiap hari |
 | `/alarm list/remove` | Lihat atau hapus jadwal logout per device/clone |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
