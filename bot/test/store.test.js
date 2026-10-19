@@ -11,10 +11,12 @@ test('FIFO, resend exactly once after 60s, no repeat restart/launch_all', () => 
   const a = h.store.enqueue('RF-07', 'config_set', { key: 'remote.interval', value: 30 });
   const b = h.store.enqueue('RF-07', 'restart', { clones: [1] });
   const c = h.store.enqueue('RF-07', 'launch_all');
+  // Queued commands skip the 4s sync limit (the device syncs right after a long poll).
+  assert.deepEqual(h.store.sync(snapshot()).map(c => c.id), [a.id, b.id, c.id]);
   assert.equal(h.store.sync(snapshot()), null);
   h.advance(4000);
-  assert.deepEqual(h.store.sync(snapshot()).map(c => c.id), [a.id, b.id, c.id]);
-  h.advance(60_000);
+  assert.deepEqual(h.store.sync(snapshot()), []);
+  h.advance(56_000);
   assert.deepEqual(h.store.sync(snapshot()), []);
   h.advance(4001);
   assert.deepEqual(h.store.sync(snapshot()).map(c => c.id), [a.id]);

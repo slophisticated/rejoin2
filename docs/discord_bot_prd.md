@@ -155,6 +155,18 @@ Endpoint ini tidak memanggil sync/ACK, tidak mengambil command, dan tidak mengub
 snapshot, status online, atau waktu pembatas sync. Bot lama yang belum punya
 endpoint membalas 404; device meminta update bot tanpa fallback ke `/api/sync`.
 
+### 4.0b `POST /api/poll` (long poll)
+
+Body `{"protocol":1,"device":"RF-07","wait":5}`, auth sama seperti sync. Bot menahan
+request sampai ada command `queued` untuk device itu (balas langsung
+`200 {"pending":true}`) atau sampai `wait` detik habis (maks 25, balas
+`{"pending":false}`). Tidak membawa snapshot dan tidak mengambil command; hanya
+memperbarui status online. Begitu `pending:true`, device langsung `/api/sync` (sync
+ini tidak kena batas 4 detik selama masih ada command `queued`). Device memakai jeda
+antar siklus monitor (dan jeda saat Launch All) sebagai long poll, jadi command jalan
+±1–2 detik setelah dikirim. Bot lama → 404: device kembali ke sleep biasa (cek lagi
+10 menit kemudian). Poll tidak dicatat di log bot.
+
 ### 4.1 `POST /api/sync`
 
 Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):

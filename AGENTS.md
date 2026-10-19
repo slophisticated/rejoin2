@@ -62,7 +62,7 @@ run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (
 core/                 menu CLI (settings_cli = Menu 3, item 13 jeda launch; webhook_cli = 9;
                       display_cli = 10; preset_cli = 11), config (+ Config.reload), logger,
                       root_check, setup_wizard
-managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack, SCHEMA setting yang boleh
+managers/remote.lua   klien bot Discord: POST /api/sync + /api/ack (+ long poll /api/poll di Remote.idle = jeda monitor), SCHEMA setting yang boleh
                       diubah bot, handler command (game, preset_set, config_set, ...).
                       Kontrak lengkap: docs/discord_bot_prd.md (bot dibuat terpisah)
                       URL kosong + secret ada -> ambil URL dari remote_url.txt (repo)

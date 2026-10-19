@@ -131,8 +131,14 @@ local function monitorScenario(opts)
     local recoveries, relaunches = {}, {}
     env.os.time = function() return clock end
     env.io.popen = function() return { read = function() return "" end, close = noop } end
-    for _, name in ipairs({ "utils.probe_log", "managers.username", "managers.window_layout", "managers.webhook", "managers.delta_key", "managers.remote", "managers.optimizer" }) do
+    for _, name in ipairs({ "utils.probe_log", "managers.username", "managers.window_layout", "managers.webhook", "managers.delta_key", "managers.optimizer" }) do
         env.package.preload[name] = dummy
+    end
+    -- The monitor waits through Remote.idle (a long poll on the bot): here a plain sleep.
+    env.package.preload["managers.remote"] = function()
+        local remote = dummy()
+        remote.idle = function(n, stop) return env.require("utils.timer").sleepInterruptible(n, stop) end
+        return remote
     end
     env.package.preload["managers.status"] = function()
         local status = dummy()
@@ -249,6 +255,77 @@ test("logout alarm schedules in WIB, waits for launch slot, then fires once", fu
     Alarm.tick({ inst }, false)
     assert(calls == 2 and inst.logoutAlarm.daily and inst.logoutAlarm.nextAt > now)
     assert(Alarm.remove(2) and inst.logoutAlarm == nil)
+end)
+
+-- Remote.idle: the monitor's wait is a long poll; a queued command is synced at once.
+local function idleScenario(pollReplies)
+    local env = sandbox()
+    local now = 1000
+    env.os.time = function() return now end
+    local conf = { remote = { url = "https://test.invalid", secret = "" } }
+    env.package.preload["core.config"] = function() return { get = function() return conf end, save = noop } end
+    for _, m in ipairs({ "managers.webhook", "managers.status", "managers.heartbeat", "managers.username",
+        "managers.instance", "managers.window_layout" }) do
+        env.package.preload[m] = function() return {} end
+    end
+    env.package.preload["managers.autoexecute"] = function()
+        return { scriptsList = function() return {} end, autoList = function() return {} end }
+    end
+    local slept = 0
+    env.package.preload["utils.timer"] = function()
+        return { sleepInterruptible = function(s) slept = slept + s; now = now + s; return true end }
+    end
+    env.io.open = function(path, mode)
+        if mode == "r" then
+            if path ~= "data/device_id.txt" then return nil end
+            return { read = function() return "0123456789abcdef" end, close = noop }
+        end
+        return { write = noop, close = noop }
+    end
+    local log, syncs = {}, 0
+    env.io.popen = function(cmd)
+        local path = cmd:match("/api/%a+")
+        if not path then return { read = function() return "" end, close = noop } end
+        log[#log + 1] = path
+        local out = '{"ok":true}\n200'
+        if path == "/api/sync" then
+            syncs = syncs + 1
+            out = (syncs > 1 and '{"commands":[{"id":"c_1","type":"nope","args":{}}]}' or '{"commands":[]}') .. "\n200"
+        elseif path == "/api/poll" then
+            local r = table.remove(pollReplies, 1) or { after = 25, body = '{"pending":false}', code = 200 }
+            now = now + r.after
+            out = r.body .. "\n" .. r.code
+        end
+        return { read = function() return out end, close = noop }
+    end
+    local Remote = env.require("managers.remote")
+    assert(Remote.tick({}, {}) == true)
+    return Remote, log, function() return slept end, function() return now end
+end
+
+test("a command queued during the monitor wait is synced at once, then the wait continues", function()
+    local Remote, log, slept, now = idleScenario({
+        { after = 1, body = '{"pending":true}', code = 200 },
+        { after = 4, body = '{"pending":false}', code = 200 },
+    })
+    local start = now()
+    assert(Remote.idle(5, nil, {}, {}) == true)
+    assert(table.concat(log, " ") == "/api/sync /api/poll /api/sync /api/ack /api/poll", table.concat(log, " "))
+    assert(now() - start == 5 and slept() == 0, "idle did not last exactly the monitor wait")
+end)
+
+test("an old bot without /api/poll falls back to plain sleeps", function()
+    local Remote, log, slept = idleScenario({ { after = 0, body = '{"error":"not_found"}', code = 404 } })
+    assert(Remote.idle(5, nil, {}, {}) == true and slept() == 5)
+    assert(Remote.idle(5, nil, {}, {}) == true and slept() == 10)
+    assert(table.concat(log, " ") == "/api/sync /api/poll", "old bot was polled again: " .. table.concat(log, " "))
+end)
+
+test("a poll that returns early never turns into a busy loop", function()
+    local Remote, log, slept = idleScenario({ { after = 0, body = '{"pending":false}', code = 200 },
+        { after = 0, body = "", code = 0 } })
+    assert(Remote.idle(5, nil, {}, {}) == true and slept() == 5)
+    assert(#log == 2)
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))

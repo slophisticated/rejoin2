@@ -110,3 +110,38 @@ test('chunked oversized input returns 413 instead of resetting socket', async t 
   });
   assert.equal(code, 413);
 });
+
+test('long poll answers as soon as a command is queued, and lets the device sync at once', async t => {
+  const h = await api(t); h.advance(4000);
+  assert.equal((await h.send('/api/sync', snapshot())).status, 200);
+  for (const body of [{}, { protocol: 1 }, { protocol: 1, device: '' }]) {
+    assert.equal((await h.send('/api/poll', body)).status, 400);
+  }
+  // Nothing queued: held for `wait`, then pending=false.
+  let start = Date.now();
+  assert.deepEqual(await (await h.send('/api/poll', { protocol: 1, device: 'RF-07', wait: 1 })).json(), { pending: false });
+  assert.ok(Date.now() - start >= 900);
+  // A command queued mid-poll wakes it right away.
+  start = Date.now();
+  const poll = h.send('/api/poll', { protocol: 1, device: 'RF-07', wait: 20 });
+  setTimeout(() => h.store.enqueue('RF-07', 'restart', { clones: 'all' }), 100);
+  assert.deepEqual(await (await poll).json(), { pending: true });
+  assert.ok(Date.now() - start < 5000);
+  assert.equal(h.store.listenerCount('queued'), 0);
+  // Already queued: answered immediately; the sync right after is not rate limited.
+  assert.deepEqual(await (await h.send('/api/poll', { protocol: 1, device: 'RF-07', wait: 20 })).json(), { pending: true });
+  const sync = await h.send('/api/sync', snapshot());
+  assert.equal(sync.status, 200);
+  assert.equal((await sync.json()).commands.length, 1);
+  assert.equal((await h.send('/api/sync', snapshot())).status, 429);
+  // Polls never reach the log and a dropped connection leaves no listener behind.
+  assert.equal(JSON.stringify(h.logs).includes('poll'), false);
+  const abort = new AbortController();
+  const dropped = fetch(h.url + '/api/poll', { method: 'POST', signal: abort.signal,
+    headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ protocol: 1, device: 'RF-07', wait: 20 }) }).catch(() => null);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  abort.abort(); await dropped;
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(h.store.listenerCount('queued'), 0);
+});

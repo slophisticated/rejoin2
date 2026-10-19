@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { HWID_PATTERN } from './registry.js';
+import { keyOf } from './store.js';
 
 export const JSON_LIMIT = 512 * 1024;
 export const PNG_LIMIT = 8 * 1024 * 1024;
+export const POLL_MAX_SEC = 25;
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -60,7 +62,7 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
       const path = new URL(req.url, 'http://localhost').pathname;
       if (path === '/health' && req.method === 'GET') return reply(200, { ok: true, devices: store.devices.size });
       const upload = /^\/api\/upload\/(c_[A-Za-z0-9_-]+)$/.exec(path);
-      if (!['/api/sync', '/api/ack', '/api/ping'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
+      if (!['/api/sync', '/api/ack', '/api/ping', '/api/poll'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
       const header = req.headers.authorization || '';
       const bearer = /^Bearer (.+)$/.exec(header);
       let account = bearer ? accountFor(bearer[1]) : null;
@@ -98,6 +100,29 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
         // Authenticated connectivity check only: never sync, drain commands, or ACK.
         if (!object(b) || b.protocol !== 1) throw fail(400, 'invalid_ping');
         return reply(200, { ok: true });
+      }
+      if (path === '/api/poll') {
+        // Long poll: answer as soon as a command is queued for this device, or after `wait`
+        // seconds. The device then syncs at once, so commands run within a second or two.
+        if (!object(b) || b.protocol !== 1 || typeof b.device !== 'string' || !b.device.trim()) throw fail(400, 'invalid_poll');
+        const key = keyOf(account, b.device);
+        const wait = Math.min(Math.max(Number(b.wait) || 0, 0), POLL_MAX_SEC) * 1000;
+        store.touch(key);
+        if (!wait || store.hasQueued(key)) return reply(200, { pending: store.hasQueued(key) });
+        return await new Promise(resolve => {
+          const done = pending => {
+            clearTimeout(timer);
+            store.off('queued', onQueued);
+            res.off('close', onClose);
+            if (pending !== null) { store.touch(key); reply(200, { pending }); }
+            resolve();
+          };
+          const onQueued = device => { if (device === key) done(true); };
+          const onClose = () => done(null);
+          const timer = setTimeout(() => done(false), wait);
+          store.on('queued', onQueued);
+          res.on('close', onClose);
+        });
       }
       if (path === '/api/sync') {
         const commands = store.sync(validateSnapshot(b), account);

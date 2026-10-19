@@ -216,9 +216,18 @@ end
 -- bot meanwhile so the device is not shown offline (Remote.tick has its own interval).
 local launching = false -- true while runSequentialLaunch runs (bot cookie inject waits)
 
+local function launchCtx()
+    return { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end, launchBusy = launching }
+end
+
 local function keepRemoteAlive()
-    pcall(Remote.tick, instanceManager.getAll(), { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end,
-        launchBusy = launching })
+    pcall(Remote.tick, instanceManager.getAll(), launchCtx())
+end
+
+-- Launch waits double as a long poll on the bot, so its commands run at once.
+local function launchWait(seconds, stopped)
+    local ok = pcall(Remote.idle, seconds, stopped, instanceManager.getAll(), launchCtx())
+    if not ok then Timer.sleepInterruptible(seconds, stopped) end
 end
 
 local function launchInOrder(conf, only)
@@ -284,7 +293,7 @@ local function launchInOrder(conf, only)
                 -- Still give its window a short head start: launching the next clone at
                 -- the same instant can stop this one's floating window from appearing.
                 Logger.info(string.format("Monitor: %s not logged in; short pause %ds", name, emptyDelay))
-                Timer.sleepInterruptible(emptyDelay, stopped)
+                launchWait(emptyDelay, stopped)
                 keepRemoteAlive()
                 launched = false
             end
@@ -306,7 +315,7 @@ local function launchInOrder(conf, only)
                     ProbeLog.line(string.format("[%s] EVENT launch_timeout %s (%s)", os.date("%H:%M:%S"), name, tostring(pkg)))
                     break
                 end
-                Timer.sleepInterruptible(poll, stopped)
+                launchWait(poll, stopped)
                 waited = waited + poll -- bounded; sleepInterruptible may stop earlier on Ctrl+C
                 keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
@@ -333,7 +342,7 @@ local function launchInOrder(conf, only)
                     break
                 end
                 local step = math.min(poll, limit - settled)
-                Timer.sleepInterruptible(step, stopped)
+                launchWait(step, stopped)
                 settled = settled + step
                 keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
@@ -696,7 +705,12 @@ function Monitor.start(conf, opts)
             pcall(checkKey)
         end
 
-        Timer.sleepInterruptible(interval, function() return not running end)
+        -- The wait between cycles is a long poll on the bot: a command sent from Discord
+        -- runs within a second or two instead of on the next remote.interval.
+        local stopFn = function() return not running end
+        local okI = pcall(Remote.idle, interval, stopFn, instances,
+            { requestRejoin = Monitor.requestRejoin, launchBusy = false })
+        if not okI then Timer.sleepInterruptible(interval, stopFn) end
     end
 
     clearPid(myPid)

@@ -130,8 +130,11 @@ Railway tidak menidurkan service, jadi tidak perlu monitor uptime. **Pindah akun
 5. `9` → `11`: tes koneksi; jalankan monitor (menu `1` Start Monitor, atau `5` Launch All).
 6. Device terlihat di `/devices` pada sync berikutnya, default sekitar 30 detik.
 
-Command diproses hanya saat monitor aktif. Setelah menerima command, device polling
-tiap lima detik selama dua menit. Jika hosting pindah, ubah URL di `remote_url.txt`
+Command diproses hanya saat monitor aktif. Di sela siklus monitor device menunggu di
+`POST /api/poll` (long poll, tanpa snapshot): bot langsung jawab begitu ada command,
+jadi command jalan ±1–2 detik setelah dikirim (saat monitor lagi ngecek clone, nunggu
+siklus itu selesai). Snapshot lengkap tetap tiap `remote.interval`, dan setelah
+menerima command device sync tiap lima detik selama dua menit. Jika hosting pindah, ubah URL di `remote_url.txt`
 dan pertahankan secret; setelah lima sync gagal device mencoba URL repo, dengan
 pembacaan maksimal sekali per sepuluh menit. Cold start pertama boleh gagal karena
 device akan mencoba lagi dengan backoff.

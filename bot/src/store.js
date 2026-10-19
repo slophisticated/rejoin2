@@ -15,6 +15,7 @@ export const renameTarget = (type, args) => type === 'device_rename' ? args.name
 export class Store extends EventEmitter {
   constructor({ now = Date.now, timeoutMs = 90_000, dataDir = null, log = () => {} } = {}) {
     super();
+    this.setMaxListeners(0); // one 'queued' listener per device in a long poll
     this.now = now;
     this.timeoutMs = timeoutMs;
     this.dataDir = dataDir;
@@ -137,14 +138,27 @@ export class Store extends EventEmitter {
     };
     this.commands.set(c.id, c);
     this.changed();
+    this.emit('queued', device);
     return c;
+  }
+
+  hasQueued(key) {
+    for (const c of this.commands.values()) if (c.device === key && c.state === 'queued') return true;
+    return false;
+  }
+
+  // A long poll (/api/poll) keeps the device online between snapshots; it never changes the snapshot.
+  touch(key) {
+    const d = this.devices.get(key);
+    if (d) d.lastSeen = this.now();
   }
 
   sync(snapshot, account = '') {
     const now = this.now();
     const key = keyOf(account, snapshot.device);
     const old = this.devices.get(key);
-    if (old?.lastSync != null && now - old.lastSync < 4000) return null;
+    // A poll that saw a queued command syncs at once, even right after the last sync.
+    if (old?.lastSync != null && now - old.lastSync < 4000 && !this.hasQueued(key)) return null;
     this.absorbRenamed(snapshot, account, key, now);
     // Two live devices reporting the same name (e.g. both left on the phone model): flag it.
     const clash = old && this.online(old) && old.snapshot.deviceId && snapshot.deviceId && old.snapshot.deviceId !== snapshot.deviceId

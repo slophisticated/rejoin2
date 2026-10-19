@@ -18,6 +18,9 @@ Balasan bot seluruhnya ephemeral dan hanya untuk owner yang didaftarkan. Mulai
 dengan `/devices`, `/status`, lalu `/screenshot`. Banyak device Redfinger boleh
 berbagi IP: pembatas 60 request/menit per IP hanya berlaku untuk auth gagal.
 Command yang timeout tetap antre dan dijalankan ketika device online lagi.
+Selama monitor jalan, command dari bot dikerjain ±1–2 detik setelah dikirim (device
+long poll ke `/api/poll` di sela siklus monitor). Butuh bot versi terbaru: deploy ulang
+bot di Railway; bot lama tetap jalan, cuma balik ke jeda `remote.interval`.
 
 Menu `9` → `11` (Tes koneksi bot) hanya memeriksa autentikasi, jadi command yang
 antre tetap menunggu monitor. Update deployment bot bersama engine agar endpoint

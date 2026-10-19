@@ -30,6 +30,8 @@ local fastUntil = 0      -- poll every FAST_INTERVAL s until then (right after a
 local FAST_INTERVAL = 5
 local FAST_WINDOW = 120
 local failures = 0
+local pollOffUntil = 0   -- bot without /api/poll (older version): plain sleeps until then
+local POLL_MAX = 25      -- the bot holds a poll at most this long
 local authFails = 0      -- HWID not registered yet / secret rejected: back off too
 local lastFallback = 0
 local warned = {}
@@ -98,7 +100,8 @@ local function shq(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 -- HTTP ---------------------------------------------------------------------------
 -- Returns status code (number, 0 = no connection) and the body. `payload` is a table
 -- sent as JSON; with `rawFile` the file is sent as-is with `contentType` instead.
-local function request(path, payload, rawFile, contentType)
+-- `maxTime` overrides the curl timeout (a long poll waits on the bot on purpose).
+local function request(path, payload, rawFile, contentType, maxTime)
     local r = section()
     local base = tostring(r.url or ""):gsub("/+$", "")
     local tmp = os.getenv("TMPDIR") or "/data/data/com.termux/files/usr/tmp"
@@ -124,7 +127,7 @@ local function request(path, payload, rawFile, contentType)
         fb:close()
         dataFile = body
     end
-    local cmd = "curl -s -m " .. (rawFile and "60" or "20") .. " -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(dataFile)
+    local cmd = "curl -s -m " .. tostring(maxTime or (rawFile and 60 or 20)) .. " -X POST -H @" .. shq(hdr) .. " --data-binary @" .. shq(dataFile)
         .. " -w '\\n%{http_code}' " .. shq(base .. path) .. " </dev/null 2>/dev/null"
     local p = io.popen(cmd)
     local out = p and p:read("*a") or ""
@@ -824,6 +827,44 @@ function Remote.tick(instances, ctx)
     lastSync = now
     Remote.sync(instances, ctx)
     return true
+end
+
+-- Wait `seconds` like Timer.sleepInterruptible, but spend the time in a long poll on the
+-- bot: it answers as soon as a command is queued for this device, which is then synced
+-- and run right away instead of on the next remote.interval. The poll carries no
+-- snapshot and needs no root, so it is cheap. Unreachable bot / older bot / not
+-- registered = plain sleep (the normal sync keeps its own backoff).
+function Remote.idle(seconds, isStopped, instances, ctx)
+    local Timer = require("utils.timer")
+    seconds = tonumber(seconds) or 1
+    local deadline = os.time() + seconds
+    while true do
+        if isStopped and isStopped() then return false end
+        local left = deadline - os.time()
+        if left <= 0 then return true end
+        if not Remote.enabled() or lastSync == 0 or failures > 0 or authFails > 0 or os.time() < pollOffUntil then
+            return Timer.sleepInterruptible(left, isStopped)
+        end
+        local wait = math.min(left, POLL_MAX)
+        local started = os.time()
+        local okW, Webhook = pcall(require, "managers.webhook")
+        local code, body = request("/api/poll", {
+            protocol = PROTOCOL,
+            device = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "-",
+            wait = wait,
+        }, nil, nil, wait + 10)
+        local data = code == 200 and JSON.decode(body) or nil
+        if type(data) == "table" and data.pending == true then
+            lastSync = os.time()
+            Remote.sync(instances, ctx)
+        else
+            if code == 404 then pollOffUntil = os.time() + 600 end
+            -- No command, or no answer (Ctrl+C, network, old bot): sleep out whatever is
+            -- left of this wait, so a poll that returns early never turns into a busy loop.
+            local rest = math.min(started + wait, deadline) - os.time()
+            if rest > 0 and not Timer.sleepInterruptible(rest, isStopped) then return false end
+        end
+    end
 end
 
 -- Menu "tes koneksi": authenticate without polling or acknowledging any commands.
