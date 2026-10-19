@@ -11,6 +11,9 @@
 - URL webhook invalid dilaporkan tanpa membocorkan URL/token ke log.
 - Menu 1–10 publish dipertahankan, ditambah 11 Preset Game, 12 Antrean & Heartbeat,
   dan 13 Start Monitor. Script Manager memakai Scripts -> copy Autoexecute.
+- **Alarm auto-logout Discord**: atur alarm per device/clone pada tanggal dan jam WIB, sekali atau
+  berulang harian. Jadwal disimpan dan diproses lokal oleh monitor; `/alarm list`
+  menampilkan jadwal dan `/alarm remove` membatalkannya.
 
 - **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
   satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan

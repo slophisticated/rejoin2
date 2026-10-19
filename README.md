@@ -81,6 +81,8 @@ agar script autoexecute baru berjalan. Akun/game yang belum spawn tetap menunggu
 Bot opsional ada di [bot/README.md](bot/README.md); kontrak device di
 [docs/discord_bot_prd.md](docs/discord_bot_prd.md). Node hanya diperlukan di hosting
 bot. Menu 8 memuat URL/secret bot dan tes koneksi; `/hwid redeem` menghubungkan device.
+Bot juga dapat menjadwalkan auto-logout per clone lewat `/alarm set` pada tanggal dan
+jam WIB, sekali atau setiap hari. Jadwal tersimpan di device dan dijalankan saat monitor aktif.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
 

@@ -274,6 +274,12 @@ local function snapshot(instances)
             presetSource = source,              -- khusus / default / link / none
             game = p and p.name or (source == "link" and "link sendiri" or ""),
             link = link or "",
+            logoutAlarm = type(inst.logoutAlarm) == "table" and {
+                date = inst.logoutAlarm.date,
+                time = inst.logoutAlarm.time,
+                daily = inst.logoutAlarm.daily == true,
+                nextAt = inst.logoutAlarm.nextAt,
+            } or nil,
             status = okS and Status.statusOf and Status.statusOf(inst.id) or "unknown",
         }
         if okU and Username.get then
@@ -443,6 +449,20 @@ function H.logout(args)
         lines[#lines + 1] = cloneLabel(inst) .. ": " .. tostring(okCall and msg or "error")
     end
     return done > 0, table.concat(lines, "; ")
+end
+
+function H.logout_alarm_set(args)
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    return require("managers.logout_alarm").set(list[1].id, args.date, args.time, args.daily)
+end
+
+function H.logout_alarm_remove(args)
+    local list, err = findClones(args.clone)
+    if not list then return false, err end
+    if #list ~= 1 then return false, "pilih tepat satu clone" end
+    return require("managers.logout_alarm").remove(list[1].id)
 end
 
 function H.launch_all(args, ctx)

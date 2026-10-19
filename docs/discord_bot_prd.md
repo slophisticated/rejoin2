@@ -280,6 +280,8 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `instance_edit` | `{clone, name?, package?, preset?, link?}` | Ubah clone. `preset`: kode = khusus, `""`/`"default"` = ikut default, `"-"` = pakai link sendiri (butuh `link` / link lama). `link:""`/`"-"` = hapus link sendiri |
 | `instance_remove` | `{clone}` | Hapus dari daftar (app tidak di-uninstall) |
 | `logout` | `{clones:[id/nama]}` | Logout akun Roblox: app di-force-stop (cuma kalau masih login), baris `.ROBLOSECURITY` dihapus dari Cookies DB (backup `.bak-*`), cache login dilupakan. Session tidak di-revoke di Roblox (cookie bisa di-inject lagi). `all` ditolak |
+| `logout_alarm_set` | `{clone, date, time, daily?}` | Simpan alarm logout per clone pada tanggal + `HH:MM` WIB; `date` format `DD/MM` (kejadian mendatang terdekat) atau `DD/MM/YYYY`. Sekali atau berulang harian mulai tanggal itu. Dieksekusi lokal oleh monitor |
+| `logout_alarm_remove` | `{clone}` | Hapus alarm logout clone |
 | `config_set` | `{key, value}` | Ubah 1 setting dari daftar §6 (key lain ditolak) |
 | `device_rename` | `{name}` | = `config_set webhook.deviceName` |
 | `webhook_use_message` | `{link}` | Ganti device: lanjutkan pesan status lama (link pesan Discord atau ID) |
@@ -388,6 +390,9 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone edit` | `clone`, `name?`, `package?`, `preset?`, `link?`, `device?` | `instance_edit` |
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
+| `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
+| `/alarm list` | `device?` | Dari snapshot per clone |
+| `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |
 | `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
 | `/screenshot` | `device?` (bisa `all`) | `screenshot` → gambar layar cloud phone di balasan ephemeral (≤10 gambar per balasan untuk `all`; lebih → follow-up ephemeral) |
 

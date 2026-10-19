@@ -22,6 +22,8 @@ const mappings = [
   ['clone edit', { clone: 'Clone1', preset: 'default', link: '-' }, 'instance_edit', { clone: 1, preset: 'default', link: '-' }],
   ['clone remove', { clone: 'com.apengjers.v5' }, 'instance_remove', { clone: 3 }],
   ['clone logout', { clones: 'Clone1, 3' }, 'logout', { clones: [1, 3] }],
+  ['alarm set', { clone: 'Clone1', date: '20/10', time: '12:00', daily: true }, 'logout_alarm_set', { clone: 1, date: '20/10', time: '12:00', daily: true }],
+  ['alarm remove', { clone: 'Clone3' }, 'logout_alarm_remove', { clone: 3 }],
   ['restart', { clones: '1,Clone3' }, 'restart', { clones: [1, 3] }],
   ['restart', { clones: 'all' }, 'launch_all', {}],
   ['screenshot', {}, 'screenshot', {}],
@@ -72,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 17);
+  assert.equal(definitions.length, 18);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -130,6 +132,11 @@ test('early validation rejects protected scripts, conflicting sources, bad clone
     ['preset remove', { key: 'A' }],
     ['preset set', { key: 'default', name: 'x', link: 'https://www.roblox.com/games/1' }],
     ['preset set', { key: 'C', name: 'x', link: 'https://example.com/games/1' }],
+    ['alarm set', { clone: 'Clone1', time: '24:00' }],
+    ['alarm set', { clone: 'Clone1', time: '12:60' }],
+    ['alarm set', { clone: 'Clone1', time: 'noon' }],
+    ['alarm set', { clone: 'Clone1', date: '31/02', time: '12:00' }],
+    ['alarm set', { clone: 'Clone1', date: '1/10', time: '12:00' }],
   ];
   for (const [path, values] of invalid) assert.throws(() => planDevice(path, values, h.device()), path);
   assert.equal(scriptName('egg'), 'egg.lua');
@@ -169,6 +176,8 @@ test('status formatting, secret redaction, and pagination fit Discord limits', (
   assert.doesNotMatch(statusPages(h.store, h.device())[0].embeds[0].description, /\|\|/);
   const lines = localLines('config get', h.device(), {});
   assert.ok(lines.some(l => l.includes('webhook.url = diset')));
+  h.device().snapshot.instances[0].logoutAlarm = { date: '20/10/2026', time: '12:00', daily: true };
+  assert.ok(localLines('alarm list', h.device(), {}).some(l => l.includes('12:00 WIB tiap hari')));
   h.device().snapshot.instances = Array.from({ length: 100 }, (_, id) => ({ ...snapshot().instances[0], id, name: `Clone${id}` }));
   pages = statusPages(h.store, h.device());
   assert.ok(pages.length > 1); assert.ok(pages.every(p => p.embeds[0].description.length <= 4096));

@@ -130,6 +130,43 @@ test("connection test reports an unregistered device", function()
     assert(ok == false and msg:find("belum didaftarkan", 1, true))
 end)
 
+test("logout alarm schedules in WIB, waits for launch slot, then fires once", function()
+    local env = sandbox()
+    local now = 1700000000
+    local calls, saves = 0, 0
+    local inst = { id = 2, name = "Clone2", package = "com.test.two" }
+    env.os.time = function() return now end
+    env.package.preload["core.config"] = function() return { get = function() return {} end } end
+    env.package.preload["managers.instance"] = function()
+        return { getAll = function() return { inst } end, save = function() saves = saves + 1; return true end }
+    end
+    env.package.preload["managers.cookie_injector"] = function()
+        return { logout = function() calls = calls + 1; return true, "logout" end }
+    end
+    local Alarm = env.require("managers.logout_alarm")
+    local tomorrow = env.os.date("!*t", now + 86400 + 7 * 3600)
+    local date = string.format("%02d/%02d", tomorrow.day, tomorrow.month)
+    local resolvedDate = string.format("%02d/%02d/%04d", tomorrow.day, tomorrow.month, tomorrow.year)
+    local ok = Alarm.set(2, date, "12:00", false)
+    assert(ok and inst.logoutAlarm.date == resolvedDate and inst.logoutAlarm.time == "12:00" and inst.logoutAlarm.timezone == "Asia/Jakarta")
+    local due = inst.logoutAlarm.nextAt
+    local dueWib = env.os.date("!*t", due + 7 * 3600)
+    assert(dueWib.year == tomorrow.year and dueWib.month == tomorrow.month and dueWib.day == tomorrow.day)
+    assert(dueWib.hour == 12 and dueWib.min == 0)
+    now = due
+    Alarm.tick({ inst }, true)
+    assert(calls == 0, "alarm interfered with active launch queue")
+    Alarm.tick({ inst }, false)
+    assert(calls == 1 and inst.logoutAlarm == nil and saves >= 2)
+    local followingDay = env.os.date("!*t", now + 86400 + 7 * 3600)
+    local dailyDate = string.format("%02d/%02d", followingDay.day, followingDay.month)
+    assert(Alarm.set(2, dailyDate, "12:00", true))
+    now = inst.logoutAlarm.nextAt
+    Alarm.tick({ inst }, false)
+    assert(calls == 2 and inst.logoutAlarm.daily and inst.logoutAlarm.nextAt > now)
+    assert(Alarm.remove(2) and inst.logoutAlarm == nil)
+end)
+
 local function queueFixture()
     local Queue = require("managers.launch_queue")
     local f = { clock = 1000, packets = {}, processes = {}, opens = {}, names = {}, accounts = {}, key = true }

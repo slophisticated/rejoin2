@@ -7,7 +7,7 @@ import { downloadScript, present, setting } from './validate.js';
 import { renameTarget } from '../store.js';
 import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
 
-const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list']);
+const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list', 'alarm list']);
 const button = (id, label, style = ButtonStyle.Secondary, disabled = false) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style).setDisabled(disabled);
 
 export class Handler {

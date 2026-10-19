@@ -32,6 +32,8 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   maksimal 3 percobaan. Default runtime berlaku untuk config lama.
 - **Menu 8**: webhook status, nama device, HWID/URL bot. Bot opsional; lihat
   [panduan bot](bot/README.md). Tes koneksi hanya memakai `/api/ping`.
+- Bot bisa menjadwalkan auto-logout per clone lewat `/alarm set` dengan tanggal dan
+  waktu WIB. Monitor device harus aktif saat alarm berjalan.
 
 ## Jalankan
 
