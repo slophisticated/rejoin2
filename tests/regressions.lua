@@ -142,13 +142,17 @@ local function monitorScenario(opts)
     end
     env.package.preload["managers.status"] = function()
         local status = dummy()
-        status.check = function() return "freeze" end
+        status.check = function() return opts.status and opts.status(clock) or "freeze" end
         status.isFreezeTimeout = function() return opts.freeze == true end
         return status
     end
-    env.package.preload["managers.auth"] = function() return { isLoggedIn = function() return true end } end
+    env.package.preload["managers.auth"] = function()
+        return { isLoggedIn = function() if opts.loggedIn then return opts.loggedIn(clock) end return true end }
+    end
     env.package.preload["managers.instance"] = function()
-        return { getAll = function() return {{ id = 1, name = "Clone1", package = "com.test.clone" }} end }
+        local list = {{ id = 1, name = "Clone1", package = "com.test.clone" }}
+        return { getAll = function() return list end,
+            find = function(ref) return tostring(ref) == "1" and list[1] or nil end }
     end
     env.package.preload["managers.apk"] = function()
         return { isRunning = function() return recovered and not opts.dead end }
@@ -156,6 +160,7 @@ local function monitorScenario(opts)
     env.package.preload["managers.heartbeat"] = function()
         return {
             install = function() return true end,
+            isEnabled = function() return false end,
             launchedAt = function() return lastLaunch end,
             isUp = function() return false end,
             alive = function()
@@ -170,6 +175,10 @@ local function monitorScenario(opts)
             checkAndRecover = function()
                 recoveries[#recoveries + 1] = clock
                 recovered, lastLaunch = true, clock
+                return true
+            end,
+            launchAndJoin = function()
+                relaunches[#relaunches + 1] = "join@" .. clock
                 return true
             end,
             relaunch = function()
@@ -326,6 +335,74 @@ test("a poll that returns early never turns into a busy loop", function()
         { after = 0, body = "", code = 0 } })
     assert(Remote.idle(5, nil, {}, {}) == true and slept() == 5)
     assert(#log == 2)
+end)
+
+test("a clone logged in by hand after nologin is queued once to open its game", function()
+    -- Login screen until t=1010, then logged in on the Roblox home screen.
+    local _, relaunches = monitorScenario({ duration = 30,
+        status = function(t) return t < 1010 and "nologin" or "running" end,
+        loggedIn = function(t) return t >= 1010 end })
+    local joins = 0
+    for _, r in ipairs(relaunches) do if tostring(r):find("^join@") then joins = joins + 1 end end
+    assert(joins == 1, "expected one game join after login, got " .. joins)
+end)
+
+local function apkScenario(instances)
+    local env = sandbox()
+    local cmds = {}
+    env.package.preload["utils.shell"] = function()
+        return { exec = function(cmd) cmds[#cmds + 1] = cmd; return true, "" end }
+    end
+    env.package.preload["managers.instance"] = function() return { getAll = function() return instances end } end
+    return env.require("managers.apk"), cmds
+end
+
+test("force-stop refuses a bad package name and a package shared by two clones", function()
+    local APK, cmds = apkScenario({ { package = "com.a.one" }, { package = "com.a.two" }, { package = "com.a.two" } })
+    assert(APK.forceStop("com.a.one") == true and cmds[1] == "am force-stop 'com.a.one'", tostring(cmds[1]))
+    local ok, why = APK.forceStop("com.a.two")
+    assert(ok == false and why:find("lebih dari satu", 1, true))
+    assert(APK.forceStop("x; reboot") == false and APK.forceStop(nil) == false)
+    assert(#cmds == 1, "a refused force-stop still ran a command")
+end)
+
+local function deltaScenario(found)
+    local env = sandbox()
+    local files, shell = {}, {}
+    env.package.preload["core.config"] = function()
+        return { get = function() return { appAutoExecutePath = "/sdcard/Delta/Autoexecute", deltaLicensePath = "" } end }
+    end
+    env.package.preload["utils.shell"] = function()
+        return { exec = function(cmd)
+            shell[#shell + 1] = cmd
+            if found and cmd:find("ls -a '/sdcard/Delta/internal/cache'", 1, true) then return true, ".\n..\nlicense\n" end
+            return true, ""
+        end }
+    end
+    env.package.preload["utils.file"] = function()
+        return { read = function(p) return files[p] end, write = function(p, c) files[p] = c; return true end }
+    end
+    env.io.open = function(path, mode)
+        if mode ~= "w" then return nil end
+        files[path] = ""
+        return { write = function(self, v) files[path] = files[path] .. v; return self end, close = function() return true end }
+    end
+    return env.require("managers.delta_key"), files, shell
+end
+
+test("a typed Delta key goes to the license file found, never to a command line", function()
+    local DeltaKey, files, shell = deltaScenario(true)
+    local key = "FREE_abc123"
+    assert(DeltaKey.input(key) == true)
+    assert(files["/sdcard/Delta/internal/cache/license"] == key)
+    for _, cmd in ipairs(shell) do assert(not cmd:find(key, 1, true), "key reached a shell command") end
+    assert(DeltaKey.input("two words") == false and DeltaKey.input("") == false)
+end)
+
+test("without a license file yet, the key goes to <Delta>/internal/cache/license", function()
+    local DeltaKey, files = deltaScenario(false)
+    assert(DeltaKey.input("FREE_new") == true)
+    assert(files["/sdcard/Delta/internal/cache/license"] == "FREE_new")
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))

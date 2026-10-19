@@ -55,7 +55,7 @@ Fitur utama:
 
 ```
 main.lua              entry + Main Menu (1 Start Monitor, 2-4, 5 Launch All + Monitor, 6-8, 9 Discord Webhook & Bot,
-                      10 Jendela & Mode Hemat, 11 Preset Game, 0 Exit)
+                      10 Jendela & Mode Hemat, 11 Preset Game, 12 Input Key Delta, 0 Exit)
                       flag: --headless --start-monitor --auto-launch --dry-run --no-wizard
                             --install-heartbeat --enable-window-layout (one-shot installer)
 run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (REJOIN_WRAPPER=1)
@@ -84,7 +84,8 @@ managers/window_layout.lua grid floating window App Cloner
 managers/auth.lua     cek login (cookie + verifikasi curl)
 managers/logout_alarm.lua  logout terjadwal per clone (WIB), dipanggil tiap siklus monitor
                       (bot /alarm; /cookie inject = command transient, token ga dipersist/log)
-managers/delta_key.lua cek file "license" Delta (notif minta key)
+managers/delta_key.lua cek file "license" Delta (notif minta key; juga <Delta>/internal/cache) +
+                      DeltaKey.input = key yang diketik user (Menu 12 / bot /delta input-key)
 managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute
                       (autoAdd = copy dari Scripts, autoRemove). Menu 6 = core/autoexecute_cli.lua
 managers/apk.lua      am/pm/pidof/RSS/hasWindow

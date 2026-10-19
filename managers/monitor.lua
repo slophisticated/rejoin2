@@ -142,6 +142,21 @@ end
 -- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
 -- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
 local noLoginLast = {} -- pkg -> os.time() of the last reopen
+local wasNoLogin = {}  -- pkg -> true while the clone sits without an account
+
+-- A clone seen without an account that is logged in now (the owner signed in by hand)
+-- is still on the Roblox home screen: queue a rejoin so it opens its game link. Goes
+-- through the rejoin queue (one at a time); skipped when it already reached a game.
+local function joinAfterLogin(inst, id, name, pkg, status)
+    if not pkg then return end
+    if status == "nologin" then wasNoLogin[pkg] = true return end
+    if not wasNoLogin[pkg] or status == "unknown" or Auth.isLoggedIn(inst) ~= true then return end
+    wasNoLogin[pkg] = nil
+    local okH, alive = pcall(Heartbeat.alive, inst)
+    if okH and alive == true then return end
+    Logger.info(string.format("[NOLOGIN] %s sekarang sudah login; dibuka ke game", name))
+    Monitor.requestRejoin({ id })
+end
 
 local function reopenNoLoginIfClosed(inst, id, name, pkg)
     if monitorConf.relaunchNoLogin == false or not pkg then return false end
@@ -497,6 +512,7 @@ function Monitor.start(conf, opts)
     monitorConf = type(conf) == "table" and conf or {}
     Webhook.configure(monitorConf)
     noLoginLast = {}
+    wasNoLogin = {}
     instanceManager = require("managers.instance")
     recoveryManager = require("managers.recovery")
     apkManager = require("managers.apk")
@@ -570,6 +586,7 @@ function Monitor.start(conf, opts)
             local okStatus, resStatus = pcall(function() return Status.check(inst) end)
             status = okStatus and resStatus or "unknown"
             statuses[id] = status
+            pcall(joinAfterLogin, inst, id, name, pkg, status)
 
             -- If frozen/stuck long enough, relaunch the app — UNLESS the clone has no
             -- logged-in account: then low RSS / no activity is expected (it's just sitting

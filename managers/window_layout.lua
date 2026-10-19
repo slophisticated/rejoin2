@@ -139,7 +139,7 @@ local function waitStopped(pkg)
     for attempt = 1, 4 do
         local okR, running = pcall(APK.isRunning, pkg)
         if okR and not running then return true end
-        if attempt == 3 then Shell.exec("am force-stop " .. pkg) end
+        if attempt == 3 then pcall(APK.forceStop, pkg) end
         if okT then Timer.sleep(1) end
     end
     local okR, running = pcall(APK.isRunning, pkg)

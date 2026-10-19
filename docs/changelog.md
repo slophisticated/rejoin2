@@ -2,6 +2,11 @@
 
 ## Unreleased / Bug fixes
 
+- **Port dari versi publish (Apeng, commit "Write Delta Key")**:
+  - **Input Key Delta**: Main Menu `12` + bot `/delta input-key` (popup privat). Key yang didapat user sendiri ditulis ke file license Delta yang terdeteksi, atau `<Delta>/internal/cache/license` kalau belum ada. Bedanya dari versi publish: path license yang udah kedeteksi dipake duluan. Key ga masuk config, log, atau command shell; command bot transient kayak cookie. Deteksi key sekarang juga ngecek `<Delta>/internal/cache`.
+  - **Force-stop lebih aman**: nama package divalidasi + di-quote; kalau satu package dipake lebih dari satu clone, force-stop dibatalkan (biar clone lain ga ikut ketutup). Logout / inject cookie ga ngubah cookie kalau clone gagal ditutup. Semua jalur force-stop lewat `APKManager.forceStop`.
+  - **Auto masuk game abis login manual**: clone yang tadinya belum login, begitu kedeteksi udah login, dimasukin ke antrean rejoin monitor dan dibuka ke link game/preset-nya (dilewati kalau heartbeat bilang udah di game).
+
 - **Command bot jalan instan (long poll)**: jeda antar siklus monitor (dan jeda saat Launch All) sekarang dipake device buat nunggu di `POST /api/poll`. Bot langsung jawab begitu ada command, device langsung sync, jadi command jalan ±1–2 detik setelah dikirim, ga nunggu `remote.interval` (30 dtk) lagi. Poll ga bawa snapshot dan ga pake root, jadi bebannya kecil; snapshot lengkap tetap tiap `remote.interval`. Bot lama (tanpa `/api/poll`) = otomatis balik ke sleep biasa. **Bot di Railway perlu di-deploy ulang** biar fitur ini aktif.
 
 - **Inject cookie lewat bot langsung kepake**: abis `/cookie inject` sukses, engine langsung nganggep clone itu login (`Auth.markLoggedIn`) dan buka ulang clone-nya ke game lewat antrean rejoin (kayak Menu 7), tanpa lewat jalur "belum login". Cek token ke Roblox ditahan sampai `loginVerifyInterval` (600 dtk) biar app yang baru login ga "dibalap" client kedua (bisa bikin sesi di-revoke).

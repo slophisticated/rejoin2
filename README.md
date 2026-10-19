@@ -80,6 +80,7 @@ cd ~/rejoin && lua main.lua
 | `9` Discord (Webhook & Bot) | URL webhook, interval, screenshot, notif key, kirim tes, nama device, pakai pesan status lama, URL + secret bot, tes koneksi bot |
 | `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
 | `11` Preset Game | Tambah/ubah/hapus preset, set preset default, atur clone (khusus / ikut default / link sendiri), semua clone ikut default (+ rejoin) |
+| `12` Input Key Delta | Masukkan key Delta yang kamu dapat sendiri (ketikan disembunyikan, ga disimpan di config/log), juga bisa dari bot `/delta input-key` |
 | `0` Exit | |
 
 Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.

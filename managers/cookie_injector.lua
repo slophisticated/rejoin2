@@ -295,7 +295,8 @@ function CookieInjector.inject(instance, token)
     if not base then return false, "Tidak bisa tentukan base dir instance" end
 
     -- 1) Stop the app so the cookie DB is not held open / rewritten by WebView.
-    APK.forceStop(pkg)
+    local stopped, stopErr = APK.forceStop(pkg)
+    if not stopped then return false, "clone tidak bisa ditutup dengan aman: " .. tostring(stopErr) end
     Timer.sleep(1)
 
     -- 2) Enumerate EVERY Cookies DB under the base dir (a Lite/mod clone can keep its
@@ -456,7 +457,8 @@ function CookieInjector.logout(instance)
     -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
     local sig = io.open("data/auth_forget.txt", "a")
     if sig then sig:write(pkg, "\n"); sig:close() end
-    APK.forceStop(pkg)
+    local stopped, stopErr = APK.forceStop(pkg)
+    if not stopped then return false, "clone tidak bisa ditutup dengan aman; cookie tidak diubah: " .. tostring(stopErr) end
     Timer.sleep(1)
     local stamp = os.date("%Y%m%d-%H%M%S")
     local failures = {}

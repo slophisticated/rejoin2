@@ -7,9 +7,11 @@ local function quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
+-- Same guard as APKManager.forceStop (valid name, one instance per package).
 function Android.forceStop(packageName)
-    Logger.info("Android: force stopping " .. tostring(packageName))
-    Shell.exec(string.format("am force-stop %s", packageName))
+    local ok, APK = pcall(require, "managers.apk")
+    if not ok then return false, "apk manager tidak tersedia" end
+    return APK.forceStop(packageName)
 end
 
 function Android.launch(packageName)

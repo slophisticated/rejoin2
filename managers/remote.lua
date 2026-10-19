@@ -486,6 +486,14 @@ function H.cookie_inject(args, ctx)
 end
 
 -- Scheduled logout (managers/logout_alarm.lua), one clone at a time.
+-- A key the user got from Delta themselves. Never fetch or derive keys here.
+function H.delta_key_input(args)
+    if type(args.key) ~= "string" then return false, "key tidak valid" end
+    local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
+    if not okCall then return false, "input key Delta gagal (error internal)" end
+    return ok, tostring(message or (ok and "key Delta tersimpan" or "gagal menyimpan key Delta"))
+end
+
 function H.logout_alarm_set(args)
     local list, err = findClones(args.clone)
     if not list then return false, err end
@@ -796,7 +804,8 @@ function Remote.sync(instances, ctx)
     for _, cmd in ipairs(cmds) do
         local ok, msg, extra = Remote.run(cmd, ctx, instances)
         Logger.info(string.format("Remote: %s %s -> %s %s", tostring(cmd.type), tostring(cmd.id),
-            ok and "OK" or "GAGAL", cmd.type == "cookie_inject" and "(detail disembunyikan)" or tostring(msg)))
+            ok and "OK" or "GAGAL", (cmd.type == "cookie_inject" or cmd.type == "delta_key_input")
+                and "(detail disembunyikan)" or tostring(msg)))
         request("/api/ack", {
             protocol = PROTOCOL,
             device = device,

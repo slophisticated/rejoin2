@@ -216,7 +216,7 @@ end
 local infoLine = installInfo()
 
 while true do
-    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "5" then
@@ -268,6 +268,8 @@ while true do
         require("core.display_cli").run()
     elseif choice == "11" then
         require("core.preset_cli").run()
+    elseif choice == "12" then
+        require("core.delta_key_cli").run()
     elseif choice == "0" then
         print("Exiting main")
         break

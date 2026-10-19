@@ -74,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 19);
+  assert.equal(definitions.length, 20);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -89,7 +89,7 @@ test('registration covers every route, valid Discord option ordering and device 
   }
   assert.deepEqual(seen.sort(), Object.keys(routes).sort());
   const lua = await readFile(new URL('../../managers/remote.lua', import.meta.url), 'utf8');
-  for (const type of new Set([...mappings.map(m => m[2]), 'cookie_inject', 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
+  for (const type of new Set([...mappings.map(m => m[2]), 'cookie_inject', 'delta_key_input', 'config_set'])) assert.match(lua, new RegExp(`function H\\.${type}\\(`));
 });
 
 test('schema validation supports device-provided new settings without a hardcoded config list', () => {
@@ -237,6 +237,33 @@ test('cookie injection requires the private modal and queues one transient clone
   assert.deepEqual({ clone: command.args.clone, token: command.args.token }, { clone: 1, token });
   assert.equal(command.sensitive, true);
   assert.equal(submit.deferPayload.flags, MessageFlags.Ephemeral);
+  h.replies.close();
+});
+
+test('Delta key input uses a private modal and one transient command, scrubbed after ACK', async () => {
+  const h = handlerHarness();
+  const start = interaction('delta input-key', { device: 'RF-07' });
+  await h.handler.handle(start);
+  assert.ok(start.modal);
+  assert.equal(h.store.commands.size, 0);
+  const id = [...h.handler.sessions.keys()][0];
+  const key = 'FREE_delta-test-key';
+  const bad = interaction('', {}, { isModalSubmit: () => true, customId: `delta:${id}`, fields: { getTextInputValue: () => 'two words' } });
+  await h.handler.handle(bad);
+  assert.equal(h.store.commands.size, 0);
+  // The session is single use: start again for the valid key.
+  await h.handler.handle(interaction('delta input-key', { device: 'RF-07' }));
+  const id2 = [...h.handler.sessions.keys()].find(k => h.handler.sessions.get(k).kind === 'delta_key');
+  const submit = interaction('', {}, { isModalSubmit: () => true, customId: `delta:${id2}`, fields: { getTextInputValue: () => key } });
+  await h.handler.handle(submit);
+  const command = [...h.store.commands.values()][0];
+  assert.equal(command.type, 'delta_key_input');
+  assert.equal(command.args.key, key);
+  assert.equal(command.sensitive, true);
+  h.advance(4000); h.store.sync(snapshot());
+  h.store.ack(ack(command));
+  assert.equal(h.store.commands.size, 0);
+  assert.deepEqual(command.args, {});
   h.replies.close();
 });
 

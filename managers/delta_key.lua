@@ -10,6 +10,8 @@ local Shell = require("utils.shell")
 -- and every clone shows the key screen again. The folder is shared by all clones, so
 -- this is one status for the whole device.
 --
+-- Newer Delta builds keep it in <Delta>/internal/cache/license, which is checked too.
+--
 -- Config (optional): deltaLicensePath = "" -- "" = find it automatically.
 -- The path found once is remembered in data/delta_license_path.txt, so a key that is
 -- already gone when the engine starts (e.g. after a reboot) is still noticed.
@@ -36,11 +38,11 @@ function DeltaKey.path()
     local forced = type(c.deltaLicensePath) == "string" and c.deltaLicensePath:gsub("%s+$", "") or ""
     if forced ~= "" then return forced end
     if cached then return cached end
-    if dir then
-        local ok, out = Shell.exec("ls -a " .. q(dir) .. " 2>/dev/null")
+    for _, where in ipairs(dir and { dir, dir .. "/internal/cache" } or {}) do
+        local ok, out = Shell.exec("ls -a " .. q(where) .. " 2>/dev/null")
         for name in tostring(ok and out or ""):gmatch("[^\r\n]+") do
             if name:lower():find("license", 1, true) then
-                cached = dir .. "/" .. name
+                cached = where .. "/" .. name
                 if File.read(REMEMBER) ~= cached then
                     File.write(REMEMBER, cached)
                     Logger.info("[KEY] file license Delta: " .. cached)
@@ -76,6 +78,42 @@ function DeltaKey.present()
     if out:find("KEY_YES", 1, true) then return true end
     if out:find("KEY_NO", 1, true) then return false end
     return nil
+end
+
+-- Save a key the user got from Delta themselves into Delta's license file. Manual input
+-- only: nothing here obtains, derives or checks a key. The key never goes to the log,
+-- the config or a shell command line (written with Lua as the Termux user).
+-- Goes to the license file found before, else <Delta>/internal/cache/license.
+function DeltaKey.input(key)
+    if type(key) ~= "string" then return false, "key tidak valid" end
+    key = key:gsub("^%s+", ""):gsub("%s+$", "")
+    if #key < 1 or #key > 256 or key:find("[%c%s]") then
+        return false, "format key tidak valid (1-256 karakter tanpa spasi)"
+    end
+    local dir = deltaDir() or "/sdcard/Delta"
+    local path = DeltaKey.path() or (dir .. "/internal/cache/license")
+    if path:find("%c") then return false, "path license Delta tidak valid" end
+    local okD, isDir = Shell.exec("sh -c " .. q("[ -d " .. q(path) .. " ] && echo IS_DIR"))
+    if okD and tostring(isDir):find("IS_DIR", 1, true) then
+        return false, "license Delta di device ini berupa folder (" .. path .. "); masukkan key lewat Delta"
+    end
+    local parent = path:match("^(.*)/[^/]+$")
+    if not parent or parent == "" then return false, "path license Delta tidak valid" end
+    -- Created as the Termux user (not su), like the file itself.
+    os.execute("mkdir -p " .. q(parent) .. " 2>/dev/null")
+    local f = io.open(path, "w")
+    if not f then
+        return false, "file license Delta tidak bisa ditulis (izin storage Termux? jalankan termux-setup-storage)"
+    end
+    local wrote = f:write(key)
+    local closed = f:close()
+    if not wrote or not closed or File.read(path) ~= key then
+        return false, "gagal menyimpan key ke file license Delta"
+    end
+    cached = path
+    File.write(REMEMBER, path)
+    Logger.info("[KEY] key Delta dimasukkan manual ke " .. path)
+    return true, "key Delta tersimpan di " .. path .. "; buka ulang Delta kalau layar key belum hilang"
 end
 
 return DeltaKey
