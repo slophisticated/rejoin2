@@ -26,9 +26,10 @@ dengan balasan **ephemeral** (cuma pemilik yang lihat, channel tidak spam):
 - **script Delta**: upload/tambah script ke folder Scripts, hapus, lihat; masukkan /
   keluarkan dari Autoexecute (copy dari Scripts, per device)
 - inject cookie Roblox milik sendiri ke satu clone lewat modal privat
+- input manual key Delta milik user lewat modal privat, disimpan ke file license device
 - lihat status semua device
 
-**Bukan tujuan (v1):** ambil key Delta (dilarang — jangan buat bypass key system),
+**Bukan tujuan (v1):** mengambil atau membuat key Delta maupun melewati key system,
 upload file bebas ke device (APK / file apa pun selain script
 `.lua`/`.txt` ≤200 KB lewat `/script add`, yang **termasuk v1**), kontrol non-owner.
 
@@ -395,6 +396,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; hanya satu clone dan device harus online |
+| `/delta input-key` | `device` | Modal ephemeral meminta key yang user dapatkan sendiri; `delta_key_input` dikirim satu kali dan tidak dipersist/log oleh bot, device menulis ke `/sdcard/delta/internal/cache/license` |
 | `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
 | `/alarm list` | `device?` | Dari snapshot per clone |
 | `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |
@@ -476,7 +478,9 @@ Username tampil sebagai spoiler `||nama||` (ikuti `webhook.hideNames` dari setti
   command, kode status.
 - Link webhook (`/webhook set`) jangan diulang di balasan; tampilkan "diset".
 - Validasi panjang string (nama ≤40, nama preset ≤60, link ≤300).
-- Tidak ada fitur ambil / bypass key Delta.
+- Input key Delta hanya menerima key manual dari user melalui modal privat; tidak ada
+  fitur mengambil, membuat, atau melewati key system. Command bersifat sensitif, sekali
+  kirim, tidak dipersist dan tidak dicatat ke log.
 
 ## 9. Kriteria terima
 

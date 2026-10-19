@@ -153,6 +153,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/clone list/add/edit/remove` | Kelola daftar; remove perlu konfirmasi, bukan uninstall |
 | `/clone logout clones:"Clone2"` | Logout akun Roblox clone pilihan (cookie dihapus, app ditutup, ga di-rejoin). Konfirmasi dulu; `all` ga boleh |
 | `/cookie inject device:<device> clone:<clone>` | Buka input privat untuk inject cookie ke satu clone; device harus online |
+| `/delta input-key device:<device>` | Buka modal privat untuk key Delta yang user dapatkan sendiri; dikirim sekali ke device online |
 | `/alarm set` | Jadwalkan logout satu clone pada tanggal dan waktu WIB; sekali atau berulang tiap hari |
 | `/alarm list/remove` | Lihat atau hapus jadwal logout per device/clone |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
@@ -194,7 +195,10 @@ link, FPS/memori, dan username spoiler jika `webhook.hideNames` aktif.
   Jika device belum menerima command dalam 90 detik, command dihapus dan perlu dikirim
   ulang. Setelah diterima, device memverifikasi token ke Roblox sebelum menulisnya ke
   Cookies DB. Gunakan hanya cookie akun milikmu.
-- Tidak ada bypass key Delta.
+- Key Delta yang user masukkan juga memakai modal privat dan command sementara; bot
+  tidak menyimpan, mencatat, mengambil, atau membuat key. Device menulis input manual
+  ke file license Delta.
+- Tidak ada fitur mengambil atau melewati sistem key Delta.
 
 ## Antrean, timeout, rename, dan keamanan
 

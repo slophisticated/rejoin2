@@ -224,32 +224,40 @@ function Queue:tick(instances)
     for _, inst in ipairs(instances) do
         local pkg, now = inst.package, self.now()
         if not self:contains(pkg) then
-            local process = self:process(inst)
-            local alive = self.hb.alive(inst)
-            if self.auth.isLoggedIn(inst) == false then
-                self.states[pkg] = "nologin"
-                local closed = process == false
-                if process and self.apk.hasWindow then
-                    local ok, window = pcall(self.apk.hasWindow, pkg)
-                    closed = ok and window == false
-                end
-                if closed and self.conf.relaunchNoLogin ~= false then self:request({ inst }, false) end
-            elseif process == nil then
-                self.states[pkg] = "needs_check"
-            elseif process == false or alive == false then
-                self.healthySince[pkg] = nil
-                self:request({ inst }, false)
-            elseif alive == true then
-                self.states[pkg] = "ingame"
-                self.healthySince[pkg] = self.healthySince[pkg] or now
-                if now - self.healthySince[pkg] >= 60 then self.attempts[pkg] = nil end
-            elseif not self.hb.isEnabled() then
-                self.states[pkg] = "running"
+            local loggedIn = self.auth.isLoggedIn(inst)
+            -- A clone that was gently opened at its login screen has no queued job
+            -- after the nologin settle period. Once the owner logs in, queue a fresh
+            -- cold launch so the configured game link is actually opened.
+            if loggedIn == true and self.states[pkg] == "nologin" then
+                self:request({ inst }, true)
             else
-                self.seenAt[pkg] = self.seenAt[pkg] or now
-                self.states[pkg] = self:keyStatus() == false and "wait_key" or "starting"
-                -- Adopt a running clone without restarting it just because HB is absent.
-                if not self.active then self.active = { inst = inst, started = self.seenAt[pkg], samples = 0 } end
+                local process = self:process(inst)
+                local alive = self.hb.alive(inst)
+                if loggedIn == false then
+                    self.states[pkg] = "nologin"
+                    local closed = process == false
+                    if process and self.apk.hasWindow then
+                        local ok, window = pcall(self.apk.hasWindow, pkg)
+                        closed = ok and window == false
+                    end
+                    if closed and self.conf.relaunchNoLogin ~= false then self:request({ inst }, false) end
+                elseif process == nil then
+                    self.states[pkg] = "needs_check"
+                elseif process == false or alive == false then
+                    self.healthySince[pkg] = nil
+                    self:request({ inst }, false)
+                elseif alive == true then
+                    self.states[pkg] = "ingame"
+                    self.healthySince[pkg] = self.healthySince[pkg] or now
+                    if now - self.healthySince[pkg] >= 60 then self.attempts[pkg] = nil end
+                elseif not self.hb.isEnabled() then
+                    self.states[pkg] = "running"
+                else
+                    self.seenAt[pkg] = self.seenAt[pkg] or now
+                    self.states[pkg] = self:keyStatus() == false and "wait_key" or "starting"
+                    -- Adopt a running clone without restarting it just because HB is absent.
+                    if not self.active then self.active = { inst = inst, started = self.seenAt[pkg], samples = 0 } end
+                end
             end
         end
     end

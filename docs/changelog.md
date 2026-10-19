@@ -17,6 +17,16 @@
 - **Inject cookie dari Discord**: `/cookie inject` membuka modal privat untuk satu
   device/clone. Token diverifikasi di device, command transient tidak ditulis ke
   `state.json` atau log, dan tidak diretry otomatis.
+- **Auto-join setelah login manual**: clone yang awalnya `nologin` kini masuk ke link
+  game/preset setelah akun berhasil login; antrean melakukan cold launch hanya setelah
+  status login terdeteksi.
+- **Force-stop terarah**: operasi tutup memvalidasi nama package dan membatasi perintah
+  ke user Android aktif. Jika satu package tercatat pada beberapa instance, force-stop
+  dibatalkan; logout/inject tidak mengedit cookie ketika proses gagal ditutup. Ini
+  mencegah salah target dan menolak konfigurasi clone yang tidak bisa ditutup terpisah.
+- **Input Key Delta**: Menu 14 dan `/delta input-key` menerima key yang dimasukkan user
+  secara manual. Device menulis key ke `/sdcard/delta/internal/cache/license`; input bot lewat
+  modal privat, command tidak dipersist atau dicatat ke log.
 
 - **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
   satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan

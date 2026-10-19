@@ -30,12 +30,22 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   bar Android. Mode hemat opsional, mulai 15 FPS bila diperlukan.
 - **Menu 12**: 3 heartbeat baru, stabil minimal 20 detik, cooldown 120 detik,
   maksimal 3 percobaan. Default runtime berlaku untuk config lama.
+- **Menu 14**: masukkan key Delta yang kamu dapatkan sendiri; key disembunyikan saat
+  diketik dan disimpan ke file license Delta.
 - **Menu 8**: webhook status, nama device, HWID/URL bot. Bot opsional; lihat
   [panduan bot](bot/README.md). Tes koneksi hanya memakai `/api/ping`.
 - Bot bisa menjadwalkan auto-logout per clone lewat `/alarm set` dengan tanggal dan
   waktu WIB. Monitor device harus aktif saat alarm berjalan.
 - Bot juga mendukung `/cookie inject` untuk satu clone. Masukkan cookie milikmu lewat
   modal privat; device harus online dan monitor aktif.
+- `/delta input-key` membuka modal privat untuk key Delta yang kamu dapatkan sendiri.
+  Key dikirim sekali ke device online dan tidak disimpan bot; device menulisnya ke file
+  license Delta.
+- Force-stop saat logout, inject cookie, atau recovery menyasar package clone pada user
+  Android aktif. Pastikan satu package hanya dipakai satu instance; Rejoin membatalkan
+  force-stop jika package terdaftar ganda.
+- Clone yang dibuka di layar login akan masuk ke link game setelah kamu login, selama
+  clone tersebut punya link game/preset yang valid.
 
 ## Jalankan
 

@@ -3,11 +3,33 @@ local Shell = require("utils.shell")
 
 local APKManager = {}
 
+local function validPackageName(packageName)
+    return type(packageName) == "string"
+        and packageName:match("^[%a_][%w_%.]*$") ~= nil
+end
+
+local function packageArg(packageName)
+    return "'" .. packageName:gsub("'", "'\\''") .. "'"
+end
+
+-- Android stops processes at package scope. If config maps multiple logical clones
+-- to the same package, there is no safe way to stop just one of them, so fail closed.
+local function packageIsUnique(packageName)
+    local ok, Instances = pcall(require, "managers.instance")
+    if not ok or type(Instances.getAll) ~= "function" then return true end
+    local matches = 0
+    for _, inst in ipairs(Instances.getAll() or {}) do
+        if type(inst) == "table" and inst.package == packageName then matches = matches + 1 end
+    end
+    return matches <= 1
+end
+
 -- Resolve the default launchable activity component for a package (best-effort).
 -- Returns the component string like "com.roblox.client/.Activity" or nil on failure.
 function APKManager.resolveLaunchComponent(packageName)
+    if not validPackageName(packageName) then return nil end
     -- cmd package resolve-activity --brief returns the package/activity component on the last line
-    local cmd = string.format("cmd package resolve-activity --brief %s", packageName)
+    local cmd = string.format("cmd package resolve-activity --brief %s", packageArg(packageName))
     local ok, out = Shell.exec(cmd)
     if ok and out then
         for line in out:gmatch("[^\r\n]+") do
@@ -32,11 +54,13 @@ end
 --
 -- Returns (success, output_or_err).
 function APKManager.launch(packageName)
+    if not validPackageName(packageName) then return false, "invalid_package" end
     Logger.info("APKManager: launching package: " .. tostring(packageName))
     APKManager.invalidateSnapshot()
 
     -- 1) Primary: am start MAIN/LAUNCHER targeting the package explicitly.
-    local cmd = string.format("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p %s", packageName)
+    local pkgArg = packageArg(packageName)
+    local cmd = string.format("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p %s", pkgArg)
     Logger.info("APKManager: exec: " .. cmd)
     local ok, out = Shell.exec(cmd)
     local failedHint = { "Error", "Failure", "Exception", "does not exist", "is not allowed", "Activity not started" }
@@ -56,7 +80,7 @@ function APKManager.launch(packageName)
     Logger.warn("APKManager: am start launch failed/not accepted for " .. tostring(packageName) .. ": " .. tostring(out))
 
     -- 2) Fallback: monkey launches the main activity of a package by name (no component needed)
-    cmd = string.format("monkey -p %s -c android.intent.category.LAUNCHER 1", packageName)
+    cmd = string.format("monkey -p %s -c android.intent.category.LAUNCHER 1", pkgArg)
     Logger.info("APKManager: fallback exec: " .. cmd)
     ok, out = Shell.exec(cmd)
     if ok and out then
@@ -87,8 +111,13 @@ function APKManager.launch(packageName)
 end
 
 function APKManager.forceStop(packageName)
+    if not validPackageName(packageName) then return false, "invalid_package" end
+    if not packageIsUnique(packageName) then
+        return false, "package dipakai lebih dari satu instance; force-stop dibatalkan agar clone lain tidak ikut tertutup"
+    end
     Logger.info("APKManager: force stopping: " .. tostring(packageName))
-    local cmd = string.format("am force-stop %s", packageName)
+    -- Limit the stop to the current Android user and one validated package name.
+    local cmd = string.format("am force-stop --user current %s", packageArg(packageName))
     local ok, out = Shell.exec(cmd)
     APKManager.invalidateSnapshot()
     return ok, out

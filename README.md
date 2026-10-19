@@ -70,11 +70,14 @@ opsional; mulai dari 15 FPS dan rendering 3D mati jika cocok untuk gamenya.
 | 11 | Preset Game |
 | 12 | Antrean & Heartbeat: stabilisasi, cooldown, batas retry |
 | 13 | Start Monitor tanpa mengulang Launch All |
+| 14 | Input Key Delta (key yang didapat user, tanpa ditampilkan di terminal) |
 
 Ctrl+C menghentikan monitor. Untuk mencoba ulang clone yang ditahan, gunakan
 bot `/restart clones:<clone>` atau hentikan monitor dan pilih Menu 1. Main Menu 13
 mengamati proses yang sudah berjalan. Setelah update v3, buka ulang clone bertahap
 agar script autoexecute baru berjalan. Akun/game yang belum spawn tetap menunggu.
+Clone yang awalnya tampil `nologin` akan otomatis membuka link game setelah akun berhasil
+login; pastikan clone punya link game/preset yang valid.
 
 ## Bot dan webhook
 
@@ -85,8 +88,16 @@ Bot juga dapat menjadwalkan auto-logout per clone lewat `/alarm set` pada tangga
 jam WIB, sekali atau setiap hari. Jadwal tersimpan di device dan dijalankan saat monitor aktif.
 Cookie akun yang kamu miliki juga bisa dikirim lewat `/cookie inject` dengan input
 privat, lalu pilih device dan clone. Monitor harus aktif dan antrean launch sedang kosong.
+Key Delta yang kamu dapatkan sendiri bisa dimasukkan lewat Menu 14 atau `/delta input-key`;
+bot memakai modal privat dan command sementara. Key ditulis ke
+`/sdcard/delta/internal/cache/license` dan tidak disimpan di config atau log.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
+
+Operasi tutup clone memakai package yang divalidasi dan dibatasi ke user Android aktif.
+Kalau satu package tercatat untuk lebih dari satu instance, operasi force-stop dibatalkan
+agar Rejoin tidak menutup keduanya; logout/inject juga tidak mengubah database cookie
+kalau clone gagal ditutup.
 
 Webhook mempertahankan pesan status yang sama di data root, uptime/counter restart
 per clone, screenshot dan notif key. URL/token tidak ditulis ke log.

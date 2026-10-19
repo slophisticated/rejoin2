@@ -34,13 +34,14 @@ export class Handler {
         return await i.respond(autocomplete(this.view(i), path, interactionValues(i, path), i.options.getFocused(true)));
       }
       if (i.isButton()) return await this.component(i);
-      if (i.isModalSubmit()) return await this.cookieModal(i);
+      if (i.isModalSubmit()) return await this.sensitiveModal(i);
       if (!i.isChatInputCommand()) return;
       const path = interactionPath(i);
       if (!routes[path]) throw new Error('Command tidak dikenal. Daftarkan ulang command bot.');
       const values = interactionValues(i, path);
       const view = this.view(i);
       if (path === 'cookie inject') return await this.openCookieModal(i, values, view);
+      if (path === 'delta input-key') return await this.openDeltaKeyModal(i, values, view);
       await i.deferReply({ flags: MessageFlags.Ephemeral });
       if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
       if (path === 'hwid redeem' || path === 'hwid remove') return await this.hwid(i, path, String(values.hwid || '').trim().toLowerCase());
@@ -89,9 +90,14 @@ export class Handler {
     await i.showModal(modal);
   }
 
-  async cookieModal(i) {
+  async sensitiveModal(i) {
     const [kind, id] = i.customId.split(':');
-    const session = kind === 'cookie' ? this.sessions.get(id) : null;
+    if (kind === 'delta') return await this.deltaKeyModal(i, id);
+    return await this.cookieModal(i, id);
+  }
+
+  async cookieModal(i, id) {
+    const session = this.sessions.get(id);
     if (!session || session.kind !== 'cookie' || session.owner !== i.user.id || session.expires <= this.now()) {
       return await i.reply({ content: '⌛ Input cookie kedaluwarsa. Jalankan /cookie inject lagi.', flags: MessageFlags.Ephemeral });
     }
@@ -103,6 +109,35 @@ export class Handler {
     if (!device.snapshot.instances.some(instance => instance.id === session.clone)) throw new Error('Clone berubah atau sudah dihapus; jalankan /cookie inject lagi.');
     await i.deferReply({ flags: MessageFlags.Ephemeral });
     const command = this.store.enqueue(device.key, 'cookie_inject', { clone: session.clone, token }, { sensitive: true });
+    const group = this.replies.create(i, [{ command, interval: Number(setting(device, 'remote.interval')?.value) || 30, offline: false }]);
+    await group.chain;
+  }
+
+  async openDeltaKeyModal(i, values, view) {
+    const device = selectDevices(view, 'delta input-key', values.device)[0];
+    if (!this.store.online(device)) throw new Error('Device sedang offline; key tidak dikirim.');
+    const id = randomUUID();
+    this.sessions.set(id, { kind: 'delta_key', owner: i.user.id, expires: this.now() + 60_000, device: device.key });
+    const modal = new ModalBuilder().setCustomId(`delta:${id}`).setTitle('Input Key Delta');
+    const input = new TextInputBuilder().setCustomId('key').setLabel('Key Delta yang kamu dapatkan')
+      .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(256)
+      .setPlaceholder('FREE_XXXXX');
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    await i.showModal(modal);
+  }
+
+  async deltaKeyModal(i, id) {
+    const session = this.sessions.get(id);
+    if (!session || session.kind !== 'delta_key' || session.owner !== i.user.id || session.expires <= this.now()) {
+      return await i.reply({ content: '⌛ Input key Delta kedaluwarsa. Jalankan /delta input-key lagi.', flags: MessageFlags.Ephemeral });
+    }
+    this.sessions.delete(id);
+    const key = i.fields.getTextInputValue('key').trim();
+    if (!key || key.length > 256 || /[\s\u0000-\u001f]/.test(key)) throw new Error('Format key Delta tidak valid.');
+    const device = this.store.devices.get(session.device);
+    if (!device || !this.store.online(device)) throw new Error('Device sedang offline; key tidak dikirim.');
+    await i.deferReply({ flags: MessageFlags.Ephemeral });
+    const command = this.store.enqueue(device.key, 'delta_key_input', { key }, { sensitive: true });
     const group = this.replies.create(i, [{ command, interval: Number(setting(device, 'remote.interval')?.value) || 30, offline: false }]);
     await group.chain;
   }

@@ -228,7 +228,7 @@ export class Store extends EventEmitter {
 
   finish(c, result) {
     this.commands.delete(c.id);
-    if (c.sensitive) delete c.args.token;
+    if (c.sensitive) for (const key of Object.keys(c.args)) delete c.args[key];
     const uploaded = this.uploads.get(c.id);
     this.uploads.delete(c.id);
     this.changed();
@@ -243,7 +243,10 @@ export class Store extends EventEmitter {
         this.finish(c, { ok: false, message: 'ACK diterima, tapi upload screenshot belum masuk dalam 30 detik.' });
       } else if (!c.timedOut && now - c.createdAt >= this.timeoutMs) {
         if (c.sensitive) {
-          this.finish(c, { ok: false, message: 'Device belum menerima cookie. Jalankan /cookie inject lagi.' });
+          const message = c.type === 'delta_key_input'
+            ? 'Device belum menerima key Delta. Jalankan /delta input-key lagi.'
+            : 'Device belum menerima cookie. Jalankan /cookie inject lagi.';
+          this.finish(c, { ok: false, message });
           continue;
         }
         c.timedOut = true;

@@ -190,7 +190,7 @@ local function queueFixture()
         apk = { isRunning = function(pkg) return f.processes[pkg] == true end, hasWindow = function() return true end,
             isActive = function() error("RSS must not decide readiness") end },
         recovery = { launchAndJoin = function(inst)
-            f.opens[#f.opens + 1] = { id = inst.id, at = f.clock }
+            f.opens[#f.opens + 1] = { id = inst.id, at = f.clock, link = inst.link }
             f.processes[inst.package], f.packets[inst.id] = true, nil
             return true
         end, reopenNoLogin = function(inst)
@@ -331,6 +331,23 @@ test("logged-out clones only use the gentle launcher and respect its delay", fun
     assert(f.gentle == 1 and #f.opens == 0)
     f.q:request({ f.instances[2] }, true); f:tick(5); f:tick(1)
     assert(#f.opens == 1 and f.opens[1].id == 2)
+end)
+
+test("clone that logs in after nologin automatically enters its configured game link", function()
+    local f = queueFixture()
+    local inst = f.instances[1]
+    f.instances = { inst }
+    inst.link = "https://www.roblox.com/games/123"
+    f.accounts[1] = false
+    f.q:request({ inst }, true)
+    f:tick()
+    assert(f.gentle == 1 and #f.opens == 0 and f.q.states[inst.package] == "nologin")
+    f:tick(5)
+    assert(f.q.active == nil and f.q.states[inst.package] == "nologin")
+    f.accounts[1] = true
+    f:tick(1)
+    assert(#f.opens == 1 and f.opens[1].id == inst.id and f.opens[1].link == inst.link,
+        "login transition should queue a fresh game-link launch")
 end)
 
 local function heartbeatFixture()
