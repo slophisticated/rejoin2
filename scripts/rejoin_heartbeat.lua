@@ -1,4 +1,4 @@
--- REJOIN_HEARTBEAT v2
+-- REJOIN_HEARTBEAT v3: account identity + per-launch session, loading is explicit.
 -- Installed automatically by rejoin into the executor's autoexecute folder.
 -- Edits here are overwritten: change the settings in rejoin (Settings > 13) instead.
 --
@@ -71,6 +71,7 @@ local function checkError()
 end
 
 safe(function() GuiService.ErrorMessageChanged:Connect(checkError) end)
+checkError()
 task.spawn(function()
     safe(function()
         local prompt = game:GetService("CoreGui"):WaitForChild("RobloxPromptGui", 30)
@@ -87,31 +88,6 @@ task.spawn(function()
     end)
 end)
 
--- Wait until the game has really finished loading -----------------------------
--- game.Loaded fires before the character spawns and while the game is still
--- downloading assets. rejoin starts the next clone once the first heartbeat shows
--- up, so only write it when the character exists and the asset queue stayed empty
--- for a few seconds (each capped, so a game with a menu or endless streaming still
--- gets a heartbeat). A kick during loading is reported at once.
-local ContentProvider = game:GetService("ContentProvider")
-local function waitFor(cond, maxSeconds)
-    local t = 0
-    while t < maxSeconds and state ~= "kicked" and not cond() do
-        task.wait(1)
-        t = t + 1
-    end
-end
-waitFor(function()
-    local ch = lp.Character
-    return ch ~= nil and ch:FindFirstChild("HumanoidRootPart") ~= nil
-end, 90)
-local idle = 0
-waitFor(function()
-    local q = safe(function() return ContentProvider.RequestQueueSize end) or 0
-    idle = (q == 0) and idle + 1 or 0
-    return idle >= 5
-end, 90)
-
 -- Heartbeat file -------------------------------------------------------------
 local frames = 0
 RunService.Heartbeat:Connect(function() frames = frames + 1 end)
@@ -120,9 +96,26 @@ if makefolder and isfolder and not safe(isfolder, CFG.folder) then
     safe(makefolder, CFG.folder)
 end
 local path = CFG.folder .. "/hb_" .. string.lower(lp.Name) .. ".txt"
+local request = {}
+if readfile then
+    local text = safe(readfile, CFG.folder .. "/start_" .. string.lower(lp.Name) .. ".txt") or ""
+    for line in text:gmatch("[^\r\n]+") do
+        local k, v = line:match("^(%w+)=(.*)$")
+        if k then request[k] = v end
+    end
+end
+-- Bind once. A script from an old app session must never adopt a later launch token.
+local session = request.name == lp.Name:lower() and request.session or nil
+if not (session and session:match("^[%w_%-]+$")) then
+    session = "manual_" .. tostring(os.time()) .. "_" .. tostring(math.random(100000, 999999))
+    request.package = ""
+end
+local sequence = 0
+state = state == "kicked" and "kicked" or "loading"
 
 local last = os.clock()
 local function write()
+    sequence = sequence + 1
     local now = os.clock()
     local fps = math.floor(frames / math.max(now - last, 0.001) + 0.5)
     frames, last = 0, now
@@ -133,6 +126,9 @@ local function write()
         "userid=" .. tostring(lp.UserId),
         "placeid=" .. tostring(game.PlaceId),
         "jobid=" .. tostring(game.JobId),
+        "session=" .. session,
+        "package=" .. tostring(request.package or ""),
+        "seq=" .. tostring(sequence),
         "time=" .. tostring(os.time()),
         "state=" .. state,
         "reason=" .. (tostring(reason):gsub("[\r\n=]", " ")),
@@ -143,7 +139,20 @@ local function write()
     if writefile then safe(writefile, path, table.concat(lines, "\n")) end
 end
 
-while true do
-    write()
-    task.wait(CFG.interval)
+-- Publish loading/kick progress while waiting. No timeout is allowed to claim ingame.
+task.spawn(function()
+    while env.__rejoin_heartbeat do
+        write()
+        task.wait(CFG.interval)
+    end
+end)
+local ContentProvider = game:GetService("ContentProvider")
+local idle = 0
+while env.__rejoin_heartbeat and state ~= "kicked" do
+    local ch = lp.Character
+    local spawned = ch ~= nil and ch:FindFirstChild("HumanoidRootPart") ~= nil
+    local q = safe(function() return ContentProvider.RequestQueueSize end)
+    idle = (spawned and type(q) == "number" and q == 0) and idle + 1 or 0
+    if idle >= 5 then state = "ingame"; break end
+    task.wait(1)
 end

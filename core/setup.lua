@@ -1,9 +1,10 @@
+local Paths = require("core.paths")
 local File = require("utils.file")
 local Logger = require("core.logger")
 
 local Setup = {}
-local configPath = "config/config.lua"
-local templatePath = "config/template.lua"
+local configPath = Paths.config()
+local templatePath = Paths.template()
 
 -- Ensure a usable config exists. If config/config.lua is missing, copy template to config/config.lua
 -- Optionally, pass a sourcePath to copy from instead of the packaged template
@@ -16,12 +17,14 @@ function Setup.ensureConfig(sourcePath)
 
     local tplPath = sourcePath or templatePath
 
-    if not File.exists(tplPath) then
-        Logger.error("Setup: template not found: " .. tplPath)
-        return false, "no_template"
-    end
-
     local content, err = File.read(tplPath)
+    if not content and not sourcePath then
+        if type(__ya_source) == "function" then content = __ya_source("config.template") end
+        if not content then
+            local here = (debug.getinfo(1, "S").source or ""):match("^@(.*)/core/[^/]+$") or "."
+            content, err = File.read(here .. "/config/template.lua")
+        end
+    end
     if not content then
         Logger.error("Setup: failed to read template: " .. tostring(err))
         return false, err

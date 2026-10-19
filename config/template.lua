@@ -3,7 +3,7 @@ return {
     -- AutoExecute is now managed DIRECTLY in the app's autoexecute folder: scripts are
     -- added/edited/deleted from the "Script Manager" menu into `appAutoExecutePath`
     -- (e.g. /sdcard/Delta/Autoexecute). No separate staging folder, no deploy step.
-    monitorInterval = 5,
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,
@@ -24,9 +24,7 @@ return {
     -- Enable ANR (Application Not Responding) detection via logcat (best-effort, needs
     -- readable logcat, more reliable with root).
     anrCheckEnabled = true,
-    -- Minimum resident memory (MB) for a clone's process to be considered ACTIVE.
-    -- A running clone reads ~1 GB while a force-close stub is ~188 MB, so anything
-    -- below this is treated as "not really running" and gets relaunched. Tune if needed.
+    -- RSS threshold for diagnostics only; never triggers a restart.
     minRss = 300,
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
@@ -50,15 +48,18 @@ return {
     -- Delta mod: /sdcard/Delta/Autoexecute (internal storage, tidak perlu root).
     appAutoExecutePath = "/sdcard/Delta/Autoexecute",
 
-    -- "Launch All" (Menu 1) launches clones ONE AT A TIME: open clone 1, wait until it
-    -- is running (RSS >= minRss), wait until it is in game, then clone 2, and so on.
-    -- A clone that is not logged in is opened but not waited for.
-    -- launchWaitInterval: how often (s) to check while waiting.
-    -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchJoinTimeout:  with the Delta heartbeat: max wait (s) for the clone to be in
-    --                     game. A clone that never sends one switches the rest of that
-    --                     Launch All to launchSettleDelay.
-    -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
+    -- Launch All waits for fresh, stable session heartbeats before advancing.
+    -- launchJoinTimeout: deadline becomes Needs Check; never falls back to opening others.
+    -- launchWaitTimeout/checkTimeout are legacy diagnostic settings, not launch deadlines.
+    -- launchSettleDelay is used only when heartbeat is explicitly disabled.
+    -- One loading slot, account/session heartbeats (Menu 12).
+    -- Existing user configs get these defaults at runtime; updates do not overwrite them.
+    launchSafety = {
+        stableHeartbeats = 3,
+        stableSeconds = 20,
+        retryCooldown = 120,
+        maxAttempts = 3,
+    },
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchJoinTimeout = 240,
@@ -71,7 +72,7 @@ return {
     -- force-stop) and at most once per noLoginCooldown seconds.
     relaunchNoLogin = true,
     -- Status reports to a Discord webhook (one message kept up to date + event
-    -- messages). Empty url = off. Set it in Main Menu 9) Discord Webhook.
+    -- messages). Empty url = off. Set it in Main Menu 8) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,
@@ -82,6 +83,24 @@ return {
     },
     -- Delta's key entry ("license" inside the Delta folder). "" = find automatically.
     deltaLicensePath = "",
+    -- Delta's Scripts folder (Menu 4 / bot store scripts here; Autoexecute only gets a
+    -- copy from it). "" = Scripts / scripts next to appAutoExecutePath.
+    scriptsPath = "",
+    -- Game presets (Main Menu 11 / bot). Clones follow `defaultPreset` unless they have
+    -- their own `preset = "B"` ("khusus"), or `preset = "-"` (use their own
+    -- privateServer). Example:
+    --   presets = { A = { name = "Steal an Egg", link = "https://www.roblox.com/games/..." } },
+    --   defaultPreset = "A",
+    presets = {},
+    defaultPreset = "",
+    -- Remote control through the Discord bot (docs/discord_bot_prd.md). url or secret
+    -- empty = off. Commands run while the monitor / Launch All is running.
+    remote = {
+        url = "",       -- e.g. https://my-bot.onrender.com ("" = take it from remote_url.txt)
+        -- urlManual = true is set when the URL is typed in Menu 8: remote_url.txt never replaces it
+        secret = "",    -- same as the bot's DEVICE_SECRET
+        interval = 30,  -- seconds between syncs
+    },
     noLoginCooldown = 120,
     -- Arrange the clones' floating windows in a grid (App Cloner floating window).
     -- The window bounds are written into the clone's prefs while it is stopped,
@@ -100,7 +119,7 @@ return {
     -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
     -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
     -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
-    -- low graphics, mute). Without a heartbeat the old RSS checks are used.
+    -- low graphics, mute). Without a ready heartbeat the queue waits; RSS is diagnostic only.
     heartbeat = {
         enabled = true,
         interval = 10,

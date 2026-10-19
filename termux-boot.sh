@@ -13,20 +13,19 @@
 # (no Termux window opens). This is equivalent to choosing "1) Launch All + Monitor":
 # launch all clones, then keep monitoring until the process is stopped.
 #
-# Everything this script does is logged to <repo>/data/boot.log (or ~/rejoin-boot.log
-# when the repo folder is missing), so a boot that "does nothing" can be diagnosed.
+# Boot diagnostics share the publish data root with the loader and engine.
 # BOOT_DELAY (seconds, default 10) gives Android, root and the network time to come
 # up before the clones are launched.
 
 REJOIN_DIR=${REJOIN_DIR:-"$HOME/rejoin"}
+STATE_DIR=${YANAMIN_HOME:-/sdcard/yanamin}
 BOOT_DELAY=${BOOT_DELAY:-10}
 # If the engine crashes it is restarted after RESTART_DELAY seconds, at most
 # MAX_RESTARTS times in a row (a clean stop or `kill` is not restarted).
 RESTART_DELAY=${RESTART_DELAY:-30}
 MAX_RESTARTS=${MAX_RESTARTS:-5}
-if [ -f "$REJOIN_DIR/main.lua" ]; then
-    mkdir -p "$REJOIN_DIR/data" 2>/dev/null
-    BOOT_LOG="$REJOIN_DIR/data/boot.log"
+if mkdir -p "$STATE_DIR/data" 2>/dev/null; then
+    BOOT_LOG="$STATE_DIR/data/boot.log"
 else
     BOOT_LOG="$HOME/rejoin-boot.log"
 fi
@@ -53,7 +52,7 @@ fi
 [ -f "$REJOIN_DIR/main.lua" ] || { log "ERROR: $REJOIN_DIR/main.lua not found (set REJOIN_DIR)"; exit 1; }
 cd "$REJOIN_DIR" || { log "ERROR: cannot cd to $REJOIN_DIR"; exit 1; }
 command -v lua >/dev/null 2>&1 || { log "ERROR: lua not found (pkg install lua53)"; exit 1; }
-[ -f config/config.lua ] || log "WARN: config/config.lua missing"
+[ -f "$STATE_DIR/config/config.lua" ] || log "WARN: config missing in $STATE_DIR"
 
 sleep "$BOOT_DELAY"
 if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -c id failed (root not granted yet?)"; fi
@@ -64,7 +63,7 @@ if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -
 restarts=0
 while :; do
     log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
-    lua main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    REJOIN_WRAPPER=1 lua main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
     code=$?
     case "$code" in
         0|130|143)

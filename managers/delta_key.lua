@@ -1,3 +1,4 @@
+local Paths = require("core.paths")
 local Logger = require("core.logger")
 local Config = require("core.config")
 local File = require("utils.file")
@@ -16,7 +17,7 @@ local Shell = require("utils.shell")
 
 local DeltaKey = {}
 
-local REMEMBER = "data/delta_license_path.txt"
+local REMEMBER = Paths.data("delta_license_path.txt")
 local cached = nil
 local warnedMissing = false
 

@@ -9,7 +9,8 @@
 # the current version simply keeps running.
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 0
-BRANCH=${REJOIN_BRANCH:-main}
+STATE_DIR=${YANAMIN_HOME:-/sdcard/yanamin}
+BRANCH=${REJOIN_BRANCH:-$(git -C "$DIR" symbolic-ref --short HEAD 2>/dev/null || printf '%s' main)}
 BOOT=0
 AFTER=0
 for arg in "$@"; do
@@ -21,7 +22,8 @@ done
 
 say() {
     if [ "$BOOT" = 1 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] update: $*" >> "$DIR/data/boot.log"
+        mkdir -p "$STATE_DIR/data" 2>/dev/null
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] update: $*" >> "$STATE_DIR/data/boot.log"
     else
         echo "$*"
     fi
@@ -53,6 +55,8 @@ migrate_device() {
 }
 run_migrations() {
     migrate window-layout-on --enable-window-layout
+    # Game links -> presets with a default preset (Main Menu 11).
+    migrate presets-default --migrate-presets
     # Back to smallest width 600dp on devices an earlier update moved to 900dp
     # (a value the user picked with SMALLEST_WIDTH=... is kept).
     migrate_device sw600

@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # Rejoin installer / re-installer for Termux.
 #
-#   curl -sL https://raw.githubusercontent.com/slophisticated/rejoin2/main/install.sh | sh
+#   curl -sL https://raw.githubusercontent.com/apengjers/rejoin/main/install.sh | sh
 #
 # Safe to run again on a device that already has rejoin: your config/config.lua and
 # logs are kept. What it does:
@@ -19,7 +19,7 @@
 # When piped into sh, stdin is this script itself, so every command below reads
 # from /dev/null instead.
 
-REPO_URL=${REPO_URL:-https://github.com/slophisticated/rejoin2}
+REPO_URL=${REPO_URL:-https://github.com/apengjers/rejoin}
 BRANCH=${REJOIN_BRANCH:-main}
 DIR=${REJOIN_DIR:-$HOME/rejoin}
 BACKUP="$HOME/.rejoin-backup"
@@ -43,6 +43,8 @@ APT_OPTS="-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confo
 # is installed and actually runs, skip the slow apt update / full-upgrade.
 # Force it anyway with: ... | FULL_UPGRADE=1 sh
 packages_ok() {
+    # A half-finished earlier upgrade (dpkg --audit lists packages) needs the apt path.
+    [ -z "$(dpkg --audit </dev/null 2>/dev/null)" ] || return 1
     for p in lua53 sqlite curl git; do
         dpkg -s "$p" </dev/null >/dev/null 2>&1 || return 1
     done
@@ -54,12 +56,25 @@ packages_ok() {
 if [ "${FULL_UPGRADE:-0}" != 1 ] && packages_ok; then
     ok "lua53 sqlite curl git sudah lengkap (upgrade paket dilewati)"
 else
+    # An earlier upgrade that was cut off ("dpkg was interrupted") blocks every apt
+    # command: finish it first. Cheap and harmless when nothing is pending.
+    if [ -n "$(dpkg --audit </dev/null 2>/dev/null)" ]; then
+        echo "  membereskan upgrade paket yang dulu terputus..."
+        dpkg --force-confdef --force-confold --configure -a </dev/null >/dev/null 2>&1
+        # shellcheck disable=SC2086
+        apt-get $APT_OPTS --fix-broken install </dev/null >/dev/null 2>&1
+        if [ -z "$(dpkg --audit </dev/null 2>/dev/null)" ]; then
+            ok "paket setengah terpasang dibereskan"
+        else
+            warn "masih ada paket setengah terpasang (lanjut)"
+        fi
+    fi
     # apt instead of pkg: pkg itself needs a working curl, which a half-upgraded
     # Termux may not have (libcurl/openssl mismatch).
     if apt-get update </dev/null >/dev/null 2>&1; then
         ok "daftar paket ter-update"
     else
-        die "apt update gagal. Jalankan: termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
+        die "apt update gagal. Jalankan: dpkg --configure -a, lalu termux-change-repo -> Mirror group -> Mirrors in Asia, lalu ulangi."
     fi
     echo "  upgrade paket (bisa beberapa menit)..."
     # shellcheck disable=SC2086
@@ -68,7 +83,7 @@ else
     if apt-get $APT_OPTS install lua53 sqlite curl git </dev/null >/dev/null 2>&1; then
         ok "lua53 sqlite curl git terpasang"
     else
-        die "gagal install lua53/sqlite/curl/git. Coba: termux-change-repo (Mirrors in Asia), lalu ulangi."
+        die "gagal install lua53/sqlite/curl/git. Coba: dpkg --configure -a && apt --fix-broken install -y, atau termux-change-repo (Mirrors in Asia), lalu ulangi."
     fi
 fi
 
@@ -131,7 +146,7 @@ NEED_REBOOT=1
 # ---------------------------------------------------------------------------
 step "6/8 Cek clone di config"
 PKGS=$(cd "$DIR" && lua -e '
-    local ok, c = pcall(dofile, "config/config.lua")
+    local ok, c = pcall(function() return require("core.config").get() end)
     if ok and type(c) == "table" then
         for _, i in ipairs(c.instances or {}) do
             if type(i) == "table" and i.package then print(i.package) end
@@ -153,8 +168,14 @@ fi
 # Floating window grid on by default (a kept config from an older install may have it off).
 WL=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --enable-window-layout </dev/null 2>/dev/null | tail -1)
 case "$WL" in
-    OK:*) ok "${WL#OK: } (matikan: Main Menu 10)" ;;
+    OK:*) ok "${WL#OK: } (matikan: Main Menu 9)" ;;
     *)    warn "auto atur jendela belum bisa dinyalakan (${WL:-tidak ada output})" ;;
+esac
+
+# Clones' game links -> presets with a default (Main Menu 11); nothing when presets exist.
+PM=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --migrate-presets </dev/null 2>/dev/null | tail -1)
+case "$PM" in
+    OK:*) ok "preset game: ${PM#OK: }" ;;
 esac
 
 # Heartbeat script into the Delta autoexecute folder (status from inside the game).
@@ -210,3 +231,12 @@ else
 fi
 [ -n "$NEED_REBOOT" ] && echo "Reboot sekali supaya freeform / resizable aktif."
 echo "Jalankan manual: cd ~/rejoin && lua main.lua   |   Update manual: sh ~/rejoin/update.sh"
+# Bot Discord: the per-device key is issued for this HWID (/hwid redeem), then entered
+# in Menu 9 -> 10. Skipped when the device is already connected.
+HWID=$(cd "$DIR" && lua main.lua --hwid </dev/null 2>/dev/null | tail -1)
+if [ -n "$HWID" ] && ! grep -q 'secret = "[^"]' "$DIR/config/config.lua" 2>/dev/null; then
+    echo
+    echo "Bot Discord (opsional): HWID device ini = $HWID"
+    echo "  Ketik /hwid redeem hwid:$HWID di Discord (atau kirim HWID ke owner). Selesai,"
+    echo "  device nyambung sendiri. Jangan sebar HWID ini di tempat umum."
+fi

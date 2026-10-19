@@ -11,6 +11,7 @@ end
 
 local function printSettings(conf)
     print("Current Settings:")
+    print("Antrean baru: Menu 12. recoveryDelay/recoveryRetries/checkTimeout/freezeTimeout/gracePeriod/anrCheckEnabled/launchWaitTimeout adalah legacy.")
     print("  monitorInterval = " .. tostring(conf.monitorInterval))
     print("  recoveryDelay = " .. tostring(conf.recoveryDelay))
     print("  recoveryRetries = " .. tostring(conf.recoveryRetries))
@@ -119,12 +120,12 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchJoinTimeout", "Maks tunggu clone MASUK GAME sebelum clone berikutnya (detik, pakai heartbeat Delta; 0 = mati)", true)
-            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat tidak ada (detik)", true)
+            askNumber("launchJoinTimeout", "Deadline loading (detik, minimum 30; habis = Perlu dicek, antrean ditahan)", false)
+            askNumber("launchSettleDelay", "Jeda jika heartbeat sengaja dimatikan (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
-            askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
+            askNumber("launchWaitTimeout", "Legacy: batas tunggu proses lama (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)
-            print("(Jendela, heartbeat & mode hemat: Main Menu 10. Discord webhook: Main Menu 9.)")
+            print("(Jendela, heartbeat & mode hemat: Main Menu 9. Discord webhook: Main Menu 8.)")
             local v = prompt("useRoot (run commands as root / su -c, true/false): [" .. tostring(conf.useRoot == nil and true or conf.useRoot) .. "] ")
             if v and v ~= "" then
                 if v == "true" or v == "1" or v:lower() == "y" or v:lower() == "yes" then

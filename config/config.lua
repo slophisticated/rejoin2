@@ -1,6 +1,6 @@
 -- Sample config for Rejoin Engine (adjust package names and paths for your device)
 return {
-    monitorInterval = 5,
+    monitorInterval = 8,
     recoveryDelay = 3,
     recoveryRetries = 3,
     checkTimeout = 15,
@@ -8,21 +8,27 @@ return {
     logPath = "data/rejoin.log",
     -- Optional fast filter for auto-detect clone scan (e.g. "com.apengjers."). Empty = disabled.
     clonePackagePrefix = "",
-    -- Deteksi freeze/stuck. Recovery baru dipicu setelah freeze 300 detik (5 menit).
+    -- Legacy freeze setting; heartbeat/process lifecycle decides recovery.
     freezeTimeout = 300,
     gracePeriod = 30,
     anrCheckEnabled = true,
-    -- Minimum resident memory (MB) for a clone's process to be considered ACTIVE.
-    -- A running clone reads ~1 GB while a force-close stub is ~188 MB, so anything
-    -- below this is treated as "not really running" and gets relaunched. Tune if needed.
+    -- RSS threshold for diagnostics only; never triggers a restart.
     minRss = 200,
     -- Timeout (seconds) for each shell command (via the `timeout` tool) so a hung
     -- su/dumpsys call can't freeze the whole tool / stop the terminal accepting input.
     shellTimeout = 10,
-    -- Menu 1 launch berurutan: buka clone, tunggu jalan (RSS >= minRss, maks
-    -- launchWaitTimeout detik), lalu tunggu sampai MASUK GAME (heartbeat Delta, maks
-    -- launchJoinTimeout detik) baru clone berikutnya. Tanpa heartbeat: jeda tetap
-    -- launchSettleDelay detik. Clone yang belum login tetap dibuka, tapi tidak ditunggu.
+    -- Launch All waits for fresh, stable session heartbeats before advancing.
+    -- launchJoinTimeout: deadline becomes Needs Check; never falls back to opening others.
+    -- launchWaitTimeout/checkTimeout are legacy diagnostic settings, not launch deadlines.
+    -- launchSettleDelay is used only when heartbeat is explicitly disabled.
+    -- One loading slot, account/session heartbeats (Menu 12).
+    -- Existing user configs get these defaults at runtime; updates do not overwrite them.
+    launchSafety = {
+        stableHeartbeats = 3,
+        stableSeconds = 20,
+        retryCooldown = 120,
+        maxAttempts = 3,
+    },
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchJoinTimeout = 240,
@@ -34,7 +40,7 @@ return {
     -- maks sekali tiap noLoginCooldown detik. false = jangan pernah dibuka ulang.
     relaunchNoLogin = true,
     -- Laporan status ke Discord webhook (1 pesan yang terus di-update + notif kejadian).
-    -- url kosong = mati. Isi lewat Main Menu 9) Discord Webhook.
+    -- url kosong = mati. Isi lewat Main Menu 8) Discord Webhook.
     webhook = {
         url = "",
         interval = 300,    -- detik antar laporan
@@ -45,9 +51,21 @@ return {
     },
     -- File/folder key Delta ("license" di folder Delta). "" = cari otomatis.
     deltaLicensePath = "",
+    -- Folder Scripts Delta (Menu 4 / bot simpan script di sini). "" = otomatis.
+    scriptsPath = "",
+    -- Preset game (Main Menu 11 / bot). Clone ikut defaultPreset, kecuali punya preset
+    -- khusus (preset = "B") atau preset = "-" (pakai privateServer sendiri).
+    presets = {},
+    defaultPreset = "",
+    -- Kontrol dari bot Discord (Main Menu 8 -> 9/10). url / secret kosong = mati.
+    remote = {
+        url = "",
+        secret = "",
+        interval = 30,  -- detik antar sync ke bot
+    },
     noLoginCooldown = 120,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
-    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 10) Jendela & Mode Hemat.
+    -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 9) Jendela & Mode Hemat.
     windowLayout = {
         enabled = true,
         columns = 0,   -- 0 = otomatis (4 clone -> 2x2)

@@ -36,6 +36,38 @@ local launchedAt = {} -- pkg -> os.time() of the latest launch
 local startedAt = os.time()
 local wsCache = nil
 local readCache = {} -- pkg -> { at, hb } ; the monitor asks several times per cycle
+local expected = {} -- pkg -> session request written before opening the app
+local serial = 0
+local readFile
+
+function Heartbeat.identity(instance)
+    local Username = require("managers.username")
+    local name = Username.get(instance)
+    if type(name) ~= "string" or not name:match("^[%w_]+$") then
+        return nil, "username belum teridentifikasi"
+    end
+    local conf = Config.get() or {}
+    for _, other in pairs(conf.instances or {}) do
+        if type(other) == "table" and other.package ~= instance.package then
+            local otherName = Username.get(other)
+            if type(otherName) == "string" and otherName:lower() == name:lower() then
+                return nil, "username dipakai dua clone; periksa mapping akun"
+            end
+        end
+    end
+    return name:lower()
+end
+
+local function fields(content)
+    local out = {}
+    for line in tostring(content or ""):gmatch("[^\r\n]+") do
+        local k, v = line:match("^(%w+)=(.*)$")
+        if k then out[k] = v end
+    end
+    return out
+end
+
+local function quote(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 
 local function conf()
     local ok, c = pcall(Config.get)
@@ -95,6 +127,10 @@ end
 
 local function scriptSource()
     local here = (debug.getinfo(1, "S").source or ""):match("^@(.*)/managers/[^/]+$") or "."
+    if type(__ya_source) == "function" then
+        local embedded = __ya_source("scripts.rejoin_heartbeat")
+        if embedded then return embedded end
+    end
     return File.read(here .. "/scripts/rejoin_heartbeat.lua") or File.read("scripts/rejoin_heartbeat.lua")
 end
 
@@ -142,15 +178,44 @@ function Heartbeat.install()
     return true, target
 end
 
+-- os.time() of this clone's latest launch by this engine, or nil.
+function Heartbeat.launchedAt(instance)
+    return instance and instance.package and launchedAt[instance.package] or nil
+end
+
 function Heartbeat.markLaunched(instance)
     local pkg = instance and instance.package
     if pkg then
         launchedAt[pkg] = os.time()
         readCache[pkg] = nil
+        if not Heartbeat.isEnabled() then return true end
+        local name, err = Heartbeat.identity(instance)
+        if not name then return false, err end
+        local ws = Heartbeat.workspaceDir()
+        if not ws then return false, "folder Workspace belum ditemukan" end
+        serial = serial + 1
+        local random = io.open("/dev/urandom", "rb")
+        local bytes = random and random:read(8) or nil
+        if random then random:close() end
+        local suffix = bytes and bytes:gsub(".", function(b) return string.format("%02x", b:byte()) end)
+            or string.format("%d_%d", math.random(100000, 999999), math.floor(os.clock() * 1000000))
+        local token = string.format("%d_%s_%d", os.time(), suffix, serial)
+        local request = { name = name, package = pkg, session = token, started = os.time() }
+        local dir = ws .. "/" .. FOLDER
+        local path = dir .. "/start_" .. name .. ".txt"
+        local content = string.format("name=%s\npackage=%s\nsession=%s\nstarted=%d\n", name, pkg, token, request.started)
+        local ok = File.write(path, content)
+        if not ok then
+            ok = Shell.exec("sh -c " .. quote("mkdir -p " .. quote(dir) .. " && printf %s " .. quote(content) .. " > " .. quote(path)))
+        end
+        if not ok then return false, "gagal menulis penanda sesi heartbeat" end
+        expected[pkg] = request
+        return true
     end
+    return false, "package kosong"
 end
 
-local function readFile(path)
+readFile = function(path)
     local content = File.read(path)
     if content then return content end
     -- Files written by the app may not be readable by Termux directly.
@@ -173,27 +238,38 @@ end
 
 function Heartbeat.readNow(instance, c)
     c = c or conf()
-    local okU, Username = pcall(require, "managers.username")
-    local name = okU and Username.get(instance) or nil
+    local name = Heartbeat.identity(instance)
     if not name or name == "" then return nil end
     local ws = Heartbeat.workspaceDir()
     if not ws then return nil end
     local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
     if not content then return nil end
 
-    local hb = {}
-    for line in content:gmatch("[^\r\n]+") do
-        local k, v = line:match("^(%w+)=(.*)$")
-        if k then hb[k] = v end
-    end
+    local hb = fields(content)
     hb.time = tonumber(hb.time)
-    if not hb.time then return nil end
+    if not hb.time or tostring(hb.name):lower() ~= name then return nil end
+    if type(hb.session) ~= "string" or not hb.session:match("^[%w_%-]+$") then return nil end
+    hb.seq = tonumber(hb.seq)
+    if not hb.seq or hb.seq < 1 then return nil end
     hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
     local now = os.time()
     hb.age = now - hb.time
-    hb.fresh = hb.age <= c.staleAfter
+    if hb.age < -5 then return nil end
+    hb.fresh = hb.age >= -5 and hb.age <= c.staleAfter
     local since = launchedAt[instance.package] or startedAt
-    hb.current = hb.time >= since
+    local request = expected[instance.package]
+    if not request then
+        local saved = fields(readFile(ws .. "/" .. FOLDER .. "/start_" .. name .. ".txt"))
+        if saved.package == instance.package and saved.name == name and saved.session then
+            request = saved
+            expected[instance.package] = saved
+        end
+    end
+    -- Manual app starts can report a self-generated session; an engine launch must
+    -- echo its exact request. A previous run cannot satisfy a new launch in the same second.
+    local matches = request and hb.session == request.session and hb.package == instance.package
+        or (not request and not launchedAt[instance.package] and (hb.package == "" or hb.package == instance.package))
+    hb.current = matches and hb.time >= since
     return hb
 end
 
@@ -208,8 +284,12 @@ function Heartbeat.alive(instance)
         if hb.fresh then return false, "kicked: " .. tostring(hb.reason or "") end
         return nil
     end
-    if hb.fresh then return true end
-    return false, string.format("heartbeat berhenti %ds", hb.age)
+    if hb.fresh then
+        if hb.state == "ingame" then return true end
+        return nil -- a loading report is progress, never proof that the game is ready
+    end
+    if hb.state == "ingame" then return false, string.format("heartbeat berhenti %ds", hb.age) end
+    return nil
 end
 
 -- Short dashboard suffix like "12fps 380MB", or nil.
@@ -223,20 +303,17 @@ function Heartbeat.summary(instance)
     return table.concat(parts, " ")
 end
 
--- Is the clone up? Heartbeat first; without one, the old checks: RSS >= minRss, or
--- (saver mode, where RSS drops on purpose) the process simply running.
+-- RSS is diagnostic only. A live process without HB is unknown, not unhealthy.
 function Heartbeat.isUp(instance, apk)
     local alive = Heartbeat.alive(instance)
     if alive ~= nil then return alive end
     local pkg = instance and instance.package
     if not pkg then return false end
     apk = apk or require("managers.apk")
-    if Heartbeat.saverEnabled() then
-        local ok, res = pcall(apk.isRunning, pkg)
-        return ok and res or false
-    end
-    local ok, res = pcall(apk.isActive, pkg)
-    return ok and res or false
+    local ok, res = pcall(apk.isRunning, pkg)
+    if ok and res == false then return false end
+    if not Heartbeat.isEnabled() and ok then return res end
+    return nil
 end
 
 return Heartbeat
