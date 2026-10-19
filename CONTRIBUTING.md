@@ -17,6 +17,7 @@ Ga ada device di CI, jadi tes pakai simulasi:
 
 ```sh
 luac -p <file.lua>          # cek syntax tiap file Lua yang diubah
+lua tests/regressions.lua  # regresi preset, tes koneksi bot, dan masa loading monitor
 sh -n <file.sh>             # cek syntax shell script
 cd bot && npm ci && npm test   # tes bot (node:test)
 ```

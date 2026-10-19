@@ -33,6 +33,27 @@ test('HTTP protocol round trip and unknown ACK response', async t => {
   assert.equal(JSON.stringify(h.logs).includes(secret), false);
 });
 
+test('authenticated ping leaves queued commands and sync timing untouched', async t => {
+  const h = await api(t); h.advance(4000);
+  const c = h.store.enqueue('RF-07', 'launch_all');
+  const before = structuredClone(h.device());
+  assert.equal((await h.send('/api/ping', { protocol: 1 }, { authorization: '' })).status, 401);
+  for (const body of [{}, { protocol: 2 }, null, []]) {
+    assert.equal((await h.send('/api/ping', JSON.stringify(body))).status, 400);
+  }
+  for (let i = 0; i < 2; i++) {
+    const res = await h.send('/api/ping', { protocol: 1 });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+  }
+  assert.deepEqual(h.device(), before);
+  assert.equal(c.state, 'queued');
+  assert.equal(h.store.commands.has(c.id), true);
+  const sync = await h.send('/api/sync', snapshot());
+  assert.equal(sync.status, 200);
+  assert.deepEqual((await sync.json()).commands, [{ id: c.id, type: 'launch_all', args: {} }]);
+});
+
 test('auth failures limited per IP; valid sync/ACK/upload bypass that bucket', async t => {
   const h = await api(t);
   for (let i = 0; i < 60; i++) {

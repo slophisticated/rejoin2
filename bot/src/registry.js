@@ -53,8 +53,9 @@ export class HwidRegistry {
         const batch = await channel.messages.fetch({ limit: 100, before });
         for (const m of batch.values()) {
           const x = m.author?.id === client.user.id ? LINE.exec(m.content) : null;
-          // Newest first: the latest registration of a HWID wins.
-          if (x && !this.byHash.has(x[1])) this.byHash.set(x[1], { owner: x[2], messageId: m.id });
+          // Newest first: also attach the channel message to entries loaded from disk,
+          // otherwise remove() cannot delete it and the next restart restores the HWID.
+          if (x && !this.byHash.get(x[1])?.messageId) this.byHash.set(x[1], { owner: x[2], messageId: m.id });
         }
         if (batch.size < 100) break;
         before = batch.last().id;
@@ -71,6 +72,7 @@ export class HwidRegistry {
   // true = newly registered, false = already registered to this owner.
   async add(hwid, owner) {
     if (!HWID_PATTERN.test(hwid)) throw new Error('HWID tidak valid (hex 16–64 karakter, lihat Menu 9 di Termux).');
+    if (this.channelId && !this.channel) throw new Error('Daftar HWID di channel belum siap. Tunggu sebentar; kalau tetap gagal, cek izin/koneksi dan restart bot.');
     const h = hash(hwid);
     const current = this.byHash.get(h);
     if (current) {
@@ -85,11 +87,20 @@ export class HwidRegistry {
   }
 
   async remove(hwid, owner) {
+    if (this.channelId && !this.channel) throw new Error('Daftar HWID di channel belum siap. Tunggu sebentar; kalau tetap gagal, cek izin/koneksi dan restart bot.');
     const h = HWID_PATTERN.test(hwid) ? hash(hwid) : null;
     const current = h && this.byHash.get(h);
     if (!current || current.owner !== owner) throw new Error('HWID itu tidak terdaftar atas nama kamu.');
     if (this.channel && current.messageId) {
-      try { await (await this.channel.messages.fetch(current.messageId)).delete(); } catch { this.log('hwid_registry_delete_failed'); }
+      try { await (await this.channel.messages.fetch(current.messageId)).delete(); }
+      catch (e) {
+        // Discord 10008 means the message is already gone. Other failures must not
+        // report a successful revocation while the channel still contains the HWID.
+        if (e.code !== 10008) {
+          this.log('hwid_registry_delete_failed');
+          throw new Error('Gagal menghapus HWID dari channel. Cek koneksi/izin bot lalu coba lagi.');
+        }
+      }
     }
     this.byHash.delete(h);
     await this.saveFile();

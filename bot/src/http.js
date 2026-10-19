@@ -60,7 +60,7 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
       const path = new URL(req.url, 'http://localhost').pathname;
       if (path === '/health' && req.method === 'GET') return reply(200, { ok: true, devices: store.devices.size });
       const upload = /^\/api\/upload\/(c_[A-Za-z0-9_-]+)$/.exec(path);
-      if (!['/api/sync', '/api/ack'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
+      if (!['/api/sync', '/api/ack', '/api/ping'].includes(path) && !upload) { req.resume(); return reply(404, { error: 'not_found' }); }
       const header = req.headers.authorization || '';
       const bearer = /^Bearer (.+)$/.exec(header);
       let account = bearer ? accountFor(bearer[1]) : null;
@@ -94,6 +94,11 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
       let b;
       try { b = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)); }
       catch { throw fail(400, 'invalid_json'); }
+      if (path === '/api/ping') {
+        // Authenticated connectivity check only: never sync, drain commands, or ACK.
+        if (!object(b) || b.protocol !== 1) throw fail(400, 'invalid_ping');
+        return reply(200, { ok: true });
+      }
       if (path === '/api/sync') {
         const commands = store.sync(validateSnapshot(b), account);
         if (commands === null) return reply(429, { error: 'rate_limited' });

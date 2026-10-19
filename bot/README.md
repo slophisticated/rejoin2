@@ -52,6 +52,17 @@ Blueprint `render.yaml` di root mengatur Web Service Node Free, root `bot`, buil
 
 Yang disimpan cuma hash HWID. HWID = "password" device: acak, tapi jangan disebar.
 
+Volume dan channel boleh dipakai bersamaan. Registry memuat kembali ID pesan
+channel sebelum menerima perubahan HWID, supaya `/hwid remove` tetap tercabut
+setelah restart. Kalau channel belum siap atau penghapusan pesan gagal, command
+menampilkan error; cek izin/koneksi bot lalu coba lagi. Kalau channel tetap belum
+siap setelah startup, restart bot setelah izin/koneksinya diperbaiki.
+
+Tes koneksi di Menu `9` → `11` memakai `POST /api/ping` dengan autentikasi HWID/secret
+yang sama. Endpoint ini tidak mengambil antrean command, tidak mengirim ACK, dan
+tidak mengubah snapshot/waktu sync. Deploy versi bot ini bersama engine terbaru;
+engine menampilkan pesan update kalau endpoint belum tersedia di bot lama.
+
 **Device per owner (`OWNERS`).** Tiap owner punya secret sendiri; device yang sync
 pakai secret itu masuk ke akun owner tersebut. `/devices`, `/status`, autocomplete,
 `device:all`, dan semua command cuma menyentuh device milik pemanggil. Nama device

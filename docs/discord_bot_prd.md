@@ -146,6 +146,15 @@ header `Authorization: Bearer <DEVICE_SECRET>`. Bandingkan secret dengan
 `crypto.timingSafeEqual`. Salah/kosong → **401** `{"error":"unauthorized"}`.
 Body maks **512 KB** (lebih → 413; isi script bisa sampai 200 KB). JSON rusak → 400. Field `protocol` saat ini `1`.
 
+### 4.0 `POST /api/ping`
+
+Tes koneksi dari Menu 9 → 11: body `{"protocol":1}`, dengan autentikasi yang sama
+seperti sync (Bearer secret atau `X-Rejoin-Hwid` yang terdaftar). Respons sukses
+`200 {"ok":true}`. Protocol/body tidak valid → 400; auth ditolak → 401.
+Endpoint ini tidak memanggil sync/ACK, tidak mengambil command, dan tidak mengubah
+snapshot, status online, atau waktu pembatas sync. Bot lama yang belum punya
+endpoint membalas 404; device meminta update bot tanpa fallback ke `/api/sync`.
+
 ### 4.1 `POST /api/sync`
 
 Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):

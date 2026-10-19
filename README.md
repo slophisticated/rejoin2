@@ -43,7 +43,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 ## Fitur
 
 - **Launch All berurutan.** Clone dibuka satu per satu. Clone berikutnya baru dibuka setelah clone sebelumnya **benar-benar masuk game**: karakter sudah spawn dan aset selesai dimuat (lewat heartbeat Delta). Clone yang **sudah login dibuka duluan** (urut sesuai Menu 2), clone yang belum login dibuka **paling akhir** dengan jeda 5 detik.
-- **Auto rejoin.** Clone yang ke-kick, disconnect, freeze, atau force close dibuka ulang dan masuk ke game / private server lagi.
+- **Auto rejoin.** Clone yang ke-kick, disconnect, freeze, atau force close dibuka ulang dan masuk ke game / private server lagi. Setelah launch/recovery, proses yang masih hidup tanpa heartbeat diberi waktu loading minimal 60 detik (atau `gracePeriod` kalau lebih besar), supaya penurunan RSS tidak memicu restart berulang. Kick, heartbeat yang berhenti, dan proses mati tetap ditangani.
 - **Heartbeat Delta.** Script di Autoexecute Delta melaporkan status dari dalam game: in-game atau ke-kick, FPS, ping, dan memori. Kalau ke-kick, langsung rejoin tanpa menunggu.
 - **Mode hemat.** Render 3D mati, FPS dibatasi, grafik paling rendah, suara mati. CPU dan RAM per clone turun banyak.
 - **Auto atur jendela.** Jendela floating clone disusun jadi grid (4 clone → 2×2). Baris atas sedikit lebih tinggi supaya menu Roblox kelihatan sampai *More*. Posisi dicek terus.
@@ -83,6 +83,11 @@ cd ~/rejoin && lua main.lua
 | `0` Exit | |
 
 Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.
+
+Menu `9` → `11` hanya mengecek autentikasi bot, tanpa mengambil atau menjalankan
+antrean command. Tes ini membutuhkan bot terbaru (`POST /api/ping`); kalau bot lama
+membalas 404, update deployment bot. Di Menu `2` → `3`, pilihan `d` (ikut default)
+tetap tersimpan walaupun nama/package tidak diubah.
 
 ---
 

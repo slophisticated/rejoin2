@@ -767,19 +767,20 @@ function Remote.tick(instances, ctx)
     return true
 end
 
--- Menu "tes koneksi": one sync without running anything heavy. Returns ok, message.
+-- Menu "tes koneksi": authenticate without polling or acknowledging any commands.
+-- An older bot returns 404; never fall back to sync (it would consume its queue).
 function Remote.test()
     if not hasUrl() then pcall(fetchRepoUrl, true) end
     if not hasUrl() then
         return false, "URL bot kosong (isi di sini atau taruh URL di remote_url.txt repo)"
     end
-    local Instances = require("managers.instance")
-    local code = Remote.sync(Instances.getAll(), { requestRejoin = function() end })
+    local code = request("/api/ping", { protocol = PROTOCOL })
     if code >= 200 and code < 300 then return true, "terhubung (HTTP " .. code .. ")" end
     if code == 401 or code == 403 then
         return false, "HWID " .. deviceId() .. " belum didaftarkan: ketik /hwid redeem hwid:" .. deviceId() .. " di Discord (HTTP " .. code .. ")"
     end
     if code == 0 then return false, "bot tidak bisa dihubungi (URL / internet)" end
+    if code == 404 then return false, "bot belum mendukung tes koneksi ini; update bot lalu coba lagi" end
     return false, "bot membalas HTTP " .. code
 end
 

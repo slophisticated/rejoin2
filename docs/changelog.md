@@ -2,6 +2,22 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix pencabutan HWID setelah restart bot**: registry melengkapi ID pesan channel
+  untuk HWID yang dimuat dari `DATA_DIR`, supaya `/hwid remove` menghapus salinan
+  channel juga. Perubahan menunggu channel siap; gagal hapus pesan dilaporkan dan
+  bisa dicoba ulang, bukan dinyatakan sukses lalu HWID muncul lagi setelah restart.
+- **Fix recovery ulang saat clone masih loading**: monitor memakai waktu launch dari
+  heartbeat, melindungi proses hidup tanpa heartbeat minimal 60 detik (atau
+  `gracePeriod` yang lebih besar). Kick, heartbeat berhenti, dan proses mati tidak
+  disembunyikan oleh masa loading; setelahnya RSS rendah tetap memicu recovery.
+- **Fix Tes koneksi bot menghabiskan antrean command**: Menu 9 → 11 memakai endpoint
+  autentikasi baru `POST /api/ping`, tanpa sync/ACK atau mengubah waktu sync. Bot lama
+  (404) diminta update; tidak ada fallback yang mengambil command. Deploy bot bersama
+  engine untuk memakai tes ini.
+- **Fix preset ikut default tidak tersimpan**: edit clone ke `d` di Menu 2 tetap
+  menyimpan perubahan meskipun nama/package tidak diubah. Ditambah tes regresi Lua
+  (`lua tests/regressions.lua`) serta tes HTTP dan persistence HWID.
+
 - **Daftar HWID, tanpa key/secret di device**: device punya HWID (acak, `data/device_id.txt`; tampil di akhir installer, Menu 9, `lua main.lua --hwid`). `/hwid redeem hwid:...` di Discord nyatet HWID itu ke akun yang ngetik (`/hwid remove` nyabut) — user ga perlu input apa-apa di Termux. Device kirim HWID di header `X-Rejoin-Hwid`; bot cuma nyimpen hash-nya di `DATA_DIR/hwid.json` (volume) dan/atau channel privat (`HWID_CHANNEL_ID`). Bot sync otomatis begitu URL ada (secret opsional); device yang belum terdaftar dapet 401 + backoff dan pesan jelas di log / tes koneksi. Env baru `HWID_USERS`, `HWID_CHANNEL_ID`; `DEVICE_SECRET` jadi opsional, secret lama tetap jalan.
 
 - **Lisensi GPL-3.0-or-later** (`LICENSE`) + `CONTRIBUTING.md` (cara tes, gaya, aturan penting) biar orang bisa kontribusi.

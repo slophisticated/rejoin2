@@ -77,6 +77,11 @@ test('HTTP: a registered HWID syncs with no secret into its owner account', asyn
   assert.equal((await sync({ 'x-rejoin-hwid': hwidB }, 'Y')).status, 401);              // owner not allowed
   assert.equal((await sync({ authorization: `Bearer ${'s'.repeat(40)}` }, 'RF-01')).status, 200); // legacy secret
   assert.ok(store.devices.has('RF-01'));
+  const ping = () => fetch(url.replace('/api/sync', '/api/ping'), { method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-rejoin-hwid': hwidA }, body: '{"protocol":1}' });
+  assert.equal((await ping()).status, 200);
+  await reg.remove(hwidA, apeng);
+  assert.equal((await ping()).status, 401);
 });
 
 test('/hwid redeem and remove, ephemeral, warn when not persistent', async () => {
@@ -106,4 +111,60 @@ test('registry: volume file (DATA_DIR) keeps registrations across restarts', asy
   await again.remove(hwidB, me);
   const third = new HwidRegistry({ dataDir }); await third.loadFile();
   assert.equal(third.ownerOf(hwidB), null); assert.equal(third.ownerOf(hwidA), apeng);
+});
+
+test('registry: removal after loading disk and channel survives another restart', async t => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'rejoin-hwid-dual-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const channel = fakeChannel();
+  const options = { dataDir, channelId: '1' };
+  const first = new HwidRegistry(options);
+  await first.loadFile(); await first.load(fakeClient(channel));
+  await first.add(hwidA, apeng); await first.add(hwidB, me);
+
+  const again = new HwidRegistry(options);
+  await again.loadFile(); await again.load(fakeClient(channel));
+  await again.remove(hwidA, apeng);
+  assert.equal(channel.msgs.size, 1);
+
+  const third = new HwidRegistry(options);
+  await third.loadFile(); await third.load(fakeClient(channel));
+  assert.equal(third.ownerOf(hwidA), null);
+  assert.equal(third.ownerOf(hwidB), me);
+});
+
+test('registry: a failed channel deletion must not report successful removal', async () => {
+  const channel = fakeChannel();
+  const reg = new HwidRegistry({ channelId: '1' });
+  await reg.load(fakeClient(channel)); await reg.add(hwidA, apeng);
+  const fetch = channel.messages.fetch;
+  channel.messages.fetch = async arg => {
+    if (typeof arg === 'string') throw Object.assign(new Error('missing permission'), { code: 50013 });
+    return fetch(arg);
+  };
+  await assert.rejects(reg.remove(hwidA, apeng), /Gagal menghapus HWID/);
+  assert.equal(reg.ownerOf(hwidA), apeng);
+  assert.equal(channel.msgs.size, 1);
+  channel.messages.fetch = fetch;
+  await reg.remove(hwidA, apeng);
+  assert.equal(reg.ownerOf(hwidA), null);
+});
+
+test('registry: an already deleted channel message does not block removal', async () => {
+  const channel = fakeChannel();
+  const reg = new HwidRegistry({ channelId: '1' });
+  await reg.load(fakeClient(channel)); await reg.add(hwidA, apeng);
+  channel.msgs.clear();
+  channel.messages.fetch = async () => { throw Object.assign(new Error('Unknown Message'), { code: 10008 }); };
+  await reg.remove(hwidA, apeng);
+  assert.equal(reg.ownerOf(hwidA), null);
+});
+
+test('registry: wait for the configured channel before changing registrations', async () => {
+  const reg = new HwidRegistry({ channelId: '1' });
+  await assert.rejects(reg.add(hwidA, apeng), /belum siap/);
+  await assert.rejects(reg.remove(hwidA, apeng), /belum siap/);
+  await reg.load(fakeClient(fakeChannel()));
+  await reg.add(hwidA, apeng);
+  assert.equal(reg.ownerOf(hwidA), apeng);
 });

@@ -123,6 +123,20 @@ end
 local windowState = {} -- pkg -> true (in place) / false (off grid)
 local monitorConf = {}
 
+-- A freshly launched process may dip below minRss while its game loads. Only defer
+-- recovery when it is still running and has no heartbeat from this session yet.
+-- Explicit kicks, stale heartbeats and dead processes must still be recovered.
+local function isLoading(inst)
+    local at = Heartbeat.launchedAt(inst)
+    if not at then return false end
+    local grace = math.max(60, tonumber(monitorConf.gracePeriod) or 60)
+    local age = os.time() - at
+    if age < 0 or age >= grace then return false end
+    if Heartbeat.alive(inst) ~= nil then return false end
+    local ok, up = pcall(apkManager.isRunning, inst.package)
+    return ok and up == true
+end
+
 -- A clone without a logged-in account is left alone while it sits on the login
 -- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
 -- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
@@ -545,7 +559,7 @@ function Monitor.start(conf, opts)
                 local p_ok, should = pcall(function() return Status.isFreezeTimeout(id) end)
                 timeToRelaunch = p_ok and should
             end
-            if timeToRelaunch then
+            if timeToRelaunch and not isLoading(inst) then
                 if Auth.isLoggedIn(inst) == false then
                     Logger.debug(string.format("Monitor: %s not logged in; skipping relaunch", name))
                 else
@@ -582,6 +596,10 @@ function Monitor.start(conf, opts)
                 -- a stopped heartbeat is unhealthy even with plenty of RSS.
                 local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                if not healthy and isLoading(inst) then
+                    healthy = true
+                    Logger.debug(string.format("Monitor: %s masih loading; tunggu sebelum cek RSS lagi", name))
+                end
                 local kicked = false
                 if not healthy then
                     local _, why = Heartbeat.alive(inst)

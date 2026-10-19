@@ -19,6 +19,17 @@ dengan `/devices`, `/status`, lalu `/screenshot`. Banyak device Redfinger boleh
 berbagi IP: pembatas 60 request/menit per IP hanya berlaku untuk auth gagal.
 Command yang timeout tetap antre dan dijalankan ketika device online lagi.
 
+Menu `9` → `11` (Tes koneksi bot) hanya memeriksa autentikasi, jadi command yang
+antre tetap menunggu monitor. Update deployment bot bersama engine agar endpoint
+`/api/ping` tersedia; bot lama akan menampilkan pesan perlu update (HTTP 404).
+Kalau memakai volume dan channel HWID bersamaan, `/hwid remove` menghapus kedua
+salinannya; kegagalan menghapus pesan channel ditampilkan supaya bisa dicoba ulang.
+
+Setelah launch/recovery, clone yang masih hidup tanpa heartbeat diberi waktu loading
+minimal 60 detik (`gracePeriod` lebih besar juga dipakai). Kick/proses mati tetap
+ditangani. Mengubah preset clone ke `d` (ikut default) di Menu `2` → `3` langsung
+tersimpan tanpa perlu mengubah nama atau package.
+
 ## ⚡ Step 1: Root, Termux & Termux:Boot
 1. **Root** harus aktif (**Magisk** / **KernelSU**). Buka **Superuser** → pastikan **Termux** diizinkan.
 2. Install **[Termux](https://f-droid.org/packages/com.termux/)** dan **[Termux:Boot](https://f-droid.org/packages/com.termux.boot/)** dari **sumber yang sama** (dua-duanya F-Droid, atau dua-duanya GitHub).

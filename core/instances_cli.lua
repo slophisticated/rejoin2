@@ -106,10 +106,8 @@ function CLI.run()
                     if game then
                         for k, v in pairs(game) do updates[k] = v end
                     end
-                    if updates.preset == "" then
-                        updates.preset = nil
-                        inst.preset = nil
-                    end
+                    -- An empty preset means follow default. Keep the update explicit
+                    -- so changing only this field still reaches persist().
                     if next(updates) == nil then print("No changes") else
                         local ok, res = InstanceManager.update(id, updates)
                         if ok then print("Updated instance id=" .. tostring(res.id)) else print("Failed to update: " .. tostring(res)) end
