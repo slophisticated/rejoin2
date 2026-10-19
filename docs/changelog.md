@@ -1,6 +1,54 @@
 # Changelog
 
-## Unreleased / Bug fixes
+## Unreleased — port rejoinversifinal
+
+- Branch berdasarkan `apengjers/rejoin` main `d0de119`, bukan merge main rejoin2.
+- Loader dan source modular disatukan. Generator `tools/bundle_loader.js` tersedia;
+  boot/uninstall, autodetect clone, ruang status bar, kolom RSS dan counter restart
+  dipertahankan. Data config/log/HWID/request selalu di `/sdcard/yanamin`.
+- Supervisor loader memperbaiki quoting path berisi spasi/apostrof. Update modular
+  mengikuti branch checkout, sehingga device percobaan tidak kembali ke dev main.
+- URL webhook invalid dilaporkan tanpa membocorkan URL/token ke log.
+- Menu 1–10 publish dipertahankan, ditambah 11 Preset Game, 12 Antrean & Heartbeat,
+  dan 13 Start Monitor. Script Manager memakai Scripts -> copy Autoexecute.
+
+- **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
+  satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan
+  rentang minimal 20 detik. Timeout `launchJoinTimeout` menampilkan **Perlu dicek**,
+  menahan antrean tanpa restart; heartbeat yang akhirnya siap melanjutkan antrean.
+  Tidak ada fallback setelah 2 heartbeat gagal. Bot/dashboard tetap berjalan.
+- **Menunggu key**: license diketahui hilang + tidak ada heartbeat siap menahan
+  launch/retry, tanpa force-stop berulang atau menghitung waktu menunggu key sebagai
+  loading. License ada tidak membuktikan key valid; status tak diketahui tidak
+  dianggap layar Get Key. Notifikasi key tetap sekali per perubahan.
+- **Username + sesi**: heartbeat memakai `hb_<username>.txt`, menggemakan request
+  `start_<username>.txt` yang berisi package dan token sesi dari Termux. Token terikat
+  saat script mulai; username/duplikasi mapping/sesi lama ditolak. App yang dibuka
+  manual bisa memakai sesi mandiri ketika belum ada request engine.
+- **Loading jujur**: script v3 menulis `loading` sambil menunggu karakter dan antrean
+  aset kosong 5 detik berturut-turut; tidak ada lagi timeout yang mengaku `ingame`.
+- **RSS bukan keputusan recovery**: RSS/RAM hanya diagnostik. Tidak ada limit RAM
+  maupun gate berdasarkan RAM. Proses mati, kick, atau heartbeat ingame yang berhenti
+  masuk antrean retry (default jeda 120 detik, maks 3 percobaan; pulih 60 detik
+  mereset budget). Clone logout hanya dibuka lembut, tanpa force-stop.
+- **Menu 12 Antrean & Heartbeat** dan schema bot untuk `launchSafety.*`. Config lama
+  mendapat default di runtime tanpa ditimpa. Setelah update, buka ulang clone satu
+  per satu agar script v3 berjalan; game dengan menu/karakter belum spawn tetap
+  menunggu. Mode hemat tetap pilihan user di Menu 9.
+
+- **Fix pencabutan HWID setelah restart bot**: registry melengkapi ID pesan channel
+  untuk HWID yang dimuat dari `DATA_DIR`, supaya `/hwid remove` menghapus salinan
+  channel juga. Perubahan menunggu channel siap; gagal hapus pesan dilaporkan dan
+  bisa dicoba ulang, bukan dinyatakan sukses lalu HWID muncul lagi setelah restart.
+- **Bot/preset**: port bot Discord beserta schema device, HWID per owner, screenshot,
+  script manager dan antrean command; tes koneksi Menu 8 -> 11 memakai `/api/ping`
+  tanpa mengambil command. Bot lama diminta update bila endpoint belum tersedia.
+- **Preset ikut default** tersimpan walau nama/package tidak berubah. Logout manual
+  memberi sinyal ke engine di data root agar tidak direjoin sebagai akun login.
+- Tes regresi Lua, smoke test loader/modular, dan tes bot tersedia. Belum diuji pada
+  Redfinger asli; mode hemat dan target empat clone perlu validasi per game/device.
+
+## Riwayat versi publish sebelumnya
 
 - **Loop relaunch clone yang bikin uptime nyangkut di `0m`.** Health check membaca proses asli (`RSS >= minRss`), tapi clone Roblox yang baru dilaunch masih di bawah ambang itu selama.loading, dan monitor lalu menganggapnya "tidak sehat" lalu mendaftarkannya untuk recovery — yang langsung `force-stop` + buka lagi. Efeknya di laporan Discord: `⏱️ 0m` terus-menerus, CPU ~1 core terbuang oleh sanjian `am force-stop` / `am start` / `su`, dan game tidak pernah sempat masuk. Sekarang setiap launch / recovery / relaunch yang dilakukan engine memulai **grace period** (minimal 60 detik, atau `gracePeriod` bila lebih besar) dan selama itu clone tidak boleh dinyatakan tidak sehat. Clone yang ditutup user atau Android sendiri tetap terdeteksi langsung. Penghitung restart per clone ikut ditampilkan di laporan Discord (`♻️ 3x`) supaya loop kelihatan tanpa harus grep log.
 

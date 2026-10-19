@@ -5,8 +5,20 @@ if os.getenv("REJOIN_WRAPPER") ~= "1" then
     local function shellQuote(value)
         return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
     end
-    local scriptDir = (arg and arg[0] and arg[0]:match("^(.*[/\\])")) or ""
-    local command = "sh " .. shellQuote(scriptDir .. "run.sh")
+    local command
+    if type(__YA_SUPERVISOR) == "string" then
+        local Paths = require("core.paths")
+        local supervisor = Paths.data("yanamin_wrapper.sh")
+        local target = (arg and arg[0]) or "yanamin.lua"
+        if not target:match("^[/\\]") then target = (os.getenv("PWD") or ".") .. "/" .. target end
+        local content = __YA_SUPERVISOR:gsub("__TARGET__", function() return shellQuote(target) end)
+        local saved, err = require("utils.file").write(supervisor, content)
+        if not saved then error("Cannot write terminal supervisor: " .. tostring(err)) end
+        command = "sh " .. shellQuote(supervisor)
+    else
+        local scriptDir = (arg and arg[0] and arg[0]:match("^(.*[/\\])")) or ""
+        command = "sh " .. shellQuote(scriptDir .. "run.sh")
+    end
     for i = 1, #(arg or {}) do
         command = command .. " " .. shellQuote(arg[i])
     end
@@ -48,6 +60,7 @@ local dryRun = false
 local doctorFlag = false
 local installHeartbeatFlag = false
 local enableWindowLayoutFlag = false
+local migratePresetsFlag = false
 for i = 1, #args do
     local a = args[i]
     if a == "--headless" or a == "--no-interactive" then headless = true end
@@ -58,6 +71,11 @@ for i = 1, #args do
     if a == "--doctor" then doctorFlag = true end
     if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
+    if a == "--migrate-presets" then migratePresetsFlag = true end
+    if a == "--hwid" then
+        print(require("managers.remote").deviceId())
+        os.exit(0)
+    end
     if a == "--config" then
         local nextArg = args[i+1]
         if nextArg and nextArg:sub(1,2) ~= "--" then
@@ -73,19 +91,22 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Everything the tool owns lives in one folder; tell the user where it is.
+require("core.paths").announce()
+
 -- Ensure configuration exists (setup will copy template -> config if needed)
 local Setup = require("core.setup")
 local ok, created_or_err = Setup.ensureConfig(configSource)
 if not ok then
     Logger.error("Failed to ensure config: " .. tostring(created_or_err))
+    os.exit(1)
 end
-
 local Config = require("core.config")
 
 -- Initialize logger path from loaded config
 local conf = Config.get() or {}
 if conf.logPath then
-    Logger.setLogPath(conf.logPath)
+    Logger.setLogPath(require("core.paths").resolve(conf.logPath))
 end
 
 -- Root is required for package/process discovery and recovery. Stop before the wizard
@@ -102,7 +123,6 @@ if not dryRun then
 end
 
 if ok and created_or_err == true and not skipWizard and not headless then
-    -- Do not open an interactive setup until the required root access is confirmed.
     local Wizard = require("core.setup_wizard")
     local wok, werr = Wizard.run()
     if not wok then
@@ -110,11 +130,23 @@ if ok and created_or_err == true and not skipWizard and not headless then
         Logger.info("You can edit config/config.lua manually or re-run the wizard later.")
     end
 end
-
 local data = conf
 
 local InstanceManager = require("managers.instance")
 InstanceManager.load(Config.get())
+
+-- Warn about instances whose package is not installed on this device (e.g. a leftover
+-- placeholder from the config template). Warning only — nothing is blocked.
+local missing = InstanceManager.missingPackages()
+if #missing > 0 then
+    print("")
+    print("[WARN] Package instance ini TIDAK terpasang di device:")
+    for _, m in ipairs(missing) do
+        print(string.format("  - id=%s  %s  (%s)", tostring(m.id), tostring(m.name), tostring(m.package)))
+    end
+    print("      Buang lewat menu Instances Manager > 4) Delete, atau edit config.")
+    print("")
+end
 
 -- One-shot: environment doctor -- run on EACH device, diff outputs to find the
 -- dependency/fingerprint difference causing "inject [OK] tapi app ga login" on one
@@ -126,6 +158,18 @@ if doctorFlag then
     print(report)
     print("====================================================================")
     os.exit(0)
+end
+
+if migratePresetsFlag then
+    local c = Config.get() or {}
+    local msg = InstanceManager.migrateToPresets(c)
+    if not msg then
+        print("OK: preset tidak perlu dipindah")
+        os.exit(0)
+    end
+    local saved, err = Config.save(c)
+    print(saved and ("OK: " .. msg) or ("GAGAL: " .. tostring(err)))
+    os.exit(saved and 0 or 1)
 end
 
 -- One-shot (installer): switch the floating window grid on in the user's config.
@@ -174,25 +218,8 @@ local function prompt(msg)
     return line
 end
 
--- One info line above the menu: version, and whether this device was set up with the
--- one-command installer (its boot script carries a marker) / starts on boot.
-local function installInfo()
-    local p = io.popen("git rev-parse --short HEAD 2>/dev/null")
-    local hash = p and (p:read("*l") or "") or ""
-    if p then p:close() end
-    if hash == "" then hash = "-" end
-    local home = os.getenv("HOME") or ""
-    local f = io.open(home .. "/.termux/boot/start-rejoin.sh", "r")
-    local boot = f and (f:read("*a") or "") or nil
-    if f then f:close() end
-    local instant = boot and boot:find("Generated by rejoin install.sh", 1, true) ~= nil
-    return string.format("Rejoin %s | install instan: %s | auto-start boot: %s",
-        hash, instant and "ya" or "tidak", boot and "ya" or "tidak")
-end
-local infoLine = installInfo()
-
 while true do
-    print('\n' .. infoLine .. '\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Start Monitor\n  6) AutoExecute Manager\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord Webhook\n 10) Jendela & Mode Hemat\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n 11) Preset Game\n 12) Antrean & Heartbeat\n 13) Start Monitor (tanpa launch)\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -217,30 +244,28 @@ while true do
         local SettingsCLI = require("core.settings_cli")
         SettingsCLI.run()
     elseif choice == "4" then
-        local LogsCLI = require("core.logs_cli")
-        LogsCLI.run()
-    elseif choice == "5" then
-        local Monitor = require("managers.monitor")
-        print("(tekan Ctrl+C untuk berhenti monitor)")
-        Monitor.start(Config.get())
-        if Monitor.interrupted() then
-            print("Monitor stopped by Ctrl+C; exiting.")
-            os.exit(0)
-        end
-    elseif choice == "6" then
         local AutoExecuteCLI = require("core.autoexecute_cli")
         AutoExecuteCLI.run()
-    elseif choice == "7" then
+    elseif choice == "5" then
         local InjectCookieCLI = require("core.inject_cookie_cli")
         InjectCookieCLI.run()
+    elseif choice == "6" then
+        local BootCLI = require("core.boot_cli")
+        BootCLI.run()
+    elseif choice == "7" then
+        local UninstallCLI = require("core.uninstall_cli")
+        UninstallCLI.run()
     elseif choice == "8" then
-        local DumpCookiesCLI = require("core.dump_cookies_cli")
-        DumpCookiesCLI.run()
-    elseif choice == "9" then
         require("core.webhook_cli").run()
-    elseif choice == "10" then
+    elseif choice == "9" then
         require("core.display_cli").run()
-    elseif choice == "0" then
+    elseif choice == "11" then
+        require("core.preset_cli").run()
+    elseif choice == "12" then
+        require("core.launch_cli").run()
+    elseif choice == "13" then
+        require("managers.monitor").start(Config.get())
+    elseif choice == "10" or choice == "0" then
         print("Exiting main")
         break
     else

@@ -15,22 +15,12 @@ local Status = {}
 --   anrSeen       = last logcat sequence id that reported an ANR for this package
 -- }
 local states = {}
-
--- How many times we relaunched / recovered each instance this run. The Discord report
--- shows it as a counter, so a relaunch loop is visible in the channel instead of only
--- showing up as "uptime 0m".
+local lifecycle = {}
 local recoveries = {}
-
--- Count one restart (recovery or frozen-relaunch) for this instance.
 function Status.noteRecovery(id)
-    if id == nil then return end
-    recoveries[id] = (recoveries[id] or 0) + 1
+    if id ~= nil then recoveries[id] = (recoveries[id] or 0) + 1 end
 end
-
--- Restarts so far for this instance (0 = none).
-function Status.recoveryCount(id)
-    return recoveries[id] or 0
-end
+function Status.recoveryCount(id) return recoveries[id] or 0 end
 
 -- Defaults / config gate for freeze detection.
 local freezeTimeout = 300  -- seconds (RSS-low/proc-stub or ANR -> wait, then relaunch)
@@ -45,14 +35,18 @@ function Status.configure(conf)
 end
 
 -- Current status string of an instance (for reports), or nil.
+function Status.setLifecycle(id, value)
+    lifecycle[id] = value
+end
+
 function Status.statusOf(id)
     return states[id] and states[id].status or nil
 end
 
 function Status.reset()
     states = {}
+    lifecycle = {}
     recoveries = {}
-    anrCache = nil
 end
 
 -- Mark an instance as currently being recovered (so the monitor shows "recovery").
@@ -74,7 +68,7 @@ function Status.endRecovery(id)
 end
 
 -- Force-hold an instance in "starting" while it is being launched/loaded (used by the
--- Menu 1 sequential launch flow). Cleared with Status.endStarting when it is up.
+-- Menu 5 sequential launch flow). Cleared with Status.endStarting when it is up.
 function Status.beginStarting(id)
     local s = states[id] or {}
     s.startingOverride = true
@@ -106,29 +100,6 @@ function Status.endResetting(id)
     end
 end
 
--- Read ANR lines from logcat and return a set of package names that (recently) ANR'd.
--- Best-effort: returns empty on failure/without logcat.
-local function scanAnrPackages()
-    local anr = {}
-    if not anrEnabled then return anr end
-
-    local ok, out = Shell.exec("logcat -d -b main -t 1000")
-    if not ok or not out or out == "(dry-run)" then
-        return anr
-    end
-
-    -- ActivityManager emits lines like: "ANR in com.apengjers.v3 (com.apengjers.v3/.X)"
-    for line in out:gmatch("[^\r\n]+") do
-        local pkg = line:match("ANR in (%S+)")
-        if pkg then
-            -- drop trailing '(' / component suffix if present
-            pkg = pkg:gsub("%s*%(.+$", "")
-            anr[pkg] = true
-        end
-    end
-    return anr
-end
-
 local classify
 
 -- Update the status of a single instance based on its process state and ANR logs.
@@ -148,128 +119,21 @@ function Status.check(instance)
 end
 
 classify = function(instance)
-    local id = instance.id
-    local pkg = instance.package
-    local now = os.time()
+    local id, pkg = instance.id, instance.package
     local s = states[id] or {}
     states[id] = s
-
-    -- If currently being recovered, reset, or held in a forced "starting" state, keep
-    -- that status until it finishes (don't let the normal classifier override it).
-    if s.status == "recovery" or s.status == "resetting" or s.startingOverride then
-        return s.status
-    end
-
-    local procExists = false
-    local active = false
-    if pkg then
-        -- Health is decided from the RSS threshold (isActive): a force-close leaves a
-        -- low-RSS stub process alive (~188 MB vs ~1 GB for a running clone), so a process
-        -- that exists but stays below the threshold means its UI is gone.
-        local okP, resP = pcall(function() return APK.isRunning(pkg) end)
-        procExists = okP and resP
-        local okA, resA = pcall(function() return Heartbeat.isUp(instance, APK) end)
-        active = okA and resA
-    end
-    local rssKb = pkg and APK.getRSSinKB(pkg) or -1
-    s.rssKb = rssKb
-
-    if not procExists then
-        -- offline: nothing running
-        s.status = "offline"
-        s.healthySince = nil
-        s.stuckSince = nil
-        s.anrSeen = nil
-        s.forceRunning = nil
-        return s.status
-    end
-
-    -- The in-game script reported a kick/disconnect: show it plainly (the monitor
-    -- recovers the clone right away).
-    if not active and procExists then
+    s.rssKb = pkg and APK.getRSSinKB(pkg) or -1 -- diagnostics only
+    if lifecycle[id] then s.status = lifecycle[id]; return s.status end
+    local ok, up = pcall(APK.isRunning, pkg)
+    if not ok or up == nil then s.status = "needs_check"
+    elseif not up then s.status = "offline"
+    elseif Auth.isLoggedIn(instance) == false then s.status = "nologin"
+    else
         local alive, why = Heartbeat.alive(instance)
-        if alive == false and why and why:find("^kicked") then
-            s.status = "kicked"
-            s.stuckSince = nil
-            s.healthySince = nil
-            return s.status
-        end
+        if alive == true then s.status = "ingame"
+        elseif alive == false then s.status = tostring(why):find("^kicked") and "kicked" or "freeze"
+        else s.status = Heartbeat.isEnabled() and "starting" or "running" end
     end
-
-    if not active then
-        -- Process alive but RSS below the threshold (force-close stub, or a clone that
-        -- is merely sitting on the login screen with little memory).
-        --
-        -- If the clone has NO logged-in account (Auth.isLoggedIn == false) it is treated
-        -- as idle: low RSS is expected, so we mark it "nologin" and never start the
-        -- freeze/relaunch clock. On a failed detection (nil) we fall back to the normal
-        -- freeze handling so existing behavior is preserved.
-        local loggedIn = Auth.isLoggedIn(instance)
-        s.lastLogin = loggedIn
-        if loggedIn == false then
-            s.status = "nologin"
-            s.stuckSince = nil
-            s.healthySince = nil
-            return s.status
-        end
-        -- Otherwise: the clone is genuinely frozen (force-close stub). Show Freeze;
-        -- after freezeTimeout the monitor force-stops and relaunches it.
-        s.status = "freeze"
-        if not s.stuckSince then s.stuckSince = now end
-        s.healthySince = nil
-        return s.status
-    end
-
-    -- Process is genuinely active (real memory). A clone can sit on the login screen
-    -- (logged out / kicked) with enough RSS to pass minRss, so check the login here
-    -- too; otherwise it would keep showing Running.
-    local loggedIn = Auth.isLoggedIn(instance)
-    s.lastLogin = loggedIn
-    if loggedIn == false then
-        s.status = "nologin"
-        s.stuckSince = nil
-        s.healthySince = nil
-        s.forceRunning = nil
-        return s.status
-    end
-
-    if s.forceRunning then
-        -- Recovery/relaunch just succeeded: go straight to Running.
-        s.forceRunning = nil
-        s.healthySince = nil
-        s.status = "ingame"
-        s.stuckSince = nil
-        return s.status
-    end
-
-    if not s.healthySince then
-        s.healthySince = now
-        s.status = "starting"
-        s.stuckSince = nil
-        return s.status
-    end
-
-    local healthyAge = now - s.healthySince
-
-    -- Freeze detection: ANR present for this package in recent logcat.
-    local anr = scanAnrPackages()
-    local frozen = anr[pkg] == true
-    if frozen then
-        s.status = "freeze"
-        if not s.stuckSince then s.stuckSince = now end
-        return s.status
-    end
-
-    -- Not frozen and running; classify by how long it's been healthy.
-    if healthyAge < gracePeriod then
-        s.status = "starting"
-        s.stuckSince = nil
-        return s.status
-    end
-
-    -- Healthy past the grace period -> ingame.
-    s.status = "ingame"
-    s.stuckSince = nil
     return s.status
 end
 
@@ -296,6 +160,13 @@ local C = {
 
 -- Human label + color for a status (used by the monitor table).
 local STATUS_UI = {
+    queued = { "Antre", C.dim },
+    stabilizing = { "Menunggu stabil", C.blue },
+    wait_key = { "Menunggu key", C.yellow },
+    wait_identity = { "Cek username", C.yellow },
+    needs_check = { "Perlu dicek", C.red },
+    cooldown = { "Jeda retry", C.yellow },
+    running = { "Proses hidup", C.cyan },
     ingame   = { "Running",  C.green },
     stuck    = { "Stuck",    C.red },
     freeze   = { "Freeze",   C.yellow },
@@ -434,17 +305,35 @@ local function instanceLabel(pkg, uname, width, prefix)
     return prefix .. pkg
 end
 
+-- Human-readable RSS for the dashboard: "1.2 GB" / "310 MB", or "-" when the clone has
+-- no process / no reading yet. Uses the value cached by classify(), so the dashboard
+-- costs zero extra shell calls.
+local function rssText(rssKb)
+    if not rssKb or rssKb < 0 then return "-" end
+    if rssKb >= 1024 * 1024 then
+        return string.format("%.1f GB", rssKb / (1024 * 1024))
+    end
+    if rssKb >= 1024 then
+        return string.format("%d MB", math.floor(rssKb / 1024))
+    end
+    return string.format("%d kB", math.floor(rssKb))
+end
+
 function Status.printSummary(instances)
     local LCOL = 33   -- width of the left (Instance) column
-    local RCOL = 23   -- width of the right (Status/Value) column
+    local RCOL = 23   -- width of the status column
+    local RSSCOL = 14 -- width of the RSS column
 
-    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL) .. "╮"
-    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL) .. "┤"
-    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL) .. "╯"
+    local top  = "╭" .. string.rep("─", LCOL) .. "┬" .. string.rep("─", RCOL)
+        .. "┬" .. string.rep("─", RSSCOL) .. "╮"
+    local mid  = "├" .. string.rep("─", LCOL) .. "┼" .. string.rep("─", RCOL)
+        .. "┼" .. string.rep("─", RSSCOL) .. "┤"
+    local bot  = "╰" .. string.rep("─", LCOL) .. "┴" .. string.rep("─", RCOL)
+        .. "┴" .. string.rep("─", RSSCOL) .. "╯"
 
-    -- One body row. `rightColor`, if given, colors the visible right text only so
-    -- every row still aligns on the same column.
-    local function bodyRow(left, rightText, rightColor)
+    -- One body row. `rightColor`, if given, colors the visible status text only so
+    -- every row still aligns on the same column. `rss` is the rightmost cell.
+    local function bodyRow(left, rightText, rightColor, rss)
         local lc = padCell(left, LCOL)
         local rc = padCell(rightText, RCOL)
         if rightColor then
@@ -452,16 +341,17 @@ function Status.printSummary(instances)
             rc = " " .. string.rep(" ", l) .. rightColor .. rightText .. C.reset
                  .. string.rep(" ", (RCOL - 2 - #rightText) - l) .. " "
         end
-        return "│" .. lc .. "│" .. rc .. "│"
+        local rc2 = padCell(rss or "", RSSCOL)
+        return "│" .. lc .. "│" .. rc .. "│" .. rc2 .. "│"
     end
 
     local function blankRow()
-        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│"
+        return "│" .. blankCell(LCOL) .. "│" .. blankCell(RCOL) .. "│" .. blankCell(RSSCOL) .. "│"
     end
 
     local sb = {}
     table.insert(sb, top)
-    table.insert(sb, bodyRow("Instance", "Status"))
+    table.insert(sb, bodyRow("Instance", "Status", nil, "RSS"))
     table.insert(sb, mid)
 
     -- System rows first, like a status header for the whole device.
@@ -474,6 +364,7 @@ function Status.printSummary(instances)
     table.insert(sb, bodyRow("Storage", storageLine() or "--"))
     table.insert(sb, mid)
 
+    local totalRssKb = 0
     if not instances or #instances == 0 then
         table.insert(sb, bodyRow("(no instances)", "Offline", C.dim))
     else
@@ -494,9 +385,12 @@ function Status.printSummary(instances)
             local wv = okW and WindowLayout.lastVerify(inst.package) or nil
             local prefix = (wv and wv.ok == false) and "[win] " or ""
             local rowText = instanceLabel(pkg, uname and tostring(uname) or nil, LCOL, prefix)
-            table.insert(sb, bodyRow(rowText, label, ui[2]))
+            local rss = s and s.rssKb or -1
+            if rss > 0 then totalRssKb = totalRssKb + rss end
+            table.insert(sb, bodyRow(rowText, label, ui[2], rssText(rss)))
         end
     end
+    table.insert(sb, bodyRow("App RAM (total)", totalRssKb > 0 and rssText(totalRssKb) or "--"))
     table.insert(sb, bot)
 
     -- Footer hint below the table.

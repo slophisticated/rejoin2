@@ -12,18 +12,19 @@ local function getTime()
 end
 
 local FileUtil = require("utils.file")
+local Paths = require("core.paths")
 
-local defaultLogPath = "data/rejoin.log"
+local defaultLogPath = Paths.data("rejoin.log")
 local logFilePath = defaultLogPath
 
 -- Try to read log path from config file without requiring core.config to avoid circular dependency.
 -- This reads config/config.lua if present and extracts logPath field.
 local function loadLogPathFromConfig()
-    local confPath = "config/config.lua"
+    local confPath = Paths.config()
     if FileUtil.exists(confPath) then
         local ok, conf = pcall(dofile, confPath)
         if ok and type(conf) == "table" and conf.logPath then
-            return tostring(conf.logPath)
+            return Paths.resolve(tostring(conf.logPath))
         end
     end
     return nil
@@ -34,7 +35,7 @@ end
 -- probe lines every cycle). Read directly from the config file to avoid a circular
 -- dependency on core.config.
 local function loadLogLevelFromConfig()
-    local confPath = "config/config.lua"
+    local confPath = Paths.config()
     if FileUtil.exists(confPath) then
         local ok, conf = pcall(dofile, confPath)
         if ok and type(conf) == "table" and conf.logLevel then
@@ -151,7 +152,7 @@ end
 
 function Logger.setLogPath(path)
     if path and type(path) == "string" and path ~= "" then
-        logFilePath = path
+        logFilePath = Paths.resolve(path)
     end
 end
 

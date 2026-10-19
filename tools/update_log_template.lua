@@ -1,8 +1,16 @@
--- Template update log. Copy this file for every new version, fill it in, then:
---   lua tools/update_log.lua tools/update_log_template.lua            (preview)
---   lua tools/update_log.lua tools/update_log_template.lua --send URL (post to Discord)
+-- Template update log.
 --
--- Sent as a Discord components message (a box with a colored bar) through the webhook.
+-- Otomatis: copy file ini ke tools/update_logs/<versi>.lua, isi, lalu push ke main.
+-- GitHub Actions langsung mengirimnya ke Discord (secret UPDATE_LOG_WEBHOOK). Bisa juga
+-- pakai satu file yang sama terus: ganti `version` = dikirim lagi; edit tanpa ganti
+-- version (mis. typo) = tidak dikirim ulang.
+--
+-- Manual:
+--   lua tools/update_log.lua <file>             (preview)
+--   lua tools/update_log.lua <file> --send URL  (post to Discord)
+--
+-- Sent as a Discord components message through the webhook: one box with the title,
+-- version and notes, and one box with the sections.
 -- Empty sections ({}) are left out automatically.
 -- mention: plain text, or a real ping: "<@&ROLE_ID>" (Discord: right-click the
 -- role > Copy Role ID, with Developer Mode on).

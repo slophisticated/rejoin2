@@ -1,3 +1,4 @@
+local Paths = require("core.paths")
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
 local Timer = require("utils.timer")
@@ -425,6 +426,60 @@ function CookieInjector.inject(instance, token)
     return true, detail
 end
 
+-- Log a clone's Roblox account out on this device: stop the app, back up each Cookies
+-- DB, then delete its `.ROBLOSECURITY` rows. The session is not revoked at Roblox, so
+-- the same cookie can be injected again later. Only a logged-in clone is stopped (a
+-- force-stopped empty clone makes the other clones FC). Returns (ok, message).
+function CookieInjector.logout(instance)
+    local pkg = instance and instance.package
+    if not pkg then return false, "Instance tidak punya package" end
+    local base = Auth.getBaseDir(instance)
+    if not base then return false, "Tidak bisa tentukan base dir instance" end
+    local dbs = locateCookieDbs(base)
+    if dbs == nil then return false, "Base dir tidak bisa dibaca (periksa izin root)." end
+    if #dbs == 0 then return false, "Cookies DB tidak ditemukan; clone belum pernah login." end
+    local runner = resolveSqlite3(dbs[1])
+    if not runner then return false, "sqlite3 tidak bisa dijalankan (pkg install sqlite)" end
+
+    local rows = 0
+    for _, db in ipairs(dbs) do
+        local n = tonumber((exec(string.format(
+            "%s %s \"SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%%.roblox.com%%';\"",
+            runner, quote(db))) or ""):match("^%s*(%d+)%s*$")) or 0
+        rows = rows + n
+    end
+    if rows == 0 then
+        if Auth.forget then Auth.forget(pkg) end
+        return false, "Clone ini memang sudah logout."
+    end
+
+    -- Tell a running engine (another process when called from Menu 5) to drop its
+    -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
+    local sig = io.open(Paths.data("auth_forget.txt"), "a")
+    if sig then sig:write(pkg, "\n"); sig:close() end
+    APK.forceStop(pkg)
+    Timer.sleep(1)
+    local stamp = os.date("%Y%m%d-%H%M%S")
+    local failures = {}
+    for _, db in ipairs(dbs) do
+        local backup = db .. ".bak-" .. stamp
+        local backupOut = exec(runner .. " " .. quote(db) .. " " .. quote(".backup " .. quote(backup)))
+        if not backupOut or not existsFile(backup) then
+            failures[#failures + 1] = "backup gagal, DB tidak diubah"
+        else
+            local out = exec(runner .. " " .. quote(db) .. " \"DELETE FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%.roblox.com%'; PRAGMA wal_checkpoint(FULL);\"")
+            if not out then failures[#failures + 1] = "hapus cookie gagal" end
+        end
+    end
+    if Auth.forget then Auth.forget(pkg) end
+    if #failures > 0 then
+        Logger.warn("CookieInjector: logout " .. pkg .. " sebagian gagal: " .. table.concat(failures, "; "))
+        return false, "Logout gagal sebagian: " .. table.concat(failures, "; ")
+    end
+    Logger.info("CookieInjector: logout " .. pkg .. " (" .. rows .. " cookie dihapus, backup ." .. "bak-" .. stamp .. ")")
+    return true, "logout, app ditutup. Login lagi lewat app atau Inject Cookie."
+end
+
 -- Debug: dump every cookie row of EVERY Cookies DB under the instance. The
 -- `.ROBLOSECURITY` value is shown as its length only (no token leak). Returns
 -- (ok, message).
@@ -545,8 +600,10 @@ function CookieInjector.probeToken(instance, token)
     -- post-launch = the app never touched this cookie store -> it can't be a login issue
     -- in the DB, it is happening before the store is even read.
     lines[#lines + 1] = "Live store (apakah WebView app benar-benar membuka cookie store):"
+    local walAny, walNone = false, (dbs ~= nil and #dbs > 0)
     for _, db in ipairs(dbs or {}) do
         local walPath = db .. "-wal"
+        if existsFile(walPath) then walAny = true; walNone = false end
         local walSize = existsFile(walPath) and exec("wc -c < " .. quote(walPath) .. " 2>/dev/null") or "0"
         walSize = tostring(walSize or "0"):gsub("%s+", "")
         local state = existsFile(walPath)
@@ -586,9 +643,50 @@ function CookieInjector.probeToken(instance, token)
     elseif seenMissing then
         verdict = "COOKIE_CLEARED -> baris .ROBLOSECURITY hilang/absen dari DB (app menghapus cookie saat boot)."
     else
-        verdict = "NEED_MANUAL_CHECK -> state tak terduga; tutup app lalu cek menu 7>3."
+        verdict = "NEED_MANUAL_CHECK -> state tak terduga; tutup app lalu cek menu 5>3."
     end
-    return table.concat(lines, "\n"), verdict
+    local info = { rotated = seenRotated, same = seenSame, missing = seenMissing,
+        walAny = walAny, walNone = walNone, package = instance and instance.package }
+    return table.concat(lines, "\n"), verdict, info
+end
+
+-- Country of the device's public IP (2-letter code) or nil. Plain curl as the Termux
+-- user (no su, no token).
+local function deviceCountry()
+    local p = io.popen("curl -s -m 5 https://ipinfo.io/country </dev/null 2>/dev/null")
+    if not p then return nil end
+    local out = p:read("*a") or ""
+    p:close()
+    return out:match("^%s*(%u%u)%s*$")
+end
+
+-- Human-readable likely causes when the clone still shows the login screen after an
+-- inject, from probeToken's info table. Empty when the login is already confirmed.
+function CookieInjector.hints(info)
+    if type(info) ~= "table" or info.rotated then return {} end
+    local pkg = tostring(info.package or "<package>")
+    local out = {}
+    if info.walNone then
+        out[#out + 1] = "- App Roblox belum/ga baca cookie WebView. Kemungkinan versi Roblox di clone ini beda"
+        out[#out + 1] = "  (nyimpen login di tempat lain). Bandingin versi di device yang bisa vs yang gagal:"
+        out[#out + 1] = "  su -c \"dumpsys package " .. pkg .. " | grep versionName\""
+        out[#out + 1] = "  Solusi: login manual sekali di clone ini."
+    end
+    if info.missing then
+        out[#out + 1] = "- Cookie dihapus app pas kebuka = Roblox nolak sesinya. Kemungkinan besar proteksi"
+        out[#out + 1] = "  lokasi / sesi dianggap dibajak. Tutup app, lalu cek token di menu 5 > 3: 401 = di-revoke."
+    elseif info.same and info.walAny then
+        out[#out + 1] = "- Cookie udah dibaca app. Kalau di layar tetep logout, kemungkinan besar proteksi lokasi"
+        out[#out + 1] = "  Roblox (cookie diambil dari negara/jaringan lain dari device ini)."
+    end
+    if #out == 0 then
+        out[#out + 1] = "- Status ga jelas. Tutup app, lalu cek token di menu 5 > 3 (401 = di-revoke Roblox)."
+    end
+    local country = deviceCountry()
+    if country then out[#out + 1] = "- IP device ini: " .. country end
+    out[#out + 1] = "- Tips: ambil cookie dari login di negara/jaringan yang sama kayak device ini, atau login"
+    out[#out + 1] = "  manual. 1 cookie jangan dipake di banyak device/negara."
+    return out
 end
 
 -- Schema/version diagnostic for one Cookies DB (used by `--doctor` to compare two devices).

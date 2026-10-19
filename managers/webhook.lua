@@ -39,6 +39,8 @@ local procPrev = {}      -- pkg -> { proc, total }
 -- was never stored and every report posted a NEW message instead of editing the old one.
 local STATE_FILE = Paths.data("webhook_msg.txt")
 local STATE_FILE_LEGACY = "data/webhook_msg.txt"
+local PIDS_FILE = Paths.data("clone_pids.txt")
+local pidSeen = nil
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
@@ -72,7 +74,7 @@ function Webhook.configure(c)
         -- A non-empty URL we refuse is almost always a paste we don't understand, and
         -- before this the whole feature just went quiet. Say so in the log.
         if conf.url ~= "" then
-            Logger.warn("Webhook: URL tidak valid, webhook dimatikan: " .. conf.url)
+            Logger.warn("Webhook: URL tidak valid, webhook dimatikan")
         end
         conf.url = ""
     end
@@ -272,6 +274,39 @@ local function fmtDuration(sec)
     return string.format("%dm", m)
 end
 
+-- Runtime fallback: when /proc gives nonsense (Redfinger runs Android in a container:
+-- /proc/uptime counts from the cloud phone's boot, starttime from the host's), count
+-- from the moment the pid was first seen, or from this engine's launch of the clone.
+-- Saved in data/clone_pids.txt so an engine restart keeps counting.
+local function loadPids()
+    if pidSeen then return end
+    pidSeen = {}
+    for line in (readFile(PIDS_FILE) or ""):gmatch("[^\n]+") do
+        local pkg, pid, since = line:match("^(%S+)%s+(%d+)%s+(%d+)$")
+        if pkg then pidSeen[pkg] = { pid = pid, since = tonumber(since) } end
+    end
+end
+
+local function savePids()
+    local lines = {}
+    for pkg, e in pairs(pidSeen) do lines[#lines + 1] = pkg .. " " .. e.pid .. " " .. e.since end
+    table.sort(lines)
+    writeFile(PIDS_FILE, table.concat(lines, "\n") .. "\n")
+end
+
+local function seenSince(pkg, pid)
+    loadPids()
+    local e = pidSeen[pkg]
+    if e and e.pid == pid then return e.since end
+    local since = os.time()
+    local okH, Heartbeat = pcall(require, "managers.heartbeat")
+    local launched = okH and Heartbeat.launchedAt and Heartbeat.launchedAt({ package = pkg })
+    if launched and launched <= since and since - launched < 600 then since = launched end
+    pidSeen[pkg] = { pid = pid, since = since }
+    savePids()
+    return since
+end
+
 -- Uptime and CPU of one clone's main process, from /proc/<pid>/stat.
 local function procStats(pkg, sys)
     if type(pkg) ~= "string" or not pkg:match("^[%w_%.]+$") then return nil end
@@ -286,10 +321,13 @@ local function procStats(pkg, sys)
     for v in rest:gmatch("%S+") do f[#f + 1] = v end
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
-    -- `ps etime` above is preferred; use proc starttime only as another fallback.
+    -- Prefer Android's elapsed-time probe; fall back to proc time, then the
+    -- persisted first-seen PID time on containers with incompatible clocks.
     if not r.uptime and start and sys.uptime then
         local elapsed = sys.uptime - start / clockTicks()
-        if elapsed > 0 then r.uptime = elapsed end
+        if elapsed >= 0 and elapsed <= sys.uptime + 60 then r.uptime = elapsed end
+    end
+    if not r.uptime then r.uptime = math.max(0, os.time() - seenSince(pkg, pid))
     end
     if utime and stime then
         local proc = utime + stime
@@ -305,6 +343,8 @@ end
 
 -- Report body ---------------------------------------------------------------------
 local ICON = {
+    queued = "⏳", stabilizing = "🟡", wait_key = "🔑",
+    wait_identity = "❔", needs_check = "⚠️", cooldown = "⏳", running = "🟡",
     ingame = "🟢", starting = "🟡", recovery = "🟡", resetting = "🟡",
     nologin = "⚪", kicked = "🔴", freeze = "🔴", stuck = "🔴", offline = "🔴",
 }
@@ -405,6 +445,13 @@ local function screenshot()
     local size = f:seek("end")
     f:close()
     return size and size > 0
+end
+
+-- Take a screenshot of the cloud phone now (also used by the bot's /screenshot).
+-- Returns the PNG path, or nil.
+function Webhook.captureScreen()
+    if screenshot() then return SHOT end
+    return nil
 end
 
 -- Message id of the status message we keep editing.

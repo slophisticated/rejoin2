@@ -3,7 +3,6 @@ local APK = require("managers.apk")
 local UtilsAndroid = require("utils.android")
 local Timer = require("utils.timer")
 local Config = require("core.config")
-local Status = require("managers.status")
 local Auth = require("managers.auth")
 local WindowLayout = require("managers.window_layout")
 local Heartbeat = require("managers.heartbeat")
@@ -14,16 +13,6 @@ local function safeNumber(v, default)
     v = tonumber(v)
     if v and v > 0 then return v end
     return default
-end
-
-local function isHealthy(instance)
-    local pkg = instance and instance.package
-    if not pkg then return false end
-    -- A force-close leaves a low-RSS stub process alive, so process existence can't prove
-    -- the app actually came back up. Health = an in-game heartbeat from this session,
-    -- else RSS above the active threshold (isActive) as before.
-    local ok, res = pcall(function() return Heartbeat.isUp(instance, APK) end)
-    return ok and res
 end
 
 -- Build the proven auto-join deep link (roblox://placeId=<id>) for any public-style
@@ -52,24 +41,32 @@ local function extractPlaceIdLenient(url)
 end
 
 -- Open the instance game/private-server link. Propagate launch failures to callers.
+local function gameLink(instance)
+    local okI, Instances = pcall(require, "managers.instance")
+    if okI and Instances.gameLink then return Instances.gameLink(instance) end
+    local l = instance and instance.privateServer
+    return (type(l) == "string" and l ~= "") and l or nil
+end
+
 local function openGameLink(instance)
     local pkg = instance and instance.package
-    if not instance.privateServer then
+    local target = gameLink(instance)
+    if not target then
         return true
     end
 
     local link
-    if isShareLink(instance.privateServer) then
+    if isShareLink(target) then
         -- Private server: no placeId, must keep the exact /share link.
-        link = instance.privateServer
+        link = target
     else
-        local placeId = extractPlaceIdLenient(instance.privateServer)
+        local placeId = extractPlaceIdLenient(target)
         if placeId then
             -- The one form proven (on-device) to auto-join a clone and reach its account.
             link = "roblox://placeId=" .. placeId
         else
             -- Unknown shape: keep as-is (letting Android/any handler decide).
-            link = instance.privateServer
+            link = target
         end
     end
 
@@ -86,9 +83,11 @@ function Recovery.launchAndJoin(instance)
         return false
     end
 
+    -- A logged-out clone is opened gently; never force-stop it through a game link.
+    if Auth.isLoggedIn(instance) == false then return Recovery.reopenNoLogin(instance) end
     Logger.debug("Recovery.launchAndJoin: launching " .. tostring(instance.name or pkg))
 
-    local hasLink = instance.privateServer ~= nil and instance.privateServer ~= ""
+    local hasLink = gameLink(instance) ~= nil
 
     if hasLink then
         -- On-device testing proved that OPTION-A join (`am start -a VIEW -d 'roblox://placeId=<id>'
@@ -101,14 +100,21 @@ function Recovery.launchAndJoin(instance)
         Timer.sleep(1)
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
-        Heartbeat.markLaunched(instance)
+        local marked, err = Heartbeat.markLaunched(instance)
+        if not marked then return false, err end
         local opened = openGameLink(instance)
         if not opened then return false end
     else
+        -- A new engine session needs a fresh executor run even without a saved link.
+        if APK.isRunning(pkg) then
+            if not APK.forceStop(pkg) then return false, "gagal menutup sesi lama" end
+            Timer.sleep(1)
+        end
         if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
             WindowLayout.applyForInstance(instance)
         end
-        Heartbeat.markLaunched(instance)
+        local marked, err = Heartbeat.markLaunched(instance)
+        if not marked then return false, err end
         local ok, err = APK.launch(pkg)
         if not ok then
             Logger.error("Recovery.launchAndJoin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
@@ -192,39 +198,7 @@ end
 -- Force-stop and relaunch an instance's app (used when an app has been frozen/stuck
 -- for too long). Best-effort, no full recovery retry loop.
 function Recovery.relaunch(instance)
-    local pkg = instance and instance.package
-    if not pkg then
-        Logger.error("Recovery.relaunch: instance has no package")
-        return false
-    end
-
-    -- Never force-relaunch a clone that has no logged-in account: low RSS is expected
-    -- while it sits on the login screen, and relaunching it is pointless.
-    if Auth.isLoggedIn(instance) == false then
-        Logger.info("Recovery.relaunch: skipped restart (" .. tostring(pkg) .. ") not logged in")
-        return false
-    end
-
-    Logger.debug("Recovery.relaunch: force-stopping and relaunching " .. tostring(instance.name or pkg))
-
-    local ok_fs = APK.forceStop(pkg)
-    if not ok_fs then
-        Logger.warn("Recovery.relaunch: forceStop failed for " .. tostring(pkg))
-        return false
-    end
-
-    Timer.sleep(1)
-    WindowLayout.applyForInstance(instance)
-    Heartbeat.markLaunched(instance)
-
-    local ok, err = APK.launch(pkg)
-    if not ok then
-        Logger.error("Recovery.relaunch: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
-        return false
-    end
-
-    Logger.debug("Recovery.relaunch: relaunched " .. tostring(instance.name or pkg))
-    return true
+    return Recovery.checkAndRecover(instance)
 end
 
 -- Re-open a clone that has NO logged-in account after it closed (force close / crash).
@@ -247,93 +221,11 @@ function Recovery.reopenNoLogin(instance)
     return true
 end
 
--- Perform recovery for a single instance table (expects fields: package, privateServer)
--- Includes retries and simple health checks
+-- Compatibility entrypoint: completion is reported by the shared monitor queue.
 function Recovery.checkAndRecover(instance)
-    local pkg = instance and instance.package
-    if not pkg then
-        Logger.error("Recovery: instance has no package")
-        return false
-    end
-
-    -- Never recover/relaunch a clone that has no logged-in account: low RSS / inactivity
-    -- is expected on the login screen, and recovering it only wastes resources.
-    if Auth.isLoggedIn(instance) == false then
-        Logger.info("Recovery: skipped recovery (" .. tostring(pkg) .. ") not logged in")
-        return false
-    end
-
-    local conf = Config.get() or {}
-    local retries = safeNumber(conf.recoveryRetries, 3)
-    local delay = safeNumber(conf.recoveryDelay, 3)
-    local checkTimeout = safeNumber(conf.checkTimeout, 15)
-
-    Logger.info("Recovery: starting for " .. tostring(instance.name or pkg))
-
-    for attempt = 1, retries do
-        Logger.info(string.format("Recovery: attempt %d/%d for %s", attempt, retries, tostring(instance.name or pkg)))
-
-        -- Force stop first
-        local ok_fs = APK.forceStop(pkg)
-        if not ok_fs then
-            Logger.warn("Recovery: forceStop failed for " .. tostring(pkg))
-            return false
-        end
-
-        -- small pause to let system settle
-        Timer.sleep(1)
-        WindowLayout.applyForInstance(instance)
-        Heartbeat.markLaunched(instance)
-
-        -- A game link must launch a cold app. Launching MAIN first can leave the
-        -- subsequent VIEW intent on the game page without joining the server.
-        local ok_launch, launchOut
-        if instance.privateServer and instance.privateServer ~= "" then
-            ok_launch, launchOut = openGameLink(instance)
-        else
-            ok_launch, launchOut = APK.launch(pkg)
-        end
-        if not ok_launch then
-            Logger.warn(string.format("Recovery: launch failed for %s (attempt %d): %s", tostring(pkg), attempt, tostring(launchOut)))
-            -- retry after delay
-            if attempt < retries then
-                Logger.info("Recovery: retrying after delay " .. tostring(delay))
-                Timer.sleep(delay)
-                goto continue_retry
-            end
-            break
-        end
-
-        -- Wait/poll for process to be running up to checkTimeout
-        local waited = 0
-        local healthy = false
-        while waited < checkTimeout do
-            if isHealthy(instance) then
-                healthy = true
-                break
-            end
-            Timer.sleep(1)
-            waited = waited + 1
-        end
-
-        if healthy then
-            Logger.info("Recovery: instance appears healthy: " .. tostring(instance.name or pkg))
-
-            Logger.info("Recovery: completed successfully for " .. tostring(instance.name or pkg))
-            return true
-        else
-            Logger.warn(string.format("Recovery: instance did not become healthy after %d seconds (attempt %d)", checkTimeout, attempt))
-            if attempt < retries then
-                Logger.info("Recovery: retrying after delay " .. tostring(delay))
-                Timer.sleep(delay)
-            end
-        end
-
-        ::continue_retry::
-    end
-
-    Logger.error("Recovery: all attempts failed for " .. tostring(instance.name or pkg))
-    return false
+    if not instance or not instance.id then return false, "instance tidak valid" end
+    require("managers.monitor").requestRejoin({ instance.id })
+    return true, "recovery masuk antrean monitor"
 end
 
 return Recovery

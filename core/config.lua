@@ -1,13 +1,20 @@
+local Paths = require("core.paths")
 local File = require("utils.file")
 local Logger = require("core.logger")
 
 local Config = {}
-local configPath = "config/config.lua"
-local templatePath = "config/template.lua"
+local configPath = Paths.config()
+local templatePath = Paths.template()
 local data = nil
 
 local function loadFromFile(path)
-    if not File.exists(path) then return nil end
+    if not File.exists(path) then
+        if path == templatePath then
+            local ok, template = pcall(require, "config.template")
+            if ok and type(template) == "table" then return template end
+        end
+        return nil
+    end
     local ok, conf = pcall(dofile, path)
     if ok and type(conf) == "table" then
         return conf
@@ -20,6 +27,16 @@ data = loadFromFile(configPath) or loadFromFile(templatePath) or {}
 
 function Config.get()
     return data
+end
+
+-- Re-read config/config.lua (e.g. after another process changed it). Keeps the same
+-- table object so code holding Config.get() sees the new values.
+function Config.reload()
+    local fresh = loadFromFile(configPath)
+    if not fresh then return false end
+    for k in pairs(data) do data[k] = nil end
+    for k, v in pairs(fresh) do data[k] = v end
+    return true
 end
 
 -- Serialize simple Lua table to a Lua file that returns the table

@@ -311,6 +311,12 @@ function Auth.isLoggedIn(instance)
     return result
 end
 
+-- Forget one clone's cached login state (after logging it out / injecting a cookie).
+function Auth.forget(pkg)
+    cache[pkg] = nil
+    remote[pkg] = nil
+end
+
 -- Clear the cache (e.g. after a login/logout or on monitor start).
 function Auth.resetCache()
     cache = {}

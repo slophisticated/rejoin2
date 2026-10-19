@@ -1,0 +1,6 @@
+# URL bot Discord (mis. dari Render). Taruh URL-nya di baris bawah lalu push ke main.
+# - Device yang secret-nya udah diisi tapi URL bot kosong otomatis ngambil URL dari sini
+#   (jadi tiap device cukup diisi secret di Menu 9 -> 10).
+# - Kalau bot pindah akun / URL, ganti baris di bawah: device yang gagal sync 5x
+#   berturut-turut akan pindah ke URL ini.
+https://rejoin-bot-production.up.railway.app
