@@ -3,6 +3,13 @@ export const escape = value => String(value ?? '').replace(/[\\*_`~|<>\[\]]/g, '
 export const safeName = value => String(value).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80) || 'device';
 const icons = { ingame: '🟢', starting: '🟡', recovery: '🟡', nologin: '⚪', kicked: '🔴', freeze: '🔴', stuck: '🔴', offline: '🔴', unknown: '❔' };
 
+// Short clone hint for pickers and lists: window position on screen + account, so a
+// clone without an account is still easy to find ("Clone2 (kanan atas) — belum login").
+export function cloneHint(i) {
+  const who = i.username || (i.status === 'nologin' ? 'belum login' : '-');
+  return `${i.name}${i.slot ? ` (${i.slot})` : ''} — ${who}`;
+}
+
 export function chunks(lines, limit = 1800) {
   const pages = [];
   let current = '';
@@ -34,7 +41,7 @@ export function statusPages(store, d) {
     const source = { default: 'ikut default', khusus: 'khusus', link: 'link sendiri', none: 'belum ada link' }[i.presetSource] || i.presetSource;
     const stats = [Number.isFinite(i.fps) ? `${i.fps}fps` : '', Number.isFinite(i.mem) ? `${i.mem}MB` : ''].filter(Boolean).join(' ');
     const link = typeof i.link === 'string' && /^(https:\/\/|roblox:\/\/)/.test(i.link) ? ` · link: <${i.link.replace(/[<>\r\n]/g, '')}>` : '';
-    return `${icons[i.status] || '❔'} ${escape(i.name)}${username ? ` · ${username}` : ''}${stats ? ` · ${stats}` : ''}\n   [${escape(i.preset || '-')}] ${escape(i.game || '-')} (${escape(source)})${link}`;
+    return `${icons[i.status] || '❔'} ${escape(i.name)}${i.slot ? ` (${escape(i.slot)})` : ''}${username ? ` · ${username}` : (i.status === 'nologin' ? ' · belum login' : '')}${stats ? ` · ${stats}` : ''}\n   [${escape(i.preset || '-')}] ${escape(i.game || '-')} (${escape(source)})${link}`;
   });
   return chunks(rows.length ? rows : ['Belum ada clone.'], 3400).map((description, i, pages) => ({ embeds: [{
     title: `📊 ${d.name} — v ${snap.version} — ${store.online(d) ? 'online' : 'offline'} (${age(store, d)})`.slice(0, 256),
@@ -47,7 +54,7 @@ export function localLines(path, d, values) {
   const snap = d.snapshot;
   const header = `**${escape(d.name)}**`;
   if (path === 'preset list') return [header, `Default: ${escape(snap.defaultPreset || '-')}`, ...Object.entries(snap.presets).map(([k, p]) => `[${escape(k)}] ${escape(p.name)} · <${String(p.link).replace(/[<>\r\n]/g, '')}>`)];
-  if (path === 'clone list') return [header, ...snap.instances.map(i => `${escape(i.name)} · id ${escape(i.id)} · ${escape(i.package)} · [${escape(i.preset || '-')}] ${escape(i.presetSource)} · ${icons[i.status] || '❔'} ${escape(i.status)}`)];
+  if (path === 'clone list') return [header, ...snap.instances.map(i => `${escape(i.name)}${i.slot ? ` (${escape(i.slot)})` : ''} · ${escape(i.username || (i.status === 'nologin' ? 'belum login' : '-'))} · id ${escape(i.id)} · ${escape(i.package)} · [${escape(i.preset || '-')}] ${escape(i.presetSource)} · ${icons[i.status] || '❔'} ${escape(i.status)}`)];
   if (path === 'config get') {
     const settings = values.key ? snap.settings.filter(s => s.key === values.key) : snap.settings;
     if (values.key && !settings.length) throw new Error('Setting itu tidak ada di schema device.');

@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: petunjuk clone**: pilihan clone (autocomplete), `/clone list`, dan `/status` nampilin posisi jendela clone di layar (`kiri atas`, `kanan bawah`, atau `baris 2 kolom 3`, sesuai grid) + `belum login` buat clone tanpa akun, jadi gampang milih clone yang belum login tanpa hafal urutan. Bisa juga ngetik posisinya (mis. `kanan`) buat nyaring pilihan. Device kirim `slot` per clone di snapshot (`WindowLayout.positionLabel`).
+
 - **Fix pencabutan HWID setelah restart bot**: registry melengkapi ID pesan channel
   untuk HWID yang dimuat dari `DATA_DIR`, supaya `/hwid remove` menghapus salinan
   channel juga. Perubahan menunggu channel siap; gagal hapus pesan dilaporkan dan

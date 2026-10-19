@@ -302,6 +302,29 @@ function WindowLayout.slotOf(instance)
     return index or 1, math.max(count, 1)
 end
 
+-- Where the grid puts this clone on screen, as a hint for the user ("kiri atas", or
+-- "baris 2 kolom 3" for bigger grids). Same row/column math as boundsFor (the first row
+-- goes to the bottom when rows overlap). nil when the grid is off or bounds are custom.
+function WindowLayout.positionLabel(instance)
+    local wl = layoutConf()
+    if wl.enabled ~= true or (type(instance) == "table" and type(instance.window) == "table") then return nil end
+    local index, count = WindowLayout.slotOf(instance)
+    local cols = math.floor(tonumber(wl.columns) or 0)
+    if cols < 1 then cols = math.ceil(math.sqrt(count)) end
+    local rows = math.ceil(count / cols)
+    local overlap = math.max(0, math.floor(tonumber(wl.overlap) or DEFAULT_OVERLAP))
+    local i = index - 1
+    local col, row = i % cols, math.floor(i / cols)
+    if overlap > 0 and rows >= 2 then row = rows - 1 - row end
+    if rows <= 2 and cols <= 2 then
+        local v = rows == 2 and (row == 0 and "atas" or "bawah") or nil
+        local h = cols == 2 and (col == 0 and "kiri" or "kanan") or nil
+        if h and v then return h .. " " .. v end
+        return h or v or "satu-satunya"
+    end
+    return string.format("baris %d kolom %d", row + 1, col + 1)
+end
+
 -- Convenience for callers: apply for this instance at its configured slot. Never throws.
 function WindowLayout.applyForInstance(instance)
     if not WindowLayout.isEnabled() then return false end

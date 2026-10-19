@@ -170,7 +170,7 @@ Request (dikirim device tiap `remote.interval` detik, saat monitor jalan):
   "defaultPreset": "A",
   "instances": [
     { "id": 1, "name": "Clone1", "package": "com.apengjers.v3",
-      "preset": "A", "presetSource": "default", "game": "Steal an Egg",
+      "preset": "A", "slot": "kiri atas", "presetSource": "default", "game": "Steal an Egg",
       "link": "https://www.roblox.com/games/...", "status": "ingame",
       "username": "Fahmssz239", "fps": 15, "mem": 420 },
     { "id": 3, "name": "Clone3", "package": "com.apengjers.v5",

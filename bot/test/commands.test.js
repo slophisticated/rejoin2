@@ -258,3 +258,16 @@ test('a fast device ACK during the first Discord edit is retained and rendered',
   assert.match(i.edits.at(-1).content, /✅.*ACK sangat cepat/);
   assert.equal(h.store.commands.size, 0); h.replies.close();
 });
+
+test('clone pickers and lists show window position and missing account', () => {
+  const h = harness();
+  const d = h.device();
+  d.snapshot.instances[0].slot = 'kiri bawah';
+  d.snapshot.instances[1] = { ...d.snapshot.instances[1], slot: 'kanan atas', status: 'nologin', username: undefined };
+  const list = autocomplete(h.store, 'restart', { device: 'RF-07' }, { name: 'clones', value: 'kanan' }).filter(c => c.value !== 'all');
+  assert.equal(list.length, 1);
+  assert.match(list[0].name, /^Clone3 \(kanan atas\) — belum login/);
+  assert.equal(list[0].value, '3');
+  assert.match(localLines('clone list', d, {}).join('\n'), /Clone1 \(kiri bawah\) · owner\\_one/);
+  assert.match(statusPages(h.store, d)[0].embeds[0].description, /Clone3 \(kanan atas\) · belum login/);
+});

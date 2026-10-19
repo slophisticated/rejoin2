@@ -1,4 +1,5 @@
 import { routes } from './definitions.js';
+import { cloneHint } from '../format.js';
 
 const choice = (name, value) => ({ name: String(name).slice(0, 100), value: String(value) });
 
@@ -28,8 +29,8 @@ export function autocomplete(store, path, values, focused) {
     const tail = parts.at(-1).trim().toLowerCase();
     const used = new Set(prefix.flatMap(ref => d.snapshot.instances.filter(i => String(i.id) === ref || i.name === ref || i.package === ref).map(i => i.id)));
     list = d.snapshot.instances.filter(i => !used.has(i.id))
-      .filter(i => `${i.name} ${i.username || ''} ${i.package} ${i.id}`.toLowerCase().includes(tail))
-      .map(i => choice(`${i.name} — ${i.username || '-'} — ${i.status}`, [...prefix, String(i.id)].join(', ')));
+      .filter(i => `${i.name} ${i.username || ''} ${i.slot || ''} ${i.package} ${i.id}`.toLowerCase().includes(tail))
+      .map(i => choice(`${cloneHint(i)} — [${i.preset || '-'}] ${i.status}`, [...prefix, String(i.id)].join(', ')));
     if (focused.name === 'clones' && !prefix.length && path !== 'clone logout') list.unshift(choice('all — semua clone', 'all'));
     return list.filter(c => c.value.length <= 100).slice(0, 25);
   } else if (focused.name === 'name' && (path.startsWith('script') || path.startsWith('autoexec'))) {

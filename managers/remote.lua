@@ -273,6 +273,13 @@ local function snapshot(instances)
             local okN, n = pcall(Username.get, inst)
             if okN and n then e.username = n end
         end
+        -- Where its window sits on screen, so a clone without an account is still easy
+        -- to tell apart in the bot ("kiri atas").
+        local okW2, WindowLayout = pcall(require, "managers.window_layout")
+        if okW2 and WindowLayout.positionLabel then
+            local okP, pos = pcall(WindowLayout.positionLabel, inst)
+            if okP and pos then e.slot = pos end
+        end
         if type(hb) == "table" and hb.fresh then
             e.fps = hb.fps
             e.mem = hb.mem
