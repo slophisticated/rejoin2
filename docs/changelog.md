@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Petunjuk clone di bot saat grid jendela mati**: kalau auto-atur jendela (Menu 10) mati, pilihan clone nampilin nomor urut Menu 2 (`#2`) sebagai pengganti posisi jendela.
+
 - **Port dari versi publish (Apeng): logout terjadwal + inject cookie lewat bot.** `/alarm set|remove|list`: logout akun clone di tanggal + jam WIB (sekali / tiap hari), dijalankan monitor (`managers/logout_alarm.lua`, alarm disimpan di instance `logoutAlarm`). `/cookie inject`: cookie diisi di modal Discord privat, dikirim sebagai command transient (ga dipersist, ga diretry, ga di-log, dihapus setelah ACK / 90 dtk), ditolak selama Launch All. Ditambah tes regresi alarm + tes bot.
 
 - **Bot: petunjuk clone**: pilihan clone (autocomplete), `/clone list`, dan `/status` nampilin posisi jendela clone di layar (`kiri atas`, `kanan bawah`, atau `baris 2 kolom 3`, sesuai grid) + `belum login` buat clone tanpa akun, jadi gampang milih clone yang belum login tanpa hafal urutan. Bisa juga ngetik posisinya (mis. `kanan`) buat nyaring pilihan. Device kirim `slot` per clone di snapshot (`WindowLayout.positionLabel`).

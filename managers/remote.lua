@@ -286,6 +286,11 @@ local function snapshot(instances)
             local okP, pos = pcall(WindowLayout.positionLabel, inst)
             if okP and pos then e.slot = pos end
         end
+        -- Grid off: the Menu 2 order still tells clones apart ("#2").
+        if not e.slot and okW2 and WindowLayout.slotOf then
+            local okS2, index = pcall(WindowLayout.slotOf, inst)
+            if okS2 and index then e.slot = "#" .. index end
+        end
         if type(hb) == "table" and hb.fresh then
             e.fps = hb.fps
             e.mem = hb.mem
