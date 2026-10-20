@@ -57,7 +57,7 @@ export function overviewLines(store, devices) {
     const snap = d.snapshot;
     const hide = snap.settings.find(s => s.key === 'webhook.hideNames')?.value !== false;
     const ingame = snap.instances.filter(i => i.status === 'ingame').length;
-    lines.push(`${store.online(d) ? '🟢' : '🔴'} **${escape(d.name)}** · ${ingame}/${snap.instances.length} clone ingame · ${store.online(d) ? 'online' : `offline (${age(store, d)})`}`);
+    lines.push(`${store.online(d) ? '🟢' : '🔴'} **${escape(d.name)}** · rejoin v ${escape(snap.version)} · ${ingame}/${snap.instances.length} clone ingame · ${store.online(d) ? 'online' : `offline (${age(store, d)})`}`);
     for (const i of snap.instances) {
       const who = i.username ? (hide ? `||${escape(i.username)}||` : escape(i.username)) : (i.status === 'nologin' ? 'belum login' : '-');
       const source = { default: 'default', khusus: 'khusus', link: 'link sendiri', none: 'tanpa link' }[i.presetSource] || i.presetSource;
@@ -72,6 +72,9 @@ export function overviewLines(store, devices) {
     lines.push(`  ⚡ Autoexecute: ${auto.length ? auto.join(', ') : '-'}`);
     lines.push('');
   }
+  // Devices on different rejoin versions: one of them missed an update.
+  const versions = new Set(devices.map(d => d.snapshot.version));
+  if (versions.size > 1) lines.push(`⚠️ Versi rejoin beda-beda (${[...versions].map(escape).join(', ')}): reboot device yang ketinggalan biar auto-update.`);
   if (lines.length) lines.push('⭐ = preset default · ⚡ = ikut Autoexecute');
   return lines.length ? lines : ['Belum ada device. Jalankan monitor dan cek secret/URL bot.'];
 }

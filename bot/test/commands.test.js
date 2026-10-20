@@ -366,10 +366,14 @@ test('overview lists every device with clones, their presets, preset list and sc
   await h.handler.handle(i);
   assert.equal(h.store.commands.size, 0, 'overview is read from snapshots only');
   const text = i.edits.map(e => e.content).join('\n');
-  for (const part of [/\*\*RF-07\*\*/, /\*\*RF-08\*\*/, /Clone1 · \|\|owner\\_one\|\| · \[A\] Steal an Egg \(default\)/,
+  for (const part of [/\*\*RF-07\*\* · rejoin v abc1234/, /\*\*RF-08\*\*/, /Clone1 · \|\|owner\\_one\|\| · \[A\] Steal an Egg \(default\)/,
     /Clone3 · - · \[B\] Fisch \(khusus\)/, /Preset: ⭐\[A\] Steal an Egg · \[B\] Fisch/, /Scripts: ⚡egg\.lua, hub\.txt/,
     /Autoexecute: egg\.lua\n/, /Scripts: -/]) assert.match(text, part);
   assert.doesNotMatch(text, /rejoin_heartbeat/);
+  assert.doesNotMatch(text, /beda-beda/);
+  other.version = 'def5678'; h.store.devices.get('RF-08').snapshot.version = 'def5678';
+  const mixed = interaction('overview', {}); await h.handler.handle(mixed);
+  assert.match(mixed.edits.map(e => e.content).join('\n'), /Versi rejoin beda-beda \(abc1234, def5678\)/);
   // One device only.
   const one = interaction('overview', { device: 'RF-08' });
   await h.handler.handle(one);

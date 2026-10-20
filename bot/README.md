@@ -149,7 +149,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | Command | Fungsi |
 |---|---|
 | `/devices`, `/status` | Daftar device, status snapshot, Refresh dan pagination |
-| `/overview device:<device/kosong>` | Semua device kamu (atau satu): clone + preset tiap clone, daftar preset (⭐ default), Scripts dan Autoexecute. Dari snapshot, langsung muncul |
+| `/overview device:<device/kosong>` | Semua device kamu (atau satu): versi rejoin (⚠️ kalau beda-beda antar device), clone + preset tiap clone, daftar preset (⭐ default), Scripts dan Autoexecute. Dari snapshot, langsung muncul |
 | `/game preset:B` | Semua clone ikut B; preset khusus dilepas, B jadi default |
 | `/game preset:B clones:"Clone1,Clone3"` | Pindahkan clone pilihan ke preset khusus |
 | `/default preset:A` | Ganti default; clone khusus tetap memakai preset sendiri |
