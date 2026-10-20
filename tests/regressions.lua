@@ -399,10 +399,10 @@ test("a typed Delta key goes to the license file found, never to a command line"
     assert(DeltaKey.input("two words") == false and DeltaKey.input("") == false)
 end)
 
-test("without a license file yet, the key goes to <Delta>/internal/cache/license", function()
+test("without a license file yet, the key goes to <Delta>/Internals/Cache/license", function()
     local DeltaKey, files = deltaScenario(false)
     assert(DeltaKey.input("FREE_new") == true)
-    assert(files["/sdcard/Delta/internal/cache/license"] == "FREE_new")
+    assert(files["/sdcard/Delta/Internals/Cache/license"] == "FREE_new")
 end)
 
 local function executorScenario(current, dirs, hbTimes, wsTimes)
@@ -466,6 +466,41 @@ test("executor: no heartbeat yet and no folder configured = newest Workspace win
     assert(Executor.ensure() == CODEX and conf.appAutoExecutePath == CODEX)
     local list = Executor.scan()
     assert(#list == 2 and list[1].name == "Codex" and list[2].name == "Delta")
+end)
+
+test("GoFile installer rejects any link that is not gofile.io before touching the network", function()
+    local env = sandbox()
+    local ran = 0
+    env.os.execute = function() ran = ran + 1; return true, "exit", 0 end
+    env.package.preload["utils.shell"] = function() return { exec = function() ran = ran + 1; return true, "" end } end
+    local GoFile = env.require("managers.gofile_apk")
+    for _, link in ipairs({ "https://evil.example/d/abcd", "http://gofile.io.evil.example/d/abcd",
+        "https://gofile.io/", "file:///sdcard/x.apk", "" }) do
+        local files, err = GoFile.list(link)
+        assert(files == nil and type(err) == "string", link)
+    end
+    assert(ran == 0, "a rejected link still ran a command")
+end)
+
+test("Delta license detection never takes the hidden .license companion", function()
+    local env = sandbox()
+    local files = {}
+    env.package.preload["core.config"] = function()
+        return { get = function() return { appAutoExecutePath = "/sdcard/Delta/Autoexecute", deltaLicensePath = "" } end }
+    end
+    env.package.preload["utils.shell"] = function()
+        return { exec = function(cmd)
+            if cmd:find("ls -a '/sdcard/Delta/Internals/Cache'", 1, true) then return true, ".\n..\n.license\ndata\nlicense\nui\n" end
+            return true, ""
+        end }
+    end
+    env.package.preload["utils.file"] = function()
+        return { read = function(p) return files[p] end, write = function(p, c) files[p] = c; return true end }
+    end
+    -- An older build remembered ".license": ignored.
+    files["data/delta_license_path.txt"] = "/sdcard/Delta/.license"
+    local DeltaKey = env.require("managers.delta_key")
+    assert(DeltaKey.path() == "/sdcard/Delta/Internals/Cache/license", tostring(DeltaKey.path()))
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))

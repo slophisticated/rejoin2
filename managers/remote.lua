@@ -486,12 +486,19 @@ function H.cookie_inject(args, ctx)
 end
 
 -- Scheduled logout (managers/logout_alarm.lua), one clone at a time.
--- A key the user got from Delta themselves. Never fetch or derive keys here.
-function H.delta_key_input(args)
+-- A key the user got from Delta themselves. Never fetch or derive keys here. The
+-- clones then reopen one by one (monitor queue) so Delta reads the new key.
+function H.delta_key_input(args, ctx)
     if type(args.key) ~= "string" then return false, "key tidak valid" end
     local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
     if not okCall then return false, "input key Delta gagal (error internal)" end
-    return ok, tostring(message or (ok and "key Delta tersimpan" or "gagal menyimpan key Delta"))
+    if not ok then return false, tostring(message or "gagal menyimpan key Delta") end
+    message = tostring(message or "key Delta tersimpan")
+    if ctx and type(ctx.requestRejoin) == "function" then
+        ctx.requestRejoin({ "all" })
+        message = message .. "; semua clone dibuka ulang satu per satu"
+    end
+    return true, message
 end
 
 function H.logout_alarm_set(args)

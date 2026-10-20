@@ -34,6 +34,13 @@ function CLI.run()
         local called, ok, message = pcall(DeltaKey.input, key)
         key = nil
         print((called and ok and "Berhasil: " or "Gagal: ") .. tostring(called and message or "input key Delta gagal (error internal)"))
+        if called and ok then
+            -- Clones reopen one by one through the monitor queue so Delta reads the key.
+            if require("managers.monitor").requestRejoinFile({ "all" }) then
+                print("Semua clone dijadwalkan buka ulang satu per satu (monitor yang jalan ngambil sendiri;")
+                print("kalau monitor belum jalan, pilih Menu 1).")
+            end
+        end
     end
     prompt("Tekan Enter untuk kembali ke menu utama")
 end

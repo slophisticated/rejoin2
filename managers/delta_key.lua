@@ -10,7 +10,9 @@ local Shell = require("utils.shell")
 -- and every clone shows the key screen again. The folder is shared by all clones, so
 -- this is one status for the whole device.
 --
--- Newer Delta builds keep it in <Delta>/internal/cache/license, which is checked too.
+-- Newer Delta builds keep it in <Delta>/Internals/Cache/license (checked first, also the
+-- lower-case spelling). Delta also writes a hidden ".license" there once a key is
+-- accepted: that one is never taken for the license itself.
 --
 -- Config (optional): deltaLicensePath = "" -- "" = find it automatically.
 -- The path found once is remembered in data/delta_license_path.txt, so a key that is
@@ -38,20 +40,25 @@ function DeltaKey.path()
     local forced = type(c.deltaLicensePath) == "string" and c.deltaLicensePath:gsub("%s+$", "") or ""
     if forced ~= "" then return forced end
     if cached then return cached end
-    for _, where in ipairs(dir and { dir, dir .. "/internal/cache" } or {}) do
+    for _, where in ipairs(dir and { dir .. "/Internals/Cache", dir .. "/internal/cache", dir } or {}) do
         local ok, out = Shell.exec("ls -a " .. q(where) .. " 2>/dev/null")
+        local pick
         for name in tostring(ok and out or ""):gmatch("[^\r\n]+") do
-            if name:lower():find("license", 1, true) then
-                cached = where .. "/" .. name
-                if File.read(REMEMBER) ~= cached then
-                    File.write(REMEMBER, cached)
-                    Logger.info("[KEY] file license Delta: " .. cached)
-                end
-                return cached
+            if name:lower() == "license" then pick = name; break end
+            if not pick and name:sub(1, 1) ~= "." and name:lower():find("license", 1, true) then pick = name end
+        end
+        if pick then
+            cached = where .. "/" .. pick
+            if File.read(REMEMBER) ~= cached then
+                File.write(REMEMBER, cached)
+                Logger.info("[KEY] file license Delta: " .. cached)
             end
+            return cached
         end
     end
     local remembered = (File.read(REMEMBER) or ""):gsub("%s+$", "")
+    -- An older build could remember Delta's ".license" companion by mistake.
+    if remembered:match("/%.[^/]*$") then remembered = "" end
     if remembered ~= "" then
         cached = remembered
         return cached
@@ -83,7 +90,7 @@ end
 -- Save a key the user got from Delta themselves into Delta's license file. Manual input
 -- only: nothing here obtains, derives or checks a key. The key never goes to the log,
 -- the config or a shell command line (written with Lua as the Termux user).
--- Goes to the license file found before, else <Delta>/internal/cache/license.
+-- Goes to the license file found before, else <Delta>/Internals/Cache/license.
 function DeltaKey.input(key)
     if type(key) ~= "string" then return false, "key tidak valid" end
     key = key:gsub("^%s+", ""):gsub("%s+$", "")
@@ -91,7 +98,7 @@ function DeltaKey.input(key)
         return false, "format key tidak valid (1-256 karakter tanpa spasi)"
     end
     local dir = deltaDir() or "/sdcard/Delta"
-    local path = DeltaKey.path() or (dir .. "/internal/cache/license")
+    local path = DeltaKey.path() or (dir .. "/Internals/Cache/license")
     if path:find("%c") then return false, "path license Delta tidak valid" end
     local okD, isDir = Shell.exec("sh -c " .. q("[ -d " .. q(path) .. " ] && echo IS_DIR"))
     if okD and tostring(isDir):find("IS_DIR", 1, true) then

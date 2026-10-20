@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Port dari versi publish (Apeng: "fix: path key", "bulk set alarm+install app")**:
+  - **Fix deteksi license Delta**: `<Delta>/Internals/Cache/license` dicek duluan (juga `internal/cache`), dan file `.license` buatan Delta **ga pernah** dianggep license. Sebelumnya `ls -a` bisa nampilin `.license` duluan, jadi input key bisa nulis ke file yang salah. Path `.license` yang kadung kesimpen diabaikan. Default input key jadi `<Delta>/Internals/Cache/license`.
+  - **Rejoin abis input key**: Menu `12` dan `/delta input-key` masukin semua clone ke antrean rejoin (satu per satu) biar Delta baca key baru.
+  - **`/alarm import`** (bot): banyak alarm logout dari CSV (`DEVICE, USN, TANGGAL, JAM`, opsional `DAILY/NOTES/ORDER ID/Delete`), preview + CSV hasil cek, diterapin setelah tombol. Beda dari versi publish: jalan juga kalau akun punya banyak device (di sana kena "isi opsi device dulu").
+  - **Menu `13` Install APK dari GoFile**: link GoFile → pilih APK → download + `pm install` (root). Temp file pakai `$TMPDIR` Termux (bukan `os.tmpname`), nomor progres dibetulin.
+
 - **Executor selain Delta, otomatis tanpa buka Termux**: rejoin nyari semua folder autoexec executor di `/sdcard` (`Autoexecute`, `autoexec`, `auto-exec`, …) dan masang script heartbeat ke semuanya. Executor yang dipake (`appAutoExecutePath`) = yang heartbeat-nya masih seger. Pindah otomatis kalau executor sekarang udah basi 5 menit, dicek monitor tiap 5 menit. Sisa heartbeat lama ga bisa ngebalikin pilihan. Heartbeat dibaca dari Workspace semua executor (yang terbaru menang), jadi Launch All ga nyangkut pas baru ganti executor. Belum ada heartbeat: folder yang ada di config dipake, kalau ga ada ya Workspace yang paling baru dipake. Menu `10` → `10` buat maksa pilih / ketik path. Heartbeat (Workspace), Scripts, dan Autoexecute ikut executor itu (`managers/executor.lua`).
 
 - **Bot: `/device remove`**: device yang udah ga dipake (mis. abis replace cloud phone) bisa dihapus dari `/devices` pakai konfirmasi. Cuma device **offline** milik akun sendiri; command yang masih nyangkut ikut dibatalkan. Device yang sync lagi muncul lagi otomatis. Perlu deploy ulang bot.

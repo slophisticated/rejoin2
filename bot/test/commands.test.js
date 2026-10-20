@@ -326,3 +326,34 @@ test('clone pickers and lists show window position and missing account', () => {
   assert.match(localLines('clone list', d, {}).join('\n'), /Clone1 \(kiri bawah\) · owner\\_one/);
   assert.match(statusPages(h.store, d)[0].embeds[0].description, /Clone3 \(kanan atas\) · belum login/);
 });
+
+test('alarm import: works with several devices, previews first, applies only confirmed valid rows', async () => {
+  const h = harness();
+  h.store.sync(snapshot('RF-08'));
+  const csv = [
+    'ORDER ID,DEVICE,USN,TANGGAL,JAM,NOTES,Delete',
+    '1,RF-07,owner_one,25/12/2099,12:00,,',
+    '2,RF-08,nobody,25/12/2099,12:00,,',
+    '3,rf-08,OWNER_ONE,26-Dec-2099,7:05,akun B,',
+    '4,RF-07,owner_one,27/12/2099,12:00,,x',
+  ].join('\n');
+  const replies = new Replies({ store: h.store, now: h.now });
+  const handler = new Handler({ store: h.store, replies, now: h.now, owners: new Set([owner]), guildId: guild,
+    fetcher: async () => new Response(csv) });
+  const file = { name: 'alarm.csv', size: csv.length, url: 'https://cdn.discordapp.com/attachments/1/2/alarm.csv' };
+  const preview = interaction('alarm import', { file });
+  await handler.handle(preview);
+  const shown = preview.edits.at(-1);
+  assert.match(shown.content, /Siap diterapkan: \*\*2\*\*/);
+  assert.match(shown.content, /bermasalah: \*\*1\*\*/);
+  assert.match(String(shown.files[0].attachment), /USN “nobody” tidak ditemukan/);
+  assert.equal(h.store.commands.size, 0, 'nothing queued before confirmation');
+  const id = [...handler.sessions.keys()][0];
+  await handler.handle(interaction('', {}, { isButton: () => true, customId: `alarmapply:${id}` }));
+  const queued = [...h.store.commands.values()].map(c => [c.name, c.type, c.args]);
+  assert.deepEqual(queued, [
+    ['RF-07', 'logout_alarm_set', { clone: 1, date: '25/12/2099', time: '12:00', daily: false }],
+    ['RF-08', 'logout_alarm_set', { clone: 1, date: '26/12/2099', time: '07:05', daily: false }],
+  ]);
+  replies.close();
+});

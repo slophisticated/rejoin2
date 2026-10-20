@@ -37,6 +37,9 @@ export const routes = {
   'alarm set': route('Jadwalkan logout clone pada tanggal dan waktu WIB.', [clone, s('date', true), s('time', true), b('daily')]),
   'alarm remove': route('Hapus jadwal logout clone.', [clone]),
   'alarm list': route('Lihat jadwal logout clone.'),
+  // Device comes from each CSV row, so this command has no device option.
+  'alarm import': { description: 'Impor banyak alarm logout dari CSV, cek preview dulu baru diterapkan.', options: [
+    { name: 'file', kind: 'Attachment', required: true, description: 'CSV kolom DEVICE, USN, TANGGAL, JAM (opsional DAILY, NOTES, Delete); maks 200 KB.' }] },
   restart: route('Rejoin clone pilihan, atau all untuk Launch All.', [s('clones', true, true)]),
   screenshot: route('Ambil screenshot layar device saat ini.', [], { all: true }),
   'config get': route('Lihat nilai setting dari schema device.', [s('key', false, true)]),
@@ -78,7 +81,7 @@ const descriptions = {
 function addOptions(builder, options) {
   for (const option of [...options].sort((a, z) => Number(Boolean(z.required)) - Number(Boolean(a.required)))) {
     builder[`add${option.kind}Option`](input => {
-      input.setName(option.name).setDescription(descriptions[option.name] || `Atur ${option.name}.`).setRequired(Boolean(option.required));
+      input.setName(option.name).setDescription(option.description || descriptions[option.name] || `Atur ${option.name}.`).setRequired(Boolean(option.required));
       if (option.autocomplete) input.setAutocomplete(true);
       if (option.kind === 'String') input.setMaxLength(option.name === 'code' || option.name === 'clones' ? 4000 : 300);
       return input;

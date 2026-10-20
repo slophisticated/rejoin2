@@ -159,6 +159,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/cookie inject device:<device> clone:<clone>` | Buka input privat untuk inject cookie ke satu clone; device harus online |
 | `/alarm set` | Jadwalkan logout satu clone pada tanggal dan waktu WIB; sekali atau berulang tiap hari |
 | `/alarm list/remove` | Lihat atau hapus jadwal logout per device/clone |
+| `/alarm import file:<csv>` | Banyak alarm sekaligus dari CSV (kolom `DEVICE, USN, TANGGAL, JAM`, opsional `DAILY, NOTES, ORDER ID, Delete`; contoh `docs/alarm_import_template.csv`). Bot kirim preview + CSV hasil cek, baru diterapin setelah tombol Terapkan |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
 | `/screenshot` | Gambar layar cloud phone sekarang |
 | `/config get/set` | Setting dari schema snapshot device |

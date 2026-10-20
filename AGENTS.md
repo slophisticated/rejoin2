@@ -55,7 +55,7 @@ Fitur utama:
 
 ```
 main.lua              entry + Main Menu (1 Start Monitor, 2-4, 5 Launch All + Monitor, 6-8, 9 Discord Webhook & Bot,
-                      10 Jendela & Mode Hemat, 11 Preset Game, 12 Input Key Delta, 0 Exit)
+                      10 Jendela & Mode Hemat, 11 Preset Game, 12 Input Key Delta, 13 Install APK GoFile, 0 Exit)
                       flag: --headless --start-monitor --auto-launch --dry-run --no-wizard
                             --install-heartbeat --enable-window-layout (one-shot installer)
 run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (REJOIN_WRAPPER=1)
@@ -88,7 +88,8 @@ managers/executor.lua  executor yang dipake = appAutoExecutePath. Scan autoexec 
                       ke semua; pindah otomatis ke executor yang heartbeat-nya seger (<5 mnt) kalau yang
                       sekarang basi; dicek monitor tiap 5 mnt. Heartbeat dibaca dari semua Workspace (terbaru
                       menang). Menu 10 -> 10 = pilih manual. Workspace/Scripts ngikut
-managers/delta_key.lua cek file "license" Delta (notif minta key; juga <Delta>/internal/cache) +
+managers/gofile_apk.lua  Menu 13: list APK dari link GoFile (cuma gofile.io/https), download, pm install (root)
+managers/delta_key.lua cek file "license" Delta (notif minta key; <Delta>/Internals/Cache dulu, ".license" ga pernah) +
                       DeltaKey.input = key yang diketik user (Menu 12 / bot /delta input-key)
 managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute
                       (autoAdd = copy dari Scripts, autoRemove). Menu 6 = core/autoexecute_cli.lua

@@ -4,6 +4,7 @@ import { routes, interactionPath, interactionValues } from './definitions.js';
 import { autocomplete } from './autocomplete.js';
 import { planDevice, selectDevices } from './planner.js';
 import { downloadScript, present, setting } from './validate.js';
+import { alarmImportReport, downloadAlarmCsv, parseAlarmCsv, resolveAlarmRows } from './alarm_import.js';
 import { renameTarget } from '../store.js';
 import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
 
@@ -45,6 +46,7 @@ export class Handler {
       await i.deferReply({ flags: MessageFlags.Ephemeral });
       if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
       if (path === 'hwid redeem' || path === 'hwid remove') return await this.hwid(i, path, String(values.hwid || '').trim().toLowerCase());
+      if (path === 'alarm import') return await this.previewAlarmImport(i, values, view);
       const devices = selectDevices(view, path, values.device);
       if (path === 'status') return await this.showStatus(i, devices[0]);
       if (localPaths.has(path)) return await this.show(i, chunks(localLines(path, devices[0], values)).map(content => ({ content })));
@@ -108,6 +110,57 @@ export class Handler {
     await i.deferReply({ flags: MessageFlags.Ephemeral });
     const command = this.store.enqueue(device.key, 'cookie_inject', { clone: session.clone, token }, { sensitive: true });
     const group = this.replies.create(i, [{ command, interval: Number(setting(device, 'remote.interval')?.value) || 30, offline: false }]);
+    await group.chain;
+  }
+
+  // CSV of logout alarms: preview (with a checked copy of the CSV) first, apply on the button.
+  async previewAlarmImport(i, values, view) {
+    const csv = await downloadAlarmCsv(values.file, this.fetcher);
+    const rows = resolveAlarmRows(parseAlarmCsv(csv), view.devices, this.now());
+    const ready = rows.filter(row => row.status === 'ready');
+    const skipped = rows.filter(row => row.status === 'skipped').length;
+    const invalid = rows.filter(row => row.status === 'invalid').length;
+    const replacements = ready.filter(row => row.previousAlarm).length;
+    const id = randomUUID();
+    if (ready.length) {
+      this.sessions.set(id, { kind: 'alarm_import', owner: i.user.id, expires: this.now() + 60_000,
+        account: this.accounts.get(i.user.id), rows: ready });
+    }
+    const summary = [
+      '📅 **Preview import alarm logout**',
+      `Siap diterapkan: **${ready.length}** · baris bermasalah: **${invalid}** · Delete dicentang/dilewati: **${skipped}**`,
+      replacements ? `⚠️ ${replacements} alarm lama akan diganti setelah konfirmasi.` : '',
+      ready.length ? 'Cek file preview (device, USN, tanggal, jam) sebelum menekan Terapkan.' : 'Tidak ada baris valid untuk diterapkan.',
+      invalid ? 'Baris bermasalah tidak dijadwalkan; perbaiki lalu upload ulang.' : '',
+    ].filter(Boolean).join('\n');
+    const components = ready.length ? [new ActionRowBuilder().addComponents(
+      button(`alarmapply:${id}`, `${replacements ? 'Ganti & terapkan' : 'Terapkan'} ${ready.length} alarm`, ButtonStyle.Danger),
+      button(`alarmcancel:${id}`, 'Batal'))] : [];
+    await i.editReply({ content: summary, files: [{ attachment: alarmImportReport(rows), name: 'alarm-import-preview.csv' }], components, allowedMentions: mentions });
+  }
+
+  // Re-checks every row against the latest snapshot before queueing logout_alarm_set.
+  async applyAlarmImport(i, session) {
+    const account = this.accounts.get(i.user.id);
+    const items = [];
+    for (const row of session.rows) {
+      const device = this.store.devices.get(row.deviceKey);
+      const instance = device?.snapshot.instances.find(item => String(item.id) === String(row.cloneId));
+      const label = `baris ${row.rowNumber} · ${row.deviceName}/${row.cloneName}`;
+      let error = '';
+      if (!device || device.account !== account || device.account !== session.account) error = 'Device berubah atau tidak lagi tersedia.';
+      else if (!instance || String(instance.username || '').trim().toLocaleLowerCase() !== row.username.toLocaleLowerCase()) error = 'USN/clone berubah sejak preview.';
+      else if (JSON.stringify(instance.logoutAlarm || null) !== JSON.stringify(row.previousAlarm || null)) error = 'Alarm clone berubah sejak preview; upload ulang.';
+      if (error) { items.push({ device: label, error }); continue; }
+      try {
+        const command = this.store.enqueue(device.key, 'logout_alarm_set', { clone: row.cloneId, date: row.date, time: row.time, daily: row.daily === true });
+        items.push({ command, interval: Number(setting(device, 'remote.interval')?.value) || 30, offline: !this.store.online(device), label });
+      } catch (e) { items.push({ device: label, error: e.message || 'Gagal masuk antrean.' }); }
+    }
+    if (!items.some(item => item.command)) {
+      return await i.editReply({ content: `Tidak ada alarm yang dikirim.\n${items.map(item => `❌ ${escape(item.device)}: ${escape(item.error)}`).join('\n')}`.slice(0, 1800), components: [], allowedMentions: mentions });
+    }
+    const group = this.replies.create(i, items);
     await group.chain;
   }
 
@@ -203,6 +256,13 @@ export class Handler {
     const session = this.sessions.get(id);
     if (!session || session.owner !== i.user.id || session.expires <= this.now()) {
       return await i.reply({ content: '⌛ Tombol kedaluwarsa atau bukan milikmu. Jalankan command lagi.', flags: MessageFlags.Ephemeral });
+    }
+    if (session.kind === 'alarm_import') {
+      if (!['alarmapply', 'alarmcancel'].includes(action)) throw new Error('Tombol import alarm tidak valid.');
+      this.sessions.delete(id);
+      await i.deferUpdate();
+      if (action === 'alarmcancel') return await i.editReply({ content: 'Import alarm dibatalkan; tidak ada jadwal yang diubah.', components: [], allowedMentions: mentions });
+      return await this.applyAlarmImport(i, session);
     }
     if (session.kind === 'confirm') {
       if (!['confirm', 'cancel'].includes(action)) throw new Error('Tombol tidak valid.');
