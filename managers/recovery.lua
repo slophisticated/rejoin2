@@ -104,14 +104,14 @@ function Recovery.launchAndJoin(instance)
         -- first, then the deep link launches it and joins the map. If the clone is still warm
         -- the deep link just shows the game page. Launching via the launcher activity first
         -- (APK.launch: MAIN/LAUNCHER) also left the app on its home screen, so we skip that too.
-        local stopped = APK.forceStop(pkg)
-        if not stopped then return false end
+        local stopped, stopErr = APK.forceStop(pkg)
+        if not stopped then return false, "force-stop gagal: " .. tostring(stopErr) end
         Timer.sleep(1)
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
-        local opened = openGameLink(instance)
-        if not opened then return false end
+        local opened, openErr = openGameLink(instance)
+        if not opened then return false, "buka link game gagal: " .. tostring(openErr) end
     else
         if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
             WindowLayout.applyForInstance(instance)
@@ -120,7 +120,7 @@ function Recovery.launchAndJoin(instance)
         local ok, err = APK.launch(pkg)
         if not ok then
             Logger.error("Recovery.launchAndJoin: launch failed for " .. tostring(instance.name or pkg) .. ": " .. tostring(err))
-            return false
+            return false, "launch gagal: " .. tostring(err)
         end
     end
 

@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Launch All ga lagi "kebuka semua barengan"**:
+  - **Satu engine aja**: Menu `1`/`5` pas engine boot masih jalan sekarang nawarin "stop engine itu terus lanjut di sini?" (SIGTERM, jadi ga di-restart). Sebelumnya langsung keluar. `termux-boot.sh` juga ga nyalain/restart engine kalau udah ada engine lain di `data/monitor.pid`. Sebelumnya engine boot yang mati bukan secara normal (mis. `kill -9`) idup lagi 30 detik kemudian dan ikut Launch All bareng engine menu.
+  - **Heartbeat kecepetan ga dianggep**: heartbeat "in game" yang muncul < 10 detik abis clone dibuka (ga mungkin secepet itu join) ditunggu lagi, bukan langsung lanjut ke clone berikutnya.
+  - **Username dobel**: kalau 2 clone kebaca username yang sama, heartbeat-nya ga dipake (saling kebaca). Clone itu pake jeda `launchSettleDelay`, plus ada warning di log.
+  - **Log jelas per clone**: `Monitor: #2 Clone2 beres dalam 47s (masuk game (heartbeat))`. Alasannya bisa belum login / launch gagal (+ kenapa, mis. force-stop gagal) / timeout / kick. Jadi kalau masih kebuka barengan, Menu `4` langsung nunjukin sebabnya.
+- **Rejoin nunggu clone lain kelar loading**: rejoin dari bot/menu (ganti preset, `/restart`, input key, dll) ditahan selama masih ada clone yang lagi join (udah login, jalan, belum ada heartbeat). Maksimal `launchJoinTimeout`, abis itu tetep jalan. Rejoin-nya sendiri tetep satu-satu kayak Launch All.
+
 - **Report error 1 tempat + auto copy**: Main Menu `4` → `1` (atau Enter) / `lua main.lua --report` (jalan juga kalau root lagi rusak). Isinya info device (versi rejoin, Android, engine jalan?, executor, bot/webhook diset?, RAM, storage, clone) + error/warning dan aktivitas terakhir dari `rejoin.log`, `boot.log` (termasuk auto-update), `crash.log`, `launch.log`. Rahasia disensor (URL webhook, secret bot, HWID, cookie Roblox, Bearer). Disimpen ke `data/report.txt` + `/sdcard/Download/rejoin-report.txt`, terus di-copy ke clipboard (Termux:API, fallback OSC 52). **Crash Lua sekarang kecatet**: `run.sh` sama boot jalanin `main.lua` lewat `utils/crash_guard.lua`, traceback-nya masuk `data/crash.log`.
 
 - **Fix daftar di bot telat keupdate** (mis. `/script add` sukses tapi `/script list` masih "Kosong"): snapshot dikirim device *sebelum* command dijalanin, jadi perubahan baru keliatan di sync berikutnya. Sekarang ACK tiap command bawa snapshot terbaru, jadi `/script list`, `/clone list`, `/preset list`, `/overview` langsung berubah. Perlu update engine + deploy ulang bot.

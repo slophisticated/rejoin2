@@ -42,6 +42,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ## Fitur
 
+- **Satu engine aja.** Buka Menu `1`/`5` pas engine boot masih jalan? Ditawarin stop engine itu terus lanjut di menu, biar ga ada 2 engine yang buka clone barengan.
 - **Launch All berurutan.** Clone dibuka satu per satu. Clone berikutnya baru dibuka setelah clone sebelumnya **benar-benar masuk game**: karakter sudah spawn dan aset selesai dimuat (lewat heartbeat Delta). Clone yang **sudah login dibuka duluan** (urut sesuai Menu 2), clone yang belum login dibuka **paling akhir** dengan jeda 5 detik.
 - **Auto rejoin.** Clone yang ke-kick, disconnect, freeze, atau force close dibuka ulang dan masuk ke game / private server lagi. Setelah launch/recovery, proses yang masih hidup tanpa heartbeat diberi waktu loading minimal 60 detik (atau `gracePeriod` kalau lebih besar), supaya penurunan RSS tidak memicu restart berulang. Kick, heartbeat yang berhenti, dan proses mati tetap ditangani.
 - **Heartbeat Delta.** Script di Autoexecute Delta melaporkan status dari dalam game: in-game atau ke-kick, FPS, ping, dan memori. Kalau ke-kick, langsung rejoin tanpa menunggu.

@@ -228,6 +228,28 @@ local function installInfo()
 end
 local infoLine = installInfo()
 
+-- Menu 1 / 5 while the boot engine still runs: offer to stop it and continue here
+-- (two engines would launch the same clones at once). SIGTERM = a clean stop, so the
+-- boot script does not restart it. Returns true when no other engine is left.
+local function takeOverEngine()
+    local Monitor = require("managers.monitor")
+    local other = Monitor.otherEngine()
+    if not other then return true end
+    print(string.format("Engine lain masih jalan (pid %d, biasanya dari boot).", other))
+    local answer = (prompt("Stop engine itu terus lanjut di sini? [Y/n]: ") or "n"):lower()
+    if answer:match("^%s*n") then return false end
+    os.execute("kill -TERM " .. other .. " 2>/dev/null")
+    for _ = 1, 15 do
+        if not Monitor.otherEngine() then
+            print("Engine lama udah berhenti.")
+            return true
+        end
+        os.execute("sleep 1")
+    end
+    print("Engine lama belum berhenti; coba lagi sebentar lagi.")
+    return false
+end
+
 while true do
     print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) Logs & Report Error\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n 13) Install APK dari GoFile\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
@@ -236,7 +258,7 @@ while true do
         local list = InstanceManager.getAll()
         if #list == 0 then
             print("No instances configured.")
-        else
+        elseif takeOverEngine() then
             -- Launch clones one at a time (Starting -> Running) inside the live monitor
             -- dashboard; the monitor then watches/recovers them.
             local Monitor = require("managers.monitor")
@@ -260,8 +282,10 @@ while true do
         -- Most used: bring the monitor (and the bot connection) back without
         -- relaunching clones that are already running.
         local Monitor = require("managers.monitor")
-        print("(tekan Ctrl+C untuk berhenti monitor)")
-        Monitor.start(Config.get())
+        if takeOverEngine() then
+            print("(tekan Ctrl+C untuk berhenti monitor)")
+            Monitor.start(Config.get())
+        end
         if Monitor.interrupted() then
             print("Monitor stopped by Ctrl+C; exiting.")
             os.exit(0)

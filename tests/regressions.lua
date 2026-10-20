@@ -522,5 +522,89 @@ test("error report masks webhook URLs, cookies, bearer tokens, the bot secret an
     assert(Report.base64("foobar") == "Zm9vYmFy" and Report.base64("fo") == "Zm8=")
 end)
 
+-- Launch All with a heartbeat that already says "in game" (another clone's file, a
+-- leftover, or two clones read as one username): the next clone must still wait.
+local function launchScenario(names, aliveFn)
+    local env = sandbox()
+    local clock = 1000
+    local launches = {}
+    env.os.time = function() return clock end
+    env.io.popen = function() return { read = function() return "" end, close = noop } end
+    for _, name in ipairs({ "utils.probe_log", "managers.window_layout", "managers.webhook", "managers.delta_key", "managers.optimizer" }) do
+        env.package.preload[name] = dummy
+    end
+    env.package.preload["managers.remote"] = function()
+        local remote = dummy()
+        remote.idle = function(n, stop) return env.require("utils.timer").sleepInterruptible(n, stop) end
+        return remote
+    end
+    env.package.preload["managers.username"] = function()
+        local u = dummy()
+        u.get = function(inst) return names[inst.id] end
+        return u
+    end
+    env.package.preload["managers.status"] = function() local st = dummy(); st.check = function() return "ingame" end; return st end
+    env.package.preload["managers.auth"] = function() return { isLoggedIn = function() return true end } end
+    local list = { { id = 1, name = "Clone1", package = "com.t.one" }, { id = 2, name = "Clone2", package = "com.t.two" },
+        { id = 3, name = "Clone3", package = "com.t.three" } }
+    env.package.preload["managers.instance"] = function()
+        return { getAll = function() return list end, find = function() return nil end }
+    end
+    env.package.preload["managers.apk"] = function()
+        return { isRunning = function() return true end, isActive = function() return true end }
+    end
+    local launchedAt = {}
+    env.package.preload["managers.heartbeat"] = function()
+        return {
+            install = function() return true end,
+            isEnabled = function() return true end,
+            launchedAt = function(inst) return launchedAt[inst.package] end,
+            isUp = function() return true end,
+            alive = function(inst) return aliveFn(inst, clock, launchedAt[inst.package]) end,
+        }
+    end
+    env.package.preload["managers.recovery"] = function()
+        return { launchAndJoin = function(inst)
+            launches[#launches + 1] = clock
+            launchedAt[inst.package] = clock
+            return true
+        end }
+    end
+    env.package.preload["utils.timer"] = function()
+        return { sleepInterruptible = function(n)
+            clock = clock + n
+            if clock >= 1600 then env.require("managers.monitor").stop() end
+            return true
+        end, sleep = function(n) clock = clock + n end }
+    end
+    env.require("managers.monitor").start({ monitorInterval = 5, launchJoinTimeout = 240, launchSettleDelay = 20,
+        launchWaitInterval = 3, launchWaitTimeout = 60 }, { autoLaunch = true })
+    return launches
+end
+
+test("Launch All: a heartbeat seen right after a launch is too fast and is waited out", function()
+    -- The heartbeat file already reads "in game" (e.g. a leftover / another clone's).
+    local launches = launchScenario({ "a", "b", "c" }, function() return true end)
+    assert(#launches == 3, "launches: " .. #launches)
+    for i = 2, 3 do
+        assert(launches[i] - launches[i - 1] >= 10, string.format("clone %d started %ds after the previous one",
+            i, launches[i] - launches[i - 1]))
+    end
+end)
+
+test("Launch All: clones read as the same username get the settle delay, not each other's heartbeat", function()
+    local launches = launchScenario({ "same", "same", "c" }, function() return true end)
+    assert(#launches == 3)
+    assert(launches[2] - launches[1] >= 20, "clone 2 started " .. (launches[2] - launches[1]) .. "s after clone 1")
+end)
+
+test("Launch All: a real join (heartbeat after 30s) is waited for before the next clone", function()
+    local launches = launchScenario({ "a", "b", "c" }, function(_, now, at)
+        if at and now - at >= 30 then return true end
+        return nil
+    end)
+    assert(#launches == 3 and launches[2] - launches[1] >= 30 and launches[3] - launches[2] >= 30)
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

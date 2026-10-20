@@ -282,6 +282,34 @@ local function launchInOrder(conf, only)
     local hbMisses = 0
     local hbWorking = hbEnabled
     local function stopped() return not running end
+    -- Heartbeat files are per username: two clones read as the same account would see
+    -- each other's heartbeat ("in game" at once) and the next clone would not wait.
+    -- Such clones get the fixed settle delay instead.
+    local sharedName = {}
+    do
+        local byName = {}
+        for _, other in ipairs(instanceManager.getAll()) do
+            local okU, u = pcall(Username.get, other)
+            if okU and type(u) == "string" and u ~= "" then
+                u = u:lower()
+                byName[u] = byName[u] or {}
+                table.insert(byName[u], other)
+            end
+        end
+        for u, list in pairs(byName) do
+            if #list > 1 then
+                local labels = {}
+                for _, other in ipairs(list) do
+                    sharedName[other.package] = true
+                    labels[#labels + 1] = tostring(other.name or other.package)
+                end
+                Logger.warn(string.format("Monitor: %s kebaca username yang sama (%s); heartbeat-nya ga dipake, pakai jeda %ds",
+                    table.concat(labels, ", "), u, settle))
+            end
+        end
+    end
+    -- A real join (spawn + assets idle 5s) never takes less than this.
+    local MIN_JOIN = 10
 
     for i, inst in ipairs(instances) do
         if not running then break end
@@ -296,10 +324,13 @@ local function launchInOrder(conf, only)
         ProbeLog.line(string.format("[%s] EVENT launch_begin #%d %s (%s)", os.date("%H:%M:%S"), i, name, tostring(pkg)))
 
         do
-            local p_ok, l_ok = pcall(function() return recoveryManager.launchAndJoin(inst) end)
+            local started = os.time()
+            local why = "selesai"
+            local p_ok, l_ok, l_err = pcall(function() return recoveryManager.launchAndJoin(inst) end)
             local launched = p_ok and l_ok
             if not launched then
-                Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(l_ok)))
+                Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(p_ok and (l_err or l_ok) or l_ok)))
+                why = "launch gagal"
             end
             local loggedIn = Auth.isLoggedIn(inst)
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
@@ -311,6 +342,7 @@ local function launchInOrder(conf, only)
                 launchWait(emptyDelay, stopped)
                 keepRemoteAlive()
                 launched = false
+                why = "belum login"
             end
 
             local function isActiveNow()
@@ -340,20 +372,32 @@ local function launchInOrder(conf, only)
             --    until its heartbeat says in game (up to launchJoinTimeout), or without a
             --    heartbeat a fixed launchSettleDelay.
             local settled = 0
-            local limit = hbWorking and joinTimeout or settle
+            local useHb = hbWorking and not sharedName[pkg]
+            local limit = useHb and joinTimeout or settle
             local sawHeartbeat = false
+            local warnedFast = false
             -- RSS dips below minRss while Roblox loads a place, so a low reading is not a
             -- crash. Only a process that is really gone on two checks in a row counts.
             local goneChecks = 0
             while active and running and settled < limit do
-                local alive, why = Heartbeat.alive(inst)
-                if alive == true then
+                local alive, hbWhy = Heartbeat.alive(inst)
+                if not useHb then alive = nil end
+                local since = os.time() - started
+                if alive == true and since < MIN_JOIN then
+                    -- Too fast to be this launch: another clone's file / a leftover. Wait on.
+                    if not warnedFast then
+                        warnedFast = true
+                        Logger.warn(string.format("Monitor: %s heartbeat muncul %ds abis launch (kecepetan); ditunggu lagi", name, since))
+                    end
+                elseif alive == true then
                     Logger.info(string.format("Monitor: %s in game (heartbeat, %ds); next clone", name, waited + settled))
                     sawHeartbeat = true
+                    why = "masuk game (heartbeat)"
                     break
-                elseif alive == false and tostring(why):find("^kicked") then
-                    Logger.warn(string.format("Monitor: %s %s while joining; moving on", name, tostring(why)))
+                elseif alive == false and tostring(hbWhy):find("^kicked") then
+                    Logger.warn(string.format("Monitor: %s %s while joining; moving on", name, tostring(hbWhy)))
                     sawHeartbeat = true
+                    why = "kick pas join"
                     break
                 end
                 local step = math.min(poll, limit - settled)
@@ -366,10 +410,16 @@ local function launchInOrder(conf, only)
                 if goneChecks >= 2 then
                     Logger.warn(string.format("Monitor: %s dropped while loading the game; moving on", name))
                     sawHeartbeat = true -- not the heartbeat's fault
+                    why = "clone ketutup pas loading"
                     break
                 end
             end
-            if hbWorking and active and running and not sawHeartbeat then
+            if launched and active and not sawHeartbeat then
+                why = useHb and "heartbeat ga muncul (timeout)" or "jeda tetap (tanpa heartbeat)"
+            elseif launched and not active then
+                why = "ga aktif dalam " .. timeout .. "s"
+            end
+            if useHb and active and running and not sawHeartbeat then
                 hbMisses = hbMisses + 1
                 hbWorking = hbMisses < 2
                 Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (executor belum key / script tidak jalan?)%s",
@@ -385,6 +435,8 @@ local function launchInOrder(conf, only)
             pcall(function() return Optimizer.applyForInstance(inst) end)
             ProbeLog.line(string.format("[%s] EVENT launch_done #%d %s (%s) waited=%ds settled=%ds",
                 os.date("%H:%M:%S"), i, name, tostring(pkg), waited, settled))
+            -- One line per clone: how long it took and why the next one started.
+            Logger.info(string.format("Monitor: #%d %s beres dalam %ds (%s)", i, name, os.time() - started, why))
         end
         if running then
             Status.printSummary(instanceManager.getAll())
@@ -419,6 +471,12 @@ local function takeAuthForget()
 end
 local rejoinQueue = {}
 
+-- pid of another running engine (e.g. started at boot), or nil. The menu offers to
+-- stop it instead of refusing.
+function Monitor.otherEngine()
+    return otherEngine(selfPid())
+end
+
 function Monitor.requestRejoin(ids)
     for _, id in ipairs(ids or {}) do rejoinQueue[#rejoinQueue + 1] = id end
 end
@@ -449,9 +507,38 @@ local function takeFileRequests()
     end
 end
 
+-- A clone still joining after its launch (logged in, running, no heartbeat yet, within
+-- launchJoinTimeout): a rejoin then waits so two clones never load at the same time.
+local function stillJoining(conf)
+    if not Heartbeat.isEnabled() then return nil end
+    local limit = tonumber(conf and conf.launchJoinTimeout) or 240
+    for _, inst in ipairs(instanceManager.getAll()) do
+        local at = Heartbeat.launchedAt(inst)
+        if at and os.time() - at < limit and Heartbeat.alive(inst) == nil
+            and Auth.isLoggedIn(inst) ~= false then
+            local okR, up = pcall(apkManager.isRunning, inst.package)
+            if okR and up then return inst end
+        end
+    end
+    return nil
+end
+local rejoinHeldSince = nil
+
 local function runRejoinQueue(conf)
     takeFileRequests()
-    if #rejoinQueue == 0 then return end
+    if #rejoinQueue == 0 then rejoinHeldSince = nil; return end
+    -- Wait until every clone that is still loading is in game (at most launchJoinTimeout).
+    local busy = stillJoining(conf)
+    if busy then
+        local limit = tonumber(conf and conf.launchJoinTimeout) or 240
+        if not rejoinHeldSince then
+            rejoinHeldSince = os.time()
+            Logger.info(string.format("Monitor: rejoin ditahan, %s masih loading", tostring(busy.name or busy.package)))
+        end
+        if os.time() - rejoinHeldSince < limit then return end
+        Logger.warn("Monitor: rejoin dilanjut (clone yang loading kelamaan)")
+    end
+    rejoinHeldSince = nil
     local list, seen = {}, {}
     for _, ref in ipairs(rejoinQueue) do
         if ref == "all" then

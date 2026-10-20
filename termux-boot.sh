@@ -61,8 +61,18 @@ if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -
 # The live dashboard is useless without a window, so stdout is dropped; errors go to
 # boot.log and the engine's own log stays in data/rejoin.log. stdin is /dev/null
 # because Termux:Boot gives the script no terminal.
+# Another engine holds data/monitor.pid (the menu took over): never start a second one,
+# two engines would launch the same clones at the same time.
+other_engine() {
+    pid=$(tr -dc '0-9' < data/monitor.pid 2>/dev/null)
+    [ -n "$pid" ] && grep -q main.lua "/proc/$pid/cmdline" 2>/dev/null
+}
 restarts=0
 while :; do
+    if other_engine; then
+        log "engine lain udah jalan (pid $(tr -dc '0-9' < data/monitor.pid)); engine boot ga dijalanin"
+        exit 0
+    fi
     log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
     # crash_guard also keeps a crash's traceback in data/crash.log (error report).
     GUARD=; [ -f utils/crash_guard.lua ] && GUARD=utils/crash_guard.lua
