@@ -375,6 +375,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | Command | Opsi | Command device |
 |---|---|---|
 | `/status` | `device?` | tampil dari snapshot (tanpa antri). Tombol "🔄 Refresh" → antri `status` |
+| `/overview` | `device?` (kosong = semua device akun) | Lokal dari snapshot, tanpa command: per device clone (status, slot, username ikut `hideNames`, preset + sumber), daftar preset (⭐ default), Scripts (⚡ = di Autoexecute), Autoexecute (tanpa script milik rejoin) |
 | `/devices` | – | daftar device: nama, versi, online/offline (lastSeen), jumlah clone ingame/total |
 | `/game` | `preset`, `device?` (bisa `all`), `clones?`, `rejoin?` (default true) | tanpa `clones` → `game` (preset jadi default, semua clone ikut); dengan `clones` → `game` clones=[...] (khusus) |
 | `/default` | `preset`, `device?` (bisa `all`), `rejoin?` | `default_set` (clone khusus tidak ikut pindah) |

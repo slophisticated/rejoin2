@@ -50,6 +50,32 @@ export function statusPages(store, d) {
   }] }));
 }
 
+// /overview: every device of the caller in one list (snapshot only, nothing sent).
+export function overviewLines(store, devices) {
+  const lines = [];
+  for (const d of devices) {
+    const snap = d.snapshot;
+    const hide = snap.settings.find(s => s.key === 'webhook.hideNames')?.value !== false;
+    const ingame = snap.instances.filter(i => i.status === 'ingame').length;
+    lines.push(`${store.online(d) ? '🟢' : '🔴'} **${escape(d.name)}** · ${ingame}/${snap.instances.length} clone ingame · ${store.online(d) ? 'online' : `offline (${age(store, d)})`}`);
+    for (const i of snap.instances) {
+      const who = i.username ? (hide ? `||${escape(i.username)}||` : escape(i.username)) : (i.status === 'nologin' ? 'belum login' : '-');
+      const source = { default: 'default', khusus: 'khusus', link: 'link sendiri', none: 'tanpa link' }[i.presetSource] || i.presetSource;
+      lines.push(`  ${icons[i.status] || '❔'} ${escape(i.name)}${i.slot ? ` (${escape(i.slot)})` : ''} · ${who} · [${escape(i.preset || '-')}] ${escape(i.game || '-')} (${escape(source)})`);
+    }
+    if (!snap.instances.length) lines.push('  Belum ada clone.');
+    const presets = Object.entries(snap.presets).map(([k, p]) => `${k === snap.defaultPreset ? '⭐' : ''}[${escape(k)}] ${escape(p.name)}`);
+    lines.push(`  🎮 Preset: ${presets.length ? presets.join(' · ') : '-'}`);
+    const scripts = (snap.scripts || []).map(s => `${s.auto ? '⚡' : ''}${escape(s.name)}`);
+    lines.push(`  📜 Scripts: ${scripts.length ? scripts.join(', ') : '-'}`);
+    const auto = (snap.autoexecute || []).filter(s => !s.managed).map(s => escape(s.name));
+    lines.push(`  ⚡ Autoexecute: ${auto.length ? auto.join(', ') : '-'}`);
+    lines.push('');
+  }
+  if (lines.length) lines.push('⭐ = preset default · ⚡ = ikut Autoexecute');
+  return lines.length ? lines : ['Belum ada device. Jalankan monitor dan cek secret/URL bot.'];
+}
+
 export function localLines(path, d, values) {
   const snap = d.snapshot;
   const header = `**${escape(d.name)}**`;

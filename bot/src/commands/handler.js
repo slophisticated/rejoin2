@@ -6,7 +6,7 @@ import { planDevice, selectDevices } from './planner.js';
 import { downloadScript, present, setting } from './validate.js';
 import { alarmImportReport, downloadAlarmCsv, parseAlarmCsv, resolveAlarmRows } from './alarm_import.js';
 import { renameTarget } from '../store.js';
-import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
+import { chunks, deviceLines, overviewLines, escape, localLines, mentions, statusPages } from '../format.js';
 
 const localPaths = new Set(['preset list', 'clone list', 'config get', 'script list', 'autoexec list', 'alarm list']);
 const button = (id, label, style = ButtonStyle.Secondary, disabled = false) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style).setDisabled(disabled);
@@ -47,6 +47,11 @@ export class Handler {
       if (path === 'devices') return await this.show(i, chunks(deviceLines(view)).map(content => ({ content })));
       if (path === 'hwid redeem' || path === 'hwid remove') return await this.hwid(i, path, String(values.hwid || '').trim().toLowerCase());
       if (path === 'alarm import') return await this.previewAlarmImport(i, values, view);
+      // No device = every device of this account.
+      if (path === 'overview') {
+        const list = values.device ? selectDevices(view, path, values.device) : [...view.devices.values()];
+        return await this.show(i, chunks(overviewLines(view, list)).map(content => ({ content })));
+      }
       const devices = selectDevices(view, path, values.device);
       if (path === 'status') return await this.showStatus(i, devices[0]);
       if (localPaths.has(path)) return await this.show(i, chunks(localLines(path, devices[0], values)).map(content => ({ content })));

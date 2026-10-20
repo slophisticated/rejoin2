@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: `/overview`**: satu tampilan buat semua device di akun (atau satu device): tiap clone (status, posisi, username ikut setting sembunyikan nama, preset + sumbernya), daftar preset (⭐ default), Scripts (⚡ = ikut Autoexecute), dan Autoexecute. Dibaca dari snapshot, jadi langsung muncul tanpa nunggu device. Perlu deploy ulang bot.
+
 - **Port dari versi publish (Apeng: "fix: path key", "bulk set alarm+install app")**:
   - **Fix deteksi license Delta**: `<Delta>/Internals/Cache/license` dicek duluan (juga `internal/cache`), dan file `.license` buatan Delta **ga pernah** dianggep license. Sebelumnya `ls -a` bisa nampilin `.license` duluan, jadi input key bisa nulis ke file yang salah. Path `.license` yang kadung kesimpen diabaikan. Default input key jadi `<Delta>/Internals/Cache/license`.
   - **Rejoin abis input key**: Menu `12` dan `/delta input-key` masukin semua clone ke antrean rejoin (satu per satu) biar Delta baca key baru.

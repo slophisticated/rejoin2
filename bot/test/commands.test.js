@@ -74,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 20);
+  assert.equal(definitions.length, 21);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -356,4 +356,23 @@ test('alarm import: works with several devices, previews first, applies only con
     ['RF-08', 'logout_alarm_set', { clone: 1, date: '26/12/2099', time: '07:05', daily: false }],
   ]);
   replies.close();
+});
+
+test('overview lists every device with clones, their presets, preset list and scripts', async () => {
+  const h = handlerHarness();
+  const other = snapshot('RF-08'); other.scripts = []; other.autoexecute = [];
+  h.store.sync(other);
+  const i = interaction('overview', {});
+  await h.handler.handle(i);
+  assert.equal(h.store.commands.size, 0, 'overview is read from snapshots only');
+  const text = i.edits.map(e => e.content).join('\n');
+  for (const part of [/\*\*RF-07\*\*/, /\*\*RF-08\*\*/, /Clone1 · \|\|owner\\_one\|\| · \[A\] Steal an Egg \(default\)/,
+    /Clone3 · - · \[B\] Fisch \(khusus\)/, /Preset: ⭐\[A\] Steal an Egg · \[B\] Fisch/, /Scripts: ⚡egg\.lua, hub\.txt/,
+    /Autoexecute: egg\.lua\n/, /Scripts: -/]) assert.match(text, part);
+  assert.doesNotMatch(text, /rejoin_heartbeat/);
+  // One device only.
+  const one = interaction('overview', { device: 'RF-08' });
+  await h.handler.handle(one);
+  assert.doesNotMatch(one.edits.map(e => e.content).join('\n'), /RF-07/);
+  h.replies.close();
 });

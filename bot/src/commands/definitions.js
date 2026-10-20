@@ -18,6 +18,7 @@ const route = (description, options = [], extra = {}) => ({ description,
 
 export const routes = {
   status: route('Lihat status clone dari snapshot terakhir.'),
+  overview: route('Ringkasan semua device: clone, preset tiap clone, daftar preset, Scripts dan Autoexecute.', [], { all: true }),
   devices: { description: 'Lihat semua device yang dikenal.', options: [] },
   'hwid redeem': { description: 'Daftarkan HWID device ke kamu (HWID ada di Termux Menu 9).', options: [s('hwid', true)] },
   'hwid remove': { description: 'Hapus HWID device dari list kamu.', options: [s('hwid', true)] },
