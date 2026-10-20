@@ -28,7 +28,7 @@ Tunggu sampai muncul **SELESAI**, lalu **reboot sekali**. Tiap langkah ditandai 
 2. Perintah `lua`
 3. Cek root
 4. Download Rejoin ke `~/rejoin`. Kalau folder lama sudah ada (termasuk hasil `git clone` dulu), config dan log tetap dipakai, jadi **tidak perlu `rm -rf`**.
-5. Setting device: animasi mati, freeform / resizable / *force allow on external*, smallest width 600dp, dan izin Termux jalan di background
+5. Setting device: animasi mati, freeform / resizable / *force allow on external*, smallest width 600dp, izin Termux jalan di background, plus **semua suara mati** (volume 0, suara sentuh/getar), notif pop-up, auto-rotate, lokasi, sama scan Wi-Fi/Bluetooth di background dimatiin
 6. Cek clone yang ada di config, menyalakan auto atur jendela, dan memasang script heartbeat ke Autoexecute Delta
 7. Script boot (auto-update + auto-start)
 8. Mengaktifkan Termux:Boot
@@ -53,7 +53,7 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 - **Laporan Discord webhook.** Satu pesan status di-update tiap 5 menit (RAM, CPU, suhu, uptime, dan memori per clone + screenshot), plus notif **🔑 Delta minta key** kalau file license Delta hilang. Tiap pesan diberi nama device (diisi di Menu 9).
 - **Cek login.** Akun diverifikasi ke Roblox. Clone yang belum login **tidak pernah di-force-stop**, tapi dibuka lagi kalau tertutup.
 - **Auto start + auto update saat boot** lewat Termux:Boot, tanpa jendela Termux. Config tidak tertimpa.
-- **Setting device otomatis.** Animasi, freeform, smallest width, dan izin background diatur sekali dari installer.
+- **Setting device otomatis.** Animasi, freeform, smallest width, izin background, sama mode senyap (semua volume 0, suara sentuh/getar, notif pop-up, auto-rotate, lokasi, scan Wi-Fi/Bluetooth mati) diatur sekali dari installer. Device lama dapet mode senyap sekali lewat update. Mau balikin? `device_setup.sh --undo`.
 - **Dashboard live** dengan username tiap clone, status berwarna, FPS/RAM dari heartbeat, dan progres launch.
 - **Inject Cookie.** Masukkan token `.ROBLOSECURITY` ke clone. Token diverifikasi dulu sebelum ditulis. Kalau abis inject clone tetep logout, menu ngasih tau kemungkinan penyebabnya (proteksi lokasi Roblox / app ga baca cookie WebView) plus negara IP device. Ada juga **Logout akun** (Menu `7` → `4` atau bot `/clone logout`): cookie dihapus, app ditutup, dan clone ga di-rejoin lagi. Enak buat ngurangin beban pas RAM/CPU spike. Bisa dijadwalin dari bot (`/alarm set`, jam WIB, sekali atau tiap hari), dan cookie bisa di-inject dari Discord lewat popup privat (`/cookie inject`).
 - **Script Manager.** Script disimpan di folder **Scripts** Delta (tambah / ganti / hapus, bisa dari 1 baris loadstring URL). **Autoexecute ngambil dari Scripts**: masukin = copy dari Scripts, keluarin = hapus copy-nya. Berlaku buat semua clone di device itu. Bisa dari Menu `6` atau bot Discord (`/script`, `/autoexec`).

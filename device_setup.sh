@@ -11,6 +11,11 @@
 #   - Smallest width SMALLEST_WIDTH dp (default 600), via `wm density`. A value given
 #     with SMALLEST_WIDTH=... is remembered in data/smallest_width, so reinstalls and
 #     updates keep it; --undo forgets it.
+#   - Quiet / lighter device: every volume (music, ring, notification, system, alarm)
+#     at 0, touch / lock screen / dial / charging sounds and haptics off, heads-up
+#     notifications off (no pop-ups over the clone windows), auto-rotate off, location
+#     and background Wi-Fi / Bluetooth scanning off. --undo puts these settings back to
+#     the Android defaults (settings delete) and volumes at half.
 # Freeform / resizable take effect after a reboot.
 #
 # Prints one "[OK]" / "[!!]" line per item. Never exits with an error, so the
@@ -57,6 +62,69 @@ set_global() {
     fi
 }
 
+# settings put NAMESPACE KEY VALUE, then read it back (set_global for system/secure).
+set_ns() {
+    ns=$1; key=$2; want=$3; label=$4
+    have=$(root "settings get $ns $key" | tr -d '\r')
+    if [ "$have" = "$want" ]; then ok "$label (sudah)"; return; fi
+    root "settings put $ns $key $want" >/dev/null
+    have=$(root "settings get $ns $key" | tr -d '\r')
+    if [ "$have" = "$want" ]; then ok "$label"; else warn "$label gagal di-set (sekarang: ${have:-kosong})"; fi
+}
+
+# Quiet-mode settings: "namespace key value-when-applied label", one per line.
+QUIET_SETTINGS="system sound_effects_enabled 0 suara sentuh mati
+system haptic_feedback_enabled 0 getar sentuh mati
+system lockscreen_sounds_enabled 0 suara kunci layar mati
+system dtmf_tone 0 nada tombol dial mati
+global charging_sounds_enabled 0 suara charging mati
+global heads_up_notifications_enabled 0 notif pop-up (heads-up) mati
+system accelerometer_rotation 0 auto-rotate mati
+secure location_mode 0 lokasi mati
+global wifi_scan_always_enabled 0 scan Wi-Fi di background mati
+global ble_scan_always_enabled 0 scan Bluetooth di background mati"
+
+# Volume of one stream through the `media` tool (cmd media_session on builds without it).
+# Streams: 1 system, 2 ring, 3 music (Roblox), 4 alarm, 5 notification.
+volume_tool() {
+    if root "command -v media" | grep -q media; then echo media; else echo "cmd media_session"; fi
+}
+volume() {
+    stream=$1; want=$2; label=$3
+    tool=${TOOL:-$(volume_tool)}
+    # "volume is 7 in range [0..15]"
+    get() { root "$tool volume --stream $stream --get" | grep -oE 'volume is [0-9]+' | grep -oE '[0-9]+$'; }
+    if [ "$want" = half ]; then
+        max=$(root "$tool volume --stream $stream --get" | grep -oE '\.\.[0-9]+' | grep -oE '[0-9]+$')
+        want=$(( ${max:-10} / 2 ))
+    fi
+    have=$(get)
+    if [ "$have" = "$want" ]; then ok "$label (sudah)"; return; fi
+    root "$tool volume --stream $stream --set $want" >/dev/null
+    have=$(get)
+    if [ "$have" = "$want" ]; then ok "$label"; else warn "$label gagal (sekarang: ${have:-tidak terbaca})"; fi
+}
+VOLUMES="3 volume media/game
+2 volume dering
+5 volume notifikasi
+1 volume sistem
+4 volume alarm"
+
+quiet() {
+    TOOL=$(volume_tool)
+    printf '%s\n' "$VOLUMES" | while read -r stream label; do
+        if [ "$1" = off ]; then volume "$stream" half "$label setengah"; else volume "$stream" 0 "Suara: $label 0"; fi
+    done
+    printf '%s\n' "$QUIET_SETTINGS" | while read -r ns key value label; do
+        if [ "$1" = off ]; then
+            root "settings delete $ns $key" >/dev/null
+            ok "$key dikembalikan ke bawaan"
+        else
+            set_ns "$ns" "$key" "$value" "$label"
+        fi
+    done
+}
+
 # Background permission for the Termux apps: battery-optimization whitelist (what the
 # "Let app always run in background?" dialog asks for, so it no longer shows up) plus
 # the run-in-background app ops. Apps that are not installed are skipped.
@@ -91,6 +159,7 @@ background() {
 
 if [ "$MODE" = undo ]; then
     background off
+    quiet off
     for k in window_animation_scale transition_animation_scale animator_duration_scale; do
         set_global "$k" 1 "animasi $k = 1"
     done
@@ -144,6 +213,9 @@ else
         fi
     fi
 fi
+
+# 5. Quiet / lighter device ------------------------------------------------------------
+quiet on
 
 echo "  (freeform & resizable aktif setelah reboot)"
 exit 0

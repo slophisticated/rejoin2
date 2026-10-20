@@ -10,7 +10,7 @@
 #   2. makes `lua` available
 #   3. checks root
 #   4. downloads rejoin to ~/rejoin (fresh copy, settings kept)
-#   5. device tweaks via device_setup.sh (animations off, freeform/resizable,
+#   5. device tweaks via device_setup.sh (animations off, freeform/resizable, sound off,
 #      smallest width 600dp)
 #   6. checks that the clones in config/config.lua are installed
 #   7. installs the boot script (auto-update + start on every boot)

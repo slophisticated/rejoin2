@@ -40,12 +40,13 @@ migrate() {
         *)    say "migrasi $1 belum berhasil (${out:-tidak ada output}); dicoba lagi lain kali" ;;
     esac
 }
-# Same idea for device tweaks done by device_setup.sh (safe to repeat).
+# Same idea for device tweaks done by device_setup.sh (safe to repeat). $2 = the
+# output line that proves this tweak applied (default: the smallest width line).
 migrate_device() {
     marker="data/.migrated-$1"
     [ -f "$marker" ] && return 0
     [ -f device_setup.sh ] || return 0
-    out=$(sh device_setup.sh </dev/null 2>&1 | grep 'Smallest width')
+    out=$(sh device_setup.sh </dev/null 2>&1 | grep "${2:-Smallest width}" | head -1)
     case "$out" in
         *'[OK]'*) : > "$marker"; say "migrasi: ${out#*\[OK\] }" ;;
         *)        say "migrasi $1 belum berhasil (${out:-tidak ada output}); dicoba lagi lain kali" ;;
@@ -58,6 +59,8 @@ run_migrations() {
     # Back to smallest width 600dp on devices an earlier update moved to 900dp
     # (a value the user picked with SMALLEST_WIDTH=... is kept).
     migrate_device sw600
+    # Sound off + notification pop-ups / auto-rotate / location / scanning off.
+    migrate_device quiet-device 'Suara: volume media'
 }
 
 cd "$DIR" || exit 0
