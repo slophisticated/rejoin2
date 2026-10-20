@@ -2,6 +2,10 @@
 
 ## Unreleased / Bug fixes
 
+- **Disconnect ga lolos lagi** (heartbeat v3): script heartbeat sekarang juga ngecek **sambungan ke server** (ClientReplicator di NetworkClient ilang = koneksi putus) dan ngecek ulang pesan error **tiap nulis heartbeat**, bukan cuma ngandelin event. Waktu nunggu UI popup error dipanjangin dari 30 detik ke 10 menit (di device lambat UI-nya telat muncul, jadi kick ga pernah ketangkep). Script baru kepasang sendiri pas monitor mulai, dan kepake pas clone masuk game berikutnya.
+- **Clone belum login ga nyepam log lagi**: monitor ga ngecek kesehatan clone yang statusnya belum login (RAM kecil di layar login itu wajar). Cuma dibuka lagi pelan kalau ketutup. Sebelumnya muncul `instance not healthy` tiap siklus.
+- **Report: warning yang sama digabung** jadi 1 baris + jumlah (`(x38)`) + jam terakhir, biar error beneran ga ketutup.
+
 - **Logout beneran tuntas**: Menu `7` → `4`, `/clone logout`, dan alarm logout sekarang **matiin session di server Roblox** dulu (`auth.roblox.com/v2/logout` pake cookie clone itu, sama kayak tombol Log Out di app), baru hapus cookie lokal. Token (termasuk yang ada di backup `.bak-`) langsung ga berlaku, jadi verifikasi login rejoin langsung bilang logout. Token cuma lewat file header sementara (0600), ga pernah di command line atau log. Kalau Roblox ga ngerespon, cookie lokal tetep dihapus dan pesannya bilang session server belum dimatiin.
 - **Bot: `/report`**: report error device (sama kayak Menu `4`) dikirim ke Discord sebagai file `.txt` (`device:all` = 1 file per device), rahasia disensor. Report sekarang juga punya bagian **login + heartbeat tiap clone** (state, umur, sesi ini atau lama, alasan kick), buat ngelacak disconnect yang ga ke-rejoin.
 

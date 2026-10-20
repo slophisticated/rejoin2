@@ -1,4 +1,4 @@
--- REJOIN_HEARTBEAT v2
+-- REJOIN_HEARTBEAT v3
 -- Installed automatically by rejoin into the executor's autoexecute folder.
 -- Edits here are overwritten: change the settings in rejoin (Settings > 13) instead.
 --
@@ -70,11 +70,30 @@ local function checkError()
     end
 end
 
+-- A dropped connection removes the ClientReplicator from NetworkClient: this catches a
+-- disconnect even when no error prompt is seen (or the prompt UI was never found).
+local function checkConnection()
+    local nc = safe(function() return game:GetService("NetworkClient") end)
+    local children = nc and safe(function() return nc:GetChildren() end)
+    if children and #children == 0 then
+        state = "kicked"
+        if reason == "" then reason = "koneksi ke server putus" end
+    end
+end
+
 safe(function() GuiService.ErrorMessageChanged:Connect(checkError) end)
+safe(function()
+    game:GetService("NetworkClient").ChildRemoved:Connect(function()
+        task.wait(1)
+        checkError()
+        checkConnection()
+    end)
+end)
 task.spawn(function()
     safe(function()
-        local prompt = game:GetService("CoreGui"):WaitForChild("RobloxPromptGui", 30)
-        local overlay = prompt and prompt:WaitForChild("promptOverlay", 30)
+        -- Slow devices can take minutes before this UI exists; 30 s was too short.
+        local prompt = game:GetService("CoreGui"):WaitForChild("RobloxPromptGui", 600)
+        local overlay = prompt and prompt:WaitForChild("promptOverlay", 600)
         if overlay then
             overlay.ChildAdded:Connect(function(child)
                 if child.Name == "ErrorPrompt" then
@@ -144,6 +163,11 @@ local function write()
 end
 
 while true do
+    -- Events can be missed: look at the error message and the connection every time.
+    if state ~= "kicked" then
+        checkError()
+        checkConnection()
+    end
     write()
     task.wait(CFG.interval)
 end

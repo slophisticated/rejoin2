@@ -711,7 +711,14 @@ function Monitor.start(conf, opts)
             -- a stale "ingame" status memory kept the instance forever "healthy" and the
             -- recovery was never triggered (the app stayed closed).
             local healthy = false
-            if pkg then
+            -- No account: low RSS / no heartbeat is expected at the login screen, so skip
+            -- the health check (it only flooded the log with "not healthy" every cycle);
+            -- just reopen it gently if it closed.
+            if pkg and status == "nologin" then
+                healthy = true
+                unhealthyStreak[id] = nil
+                pcall(reopenNoLoginIfClosed, inst, id, name, pkg)
+            elseif pkg then
                 -- A force-close leaves a low-RSS stub process alive, so process existence
                 -- (isRunning) alone reports it as healthy forever and it's never reopened.
                 -- Decide health from the RSS threshold (isActive): a running clone has

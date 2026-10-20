@@ -675,5 +675,20 @@ test("logout ends the Roblox session (CSRF round) without the token on a command
     for path in pairs(files) do assert(not path:find("rejoin_logout", 1, true), "temp file left: " .. path) end
 end)
 
+test("error report folds a repeated warning into one line with a count", function()
+    local env = sandbox()
+    env.package.preload["core.config"] = function() return { get = function() return {} end } end
+    local Report = env.require("managers.report")
+    local out = Report.collapse({
+        "[07:13:33] [WARN] Monitor: instance not healthy: Clone2",
+        "[07:14:00] [WARN] Monitor: instance not healthy: Clone2",
+        "[07:30:31] [WARN] Monitor: Clone4 heartbeat berhenti 99s",
+        "[07:40:30] [WARN] Monitor: instance not healthy: Clone2",
+    }, 40)
+    assert(#out == 2, table.concat(out, "\n"))
+    assert(out[1] == "[07:30:31] [WARN] Monitor: Clone4 heartbeat berhenti 99s")
+    assert(out[2] == "[07:40:30] [WARN] Monitor: instance not healthy: Clone2  (x3)", out[2])
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

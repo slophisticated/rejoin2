@@ -48,6 +48,32 @@ local function isProblem(l)
         or l:find("[!!]", 1, true)
 end
 
+-- Same message repeated (e.g. one warning every cycle): one line with a count and the
+-- last time, newest last, so a flood does not push the real errors out.
+function Report.collapse(list, n)
+    local order, seen = {}, {}
+    for _, l in ipairs(list) do
+        local stamp, msg = l:match("^%[([%d:%- ]+)%]%s*(.*)$")
+        msg = msg or l
+        local e = seen[msg]
+        if e then
+            e.count, e.last = e.count + 1, stamp or e.last
+            for i, m in ipairs(order) do if m == msg then table.remove(order, i); break end end
+        else
+            e = { count = 1, last = stamp }
+            seen[msg] = e
+        end
+        order[#order + 1] = msg
+    end
+    local out = {}
+    for i = math.max(1, #order - n + 1), #order do
+        local msg, e = order[i], seen[order[i]]
+        out[#out + 1] = (e.last and ("[" .. e.last .. "] ") or "") .. msg
+            .. (e.count > 1 and string.format("  (x%d)", e.count) or "")
+    end
+    return out
+end
+
 local function plain(s) return (tostring(s):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")) end
 
 -- Mask everything that must not leave the device.
@@ -138,7 +164,8 @@ function Report.build()
     section(out, "Clone: login + heartbeat", hbLines)
 
     local main = lines(logPath)
-    section(out, "ERROR / WARN terakhir (" .. logPath .. ")", tail(main, 60, isProblem))
+    section(out, "ERROR / WARN terakhir (" .. logPath .. ", yang sama digabung)",
+        Report.collapse(tail(main, 2000, isProblem), 40))
     section(out, "Crash Lua (data/crash.log)", tail(lines("data/crash.log"), 40))
     section(out, "Boot + update (data/boot.log)", tail(lines("data/boot.log"), 40))
     section(out, "Aktivitas terakhir (" .. logPath .. ")", tail(main, 80))
