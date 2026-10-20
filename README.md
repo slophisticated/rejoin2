@@ -71,6 +71,7 @@ opsional; mulai dari 15 FPS dan rendering 3D mati jika cocok untuk gamenya.
 | 12 | Antrean & Heartbeat: stabilisasi, cooldown, batas retry |
 | 13 | Start Monitor tanpa mengulang Launch All |
 | 14 | Input Key Delta (key yang didapat user, tanpa ditampilkan di terminal) |
+| 15 | Download dan install APK yang dipilih dari link folder GoFile |
 
 Ctrl+C menghentikan monitor. Untuk mencoba ulang clone yang ditahan, gunakan
 bot `/restart clones:<clone>` atau hentikan monitor dan pilih Menu 1. Main Menu 13
@@ -86,13 +87,22 @@ Bot opsional ada di [bot/README.md](bot/README.md); kontrak device di
 bot. Menu 8 memuat URL/secret bot dan tes koneksi; `/hwid redeem` menghubungkan device.
 Bot juga dapat menjadwalkan auto-logout per clone lewat `/alarm set` pada tanggal dan
 jam WIB, sekali atau setiap hari. Jadwal tersimpan di device dan dijalankan saat monitor aktif.
+Untuk banyak jadwal sekaligus, ekspor spreadsheet sebagai CSV lalu upload lewat
+`/alarm import`. Kolom wajib `DEVICE`, `USN`, `TANGGAL`, `JAM`; bot tampilkan preview
+dan perlu konfirmasi sebelum menerapkan. Baris `Delete` yang dicentang dilewati.
 Cookie akun yang kamu miliki juga bisa dikirim lewat `/cookie inject` dengan input
 privat, lalu pilih device dan clone. Monitor harus aktif dan antrean launch sedang kosong.
 Key Delta yang kamu dapatkan sendiri bisa dimasukkan lewat Menu 14 atau `/delta input-key`;
 bot memakai modal privat dan command sementara. Key ditulis ke path license yang
 dikonfigurasi atau dideteksi dari instalasi Delta; jika belum ditemukan, dipakai
-`/sdcard/delta/internal/cache/license`. Key tidak disimpan di config atau log. Setelah
-penyimpanan berhasil, semua clone diminta rejoin melalui antrean satu-per-satu.
+`/sdcard/Delta/Internals/Cache/license`. Key tidak disimpan di config atau log. Setelah
+ditulis, satu clone masuk antrean aktivasi supaya Delta memproses key. Clone lain baru
+lanjut setelah Delta membuat `.license` dan heartbeat siap; Rejoin tidak membuat file itu.
+Menu 15 memindai APK di link GoFile, menampilkan daftar bernomor, lalu menerima pilihan
+seperti `1-3` atau `1,3,5`. APK yang dipilih diunduh dan dipasang satu per satu; file
+unduhan dihapus setelah pemasangan sukses. Jika pemasangan gagal, file tetap ada di
+`/sdcard/Download/Rejoin`. Link dan APK harus kamu percaya. API
+GoFile dapat meminta token API; token diminta tersembunyi dan hanya dipakai sementara.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
 

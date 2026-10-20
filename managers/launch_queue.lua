@@ -53,7 +53,27 @@ function Queue:contains(pkg)
     return false
 end
 
-function Queue:request(instances, manual)
+function Queue:request(instances, manual, opts)
+    opts = opts or {}
+    local allowDeltaActivation = opts.deltaActivation == true
+    -- A key may be entered while Launch All is already held at the key gate. Reuse
+    -- that one active slot for activation instead of leaving the new request stranded.
+    if allowDeltaActivation and self.active then
+        local pkg = self.active.inst.package
+        self.attempts[pkg] = nil
+        self.active.started, self.active.samples, self.active.firstBeatTime, self.active.lastSeq = nil, nil, nil, nil
+        self.active.retryAt, self.active.manual = nil, true
+        self.active.deltaActivation, self.active.deltaActivationStarted = true, false
+        self:set(self.active, "queued")
+        allowDeltaActivation = false
+    end
+    if allowDeltaActivation then
+        for _, job in ipairs(self.pending) do
+            job.deltaActivation = true
+            allowDeltaActivation = false
+            break
+        end
+    end
     local ordered, later = {}, {}
     for _, inst in ipairs(instances or {}) do
         local target = self.auth.isLoggedIn(inst) == false and later or ordered
@@ -72,7 +92,11 @@ function Queue:request(instances, manual)
             end
             if not self:contains(pkg) then
                 if manual then self.attempts[pkg] = nil end
-                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true }
+                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true,
+                    deltaActivation = allowDeltaActivation }
+                -- Only the first clone may open to let Delta process a manually entered
+                -- key. The rest stay behind the normal accepted-license gate.
+                allowDeltaActivation = false
                 self.states[pkg] = "queued"
             end
         end
@@ -99,6 +123,14 @@ end
 function Queue:advance(job)
     local inst, now = job.inst, self.now()
     local process = self:process(inst)
+    local missingKey = self.hb.isEnabled() and self:keyStatus() == false
+    local activationLaunch = job.deltaActivation and not job.deltaActivationStarted
+    if missingKey and not activationLaunch then
+        job.keyWait = true
+        job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
+        self:set(job, "wait_key", "license Delta belum tervalidasi; menunggu .license")
+        return
+    end
     if self.auth.isLoggedIn(inst) == false then
         -- Logging out during a wait must never lead to a force-stop/rejoin.
         if process == nil then self:set(job, "needs_check", "proses tidak terbaca"); return end
@@ -116,13 +148,22 @@ function Queue:advance(job)
             job.emptyAt = now
         end
         job.emptyAt = job.emptyAt or now
+        if missingKey and activationLaunch then
+            -- Logged-out clones are opened gently; keep the shared slot here until
+            -- Delta completes validation instead of opening the remaining clones.
+            job.deltaActivationStarted = true
+            job.keyWait = true
+            self:set(job, "wait_key", "clone aktivasi dibuka; menunggu .license Delta")
+            return
+        end
         self:set(job, "nologin")
         if now - job.emptyAt >= (tonumber(self.conf.launchEmptyDelay) or 5) then self:finish(job, "nologin") end
         return
     end
 
     local alive, why = self.hb.alive(inst)
-    if self.hb.isEnabled() and self:keyStatus() == false and (alive ~= true or process ~= true) then
+    if self.hb.isEnabled() and self:keyStatus() == false and (alive ~= true or process ~= true)
+        and not (job.deltaActivation and not job.deltaActivationStarted) then
         job.keyWait = true
         job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
         self:set(job, "wait_key", "license tidak tersedia; perlu dicek/diisi manual")
@@ -158,6 +199,7 @@ function Queue:advance(job)
         self.attempts[inst.package] = attempt
         local ok, launched, err = pcall(self.recovery.launchAndJoin, inst)
         if not ok or not launched then self:retry(job, tostring(ok and err or launched)); return end
+        if job.deltaActivation then job.deltaActivationStarted = true end
         if (attempt.count > 1 or job.recovering) and self.onRecovery then
             pcall(self.onRecovery, inst.id)
         end

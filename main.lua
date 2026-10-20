@@ -219,7 +219,7 @@ local function prompt(msg)
 end
 
 while true do
-    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n 11) Preset Game\n 12) Antrean & Heartbeat\n 13) Start Monitor (tanpa launch)\n 14) Input Key Delta\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\nMain Menu:\n  1) Launch All + Monitor\n  2) Instances Manager\n  3) Settings\n  4) AutoExecute Manager\n  5) Inject Cookie\n  6) Auto-boot (Termux:Boot)\n  7) Uninstall yanamin\n  8) Discord Webhook\n  9) Jendela & Mode Hemat\n 10) Exit\n 11) Preset Game\n 12) Antrean & Heartbeat\n 13) Start Monitor (tanpa launch)\n 14) Input Key Delta\n 15) Download & Install APK (GoFile)\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "1" then
@@ -267,6 +267,8 @@ while true do
         require("managers.monitor").start(Config.get())
     elseif choice == "14" then
         require("core.delta_key_cli").run()
+    elseif choice == "15" then
+        require("core.gofile_apk_cli").run()
     elseif choice == "10" or choice == "0" then
         print("Exiting main")
         break

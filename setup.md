@@ -32,15 +32,25 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   maksimal 3 percobaan. Default runtime berlaku untuk config lama.
 - **Menu 14**: masukkan key Delta yang kamu dapatkan sendiri; key disembunyikan saat
   diketik dan disimpan ke file license Delta.
+- **Menu 15**: masukkan link folder GoFile, pilih APK dari daftar (contoh `1-3`), lalu
+  Rejoin mengunduh dan memasang pilihan satu per satu. File APK dihapus setelah
+  pemasangan sukses; jika gagal, file tetap di `/sdcard/Download/Rejoin`. Jika GoFile
+  meminta autentikasi, masukkan token API saat
+  diminta; token disembunyikan dan tidak disimpan. Instalasi dapat gagal jika signature
+  APK berbeda dari aplikasi yang sudah terpasang atau versi APK lebih lama.
 - **Menu 8**: webhook status, nama device, HWID/URL bot. Bot opsional; lihat
   [panduan bot](bot/README.md). Tes koneksi hanya memakai `/api/ping`.
 - Bot bisa menjadwalkan auto-logout per clone lewat `/alarm set` dengan tanggal dan
   waktu WIB. Monitor device harus aktif saat alarm berjalan.
+- Untuk jadwal massal, ekspor spreadsheet sebagai CSV dan upload lewat `/alarm import`.
+  Isi `DEVICE`, `USN`, `TANGGAL`, `JAM`; cek file preview dan konfirmasi. Jadwal lama
+  ditandai akan diganti, dan baris yang Delete-nya dicentang dilewati.
 - Bot juga mendukung `/cookie inject` untuk satu clone. Masukkan cookie milikmu lewat
   modal privat; device harus online dan monitor aktif.
 - `/delta input-key` membuka modal privat untuk key Delta yang kamu dapatkan sendiri.
   Key dikirim sekali ke device online dan tidak disimpan bot; device menulisnya ke file
-  license Delta lalu mengantrekan rejoin semua clone satu-per-satu.
+  `license`, lalu membuka satu clone untuk aktivasi. Clone lain menunggu Delta membuat
+  `.license` setelah validasi resmi berhasil; file `.license` tidak dibuat Rejoin.
 - Force-stop saat logout, inject cookie, atau recovery menyasar package clone pada user
   Android aktif. Pastikan satu package hanya dipakai satu instance; Rejoin membatalkan
   force-stop jika package terdaftar ganda.
@@ -82,7 +92,7 @@ kill $(cat /sdcard/yanamin/data/monitor.pid)
 
 | Gejala | Pemeriksaan |
 |---|---|
-| Menunggu key | Periksa license Delta; isi `deltaLicensePath` bila autodetect belum tahu lokasinya |
+| Menunggu key | Pastikan file `license` dan `.license` Delta tersedia; isi `deltaLicensePath` bila lokasi license berbeda |
 | Cek username | Pastikan akun terbaca dan username tidak dipakai dua package |
 | Perlu dicek | Selesaikan loading/menu/get key; heartbeat siap bisa melanjutkan sendiri |
 | Clone terakhir sering FC | Kurangi clone serentak yang menetap, coba mode hemat; batas fisik RAM tetap berlaku |

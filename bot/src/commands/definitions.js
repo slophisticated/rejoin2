@@ -37,6 +37,7 @@ export const routes = {
   'alarm set': route('Jadwalkan logout clone pada tanggal dan waktu WIB.', [clone, s('date', true), s('time', true), b('daily')]),
   'alarm remove': route('Hapus jadwal logout clone.', [clone]),
   'alarm list': route('Lihat jadwal logout clone.'),
+  'alarm import': { description: 'Impor banyak alarm logout dari file CSV dan tinjau sebelum diterapkan.', options: [{ name: 'file', kind: 'Attachment', required: true, description: 'CSV dengan kolom DEVICE, USN, TANGGAL, JAM; maksimal 200 KB.' }] },
   restart: route('Rejoin clone pilihan, atau all untuk Launch All.', [s('clones', true, true)]),
   screenshot: route('Ambil screenshot layar device saat ini.', [], { all: true }),
   'config get': route('Lihat nilai setting dari schema device.', [s('key', false, true)]),
@@ -68,6 +69,7 @@ const descriptions = {
   date: 'Tanggal DD/MM atau DD/MM/YYYY; tanpa tahun memilih tanggal mendatang.',
   time: 'Waktu WIB format HH:MM, misalnya 12:00.', daily: 'Ulang setiap hari setelah tanggal ini? Default false = sekali.',
   file: 'Attachment teks .lua atau .txt, maksimal 200 KB.', code: 'Isi script pendek; jangan diisi bersama file atau url.',
+  csv: 'CSV hasil ekspor spreadsheet; kolom wajib DEVICE, USN, TANGGAL, JAM.',
   message_link: 'Link pesan status Discord lama atau ID pesan.',
   hwid: 'HWID dari Termux (Menu 9 / akhir installer), hex 16–64 karakter.',
 };
@@ -75,7 +77,7 @@ const descriptions = {
 function addOptions(builder, options) {
   for (const option of [...options].sort((a, z) => Number(Boolean(z.required)) - Number(Boolean(a.required)))) {
     builder[`add${option.kind}Option`](input => {
-      input.setName(option.name).setDescription(descriptions[option.name] || `Atur ${option.name}.`).setRequired(Boolean(option.required));
+      input.setName(option.name).setDescription(option.description || descriptions[option.name] || `Atur ${option.name}.`).setRequired(Boolean(option.required));
       if (option.autocomplete) input.setAutocomplete(true);
       if (option.kind === 'String') input.setMaxLength(option.name === 'code' || option.name === 'clones' ? 4000 : 300);
       return input;

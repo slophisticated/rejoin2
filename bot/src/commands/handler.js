@@ -4,6 +4,7 @@ import { routes, interactionPath, interactionValues } from './definitions.js';
 import { autocomplete } from './autocomplete.js';
 import { planDevice, selectDevices } from './planner.js';
 import { downloadScript, present, setting } from './validate.js';
+import { alarmImportReport, downloadAlarmCsv, parseAlarmCsv, resolveAlarmRows } from './alarm_import.js';
 import { renameTarget } from '../store.js';
 import { chunks, deviceLines, escape, localLines, mentions, statusPages } from '../format.js';
 
@@ -52,6 +53,7 @@ export class Handler {
         if ([values.file, values.url, values.code].filter(present).length !== 1) throw new Error('Isi tepat satu: file, url, atau code.');
         if (values.file) values.content = await downloadScript(values.file, this.fetcher);
       }
+      if (path === 'alarm import') return await this.previewAlarmImport(i, values, view);
       if (routes[path].confirm) {
         // Freeze the chosen clone ID and device list, rather than resolving a new target on confirmation.
         if (path === 'clone remove') values.clone = String(planDevice(path, values, devices[0])[0].args.clone);
@@ -126,6 +128,62 @@ export class Handler {
     await i.showModal(modal);
   }
 
+  async previewAlarmImport(i, values, view) {
+    const csv = await downloadAlarmCsv(values.file, this.fetcher);
+    const rows = resolveAlarmRows(parseAlarmCsv(csv), view.devices, this.now());
+    const ready = rows.filter(row => row.status === 'ready');
+    const skipped = rows.filter(row => row.status === 'skipped').length;
+    const invalid = rows.filter(row => row.status === 'invalid').length;
+    const replacements = ready.filter(row => row.previousAlarm).length;
+    const id = randomUUID();
+    if (ready.length) {
+      this.sessions.set(id, { kind: 'alarm_import', owner: i.user.id, expires: this.now() + 60_000,
+        account: this.accounts.get(i.user.id), rows: ready });
+    }
+    const summary = [
+      `📅 **Preview import alarm logout**`,
+      `Siap diterapkan: **${ready.length}** · baris bermasalah: **${invalid}** · Delete dicentang/dilewati: **${skipped}**`,
+      replacements ? `⚠️ ${replacements} alarm lama akan diganti setelah konfirmasi.` : '',
+      ready.length ? 'Lampirkan preview CSV untuk memeriksa pemetaan device, USN, tanggal, dan jam.' : 'Tidak ada baris valid untuk diterapkan.',
+      invalid ? 'Perbaiki baris bermasalah lalu upload ulang; baris tersebut tidak akan dijadwalkan.' : '',
+    ].filter(Boolean).join('\n');
+    const components = ready.length ? [new ActionRowBuilder().addComponents(
+      button(`alarmapply:${id}`, `${replacements ? 'Ganti & terapkan' : 'Terapkan'} ${ready.length} alarm`, ButtonStyle.Danger),
+      button(`alarmcancel:${id}`, 'Batal'))] : [];
+    await i.editReply({ content: summary, files: [{ attachment: alarmImportReport(rows), name: 'alarm-import-preview.csv' }], components, allowedMentions: mentions });
+  }
+
+  async applyAlarmImport(i, session) {
+    const account = this.accounts.get(i.user.id);
+    const items = [];
+    const applicable = [];
+    for (const row of session.rows) {
+      const device = this.store.devices.get(row.deviceKey);
+      const instance = device?.snapshot.instances.find(item => String(item.id) === String(row.cloneId));
+      const label = `baris ${row.rowNumber} · ${row.deviceName}/${row.cloneName}`;
+      let error = '';
+      if (!device || device.account !== account || device.account !== session.account) error = 'Device berubah atau tidak lagi tersedia.';
+      else if (!instance || String(instance.username || '').trim().toLocaleLowerCase() !== row.username.toLocaleLowerCase()) error = 'USN/clone berubah sejak preview.';
+      else if (JSON.stringify(instance.logoutAlarm || null) !== JSON.stringify(row.previousAlarm || null)) error = 'Alarm clone berubah sejak preview; upload ulang untuk meninjau perubahan.';
+      if (error) items.push({ device: label, error });
+      else applicable.push({ row, device, label });
+    }
+    for (const { row, device, label } of applicable) {
+      try {
+        const command = this.store.enqueue(device.key, 'logout_alarm_set', {
+          clone: row.cloneId, date: row.date, time: row.time, daily: row.daily === true,
+        });
+        items.push({ command, interval: Number(setting(device, 'remote.interval')?.value) || 30,
+          offline: !this.store.online(device), label });
+      } catch (e) { items.push({ device: label, error: e.message || 'Gagal memasukkan command ke antrean.' }); }
+    }
+    if (!items.some(item => item.command)) {
+      return await i.editReply({ content: `Tidak ada alarm yang dikirim.\n${items.map(item => `❌ ${escape(item.device)}: ${escape(item.error)}`).join('\n')}`.slice(0, 1800), components: [], allowedMentions: mentions });
+    }
+    const group = this.replies.create(i, items);
+    await group.chain;
+  }
+
   async deltaKeyModal(i, id) {
     const session = this.sessions.get(id);
     if (!session || session.kind !== 'delta_key' || session.owner !== i.user.id || session.expires <= this.now()) {
@@ -196,6 +254,13 @@ export class Handler {
     const session = this.sessions.get(id);
     if (!session || session.owner !== i.user.id || session.expires <= this.now()) {
       return await i.reply({ content: '⌛ Tombol kedaluwarsa atau bukan milikmu. Jalankan command lagi.', flags: MessageFlags.Ephemeral });
+    }
+    if (session.kind === 'alarm_import') {
+      if (!['alarmapply', 'alarmcancel'].includes(action)) throw new Error('Tombol import alarm tidak valid.');
+      this.sessions.delete(id);
+      await i.deferUpdate();
+      if (action === 'alarmcancel') return await i.editReply({ content: 'Import alarm dibatalkan; tidak ada jadwal yang diubah.', components: [], allowedMentions: mentions });
+      return await this.applyAlarmImport(i, session);
     }
     if (session.kind === 'confirm') {
       if (!['confirm', 'cancel'].includes(action)) throw new Error('Tombol tidak valid.');

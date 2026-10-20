@@ -396,8 +396,9 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/clone remove` | `clone`, `device?` | `instance_remove` (pakai tombol konfirmasi dulu) |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; hanya satu clone dan device harus online |
-| `/delta input-key` | `device` | Modal ephemeral meminta key yang user dapatkan sendiri; `delta_key_input` dikirim satu kali dan tidak dipersist/log oleh bot, device menulis ke path license yang dikonfigurasi/dideteksi (fallback `/sdcard/delta/internal/cache/license`) lalu meminta rejoin semua clone melalui antrean |
+| `/delta input-key` | `device` | Modal ephemeral meminta key yang user dapatkan sendiri; `delta_key_input` dikirim satu kali dan tidak dipersist/log oleh bot. Device menulis ke path `license` yang dikonfigurasi/dideteksi (fallback `/sdcard/Delta/Internals/Cache/license`), membuka satu clone untuk aktivasi, lalu menahan clone berikutnya sampai Delta membuat `.license` dan heartbeat siap. `.license` hanya dibuat Delta setelah validasi resmi. |
 | `/alarm set` | `device`, `clone`, `date` (`DD/MM` atau `DD/MM/YYYY`), `time` (`HH:MM` WIB), `daily?` | `logout_alarm_set`; tanggal tanpa tahun memilih kejadian berikutnya, `daily` default false |
+| `/alarm import` | `file` (CSV, maks. 200 KB/100 baris) | Header wajib `DEVICE`, `USN`, `TANGGAL`, `JAM`; alias umum `device name`, `username`, `date`, `time` juga diterima. `DEVICE` harus sama dengan nama device atau label `webhook.deviceName`; `USN` harus cocok unik ke username clone pada snapshot. Tanggal menerima `DD/MM[/YYYY]` atau `20-Oct[-YYYY]`, jam `H:MM`/`HH:MM` WIB. `Delete` dicentang → baris dilewati; `daily` opsional. Bot menampilkan preview CSV ephemeral dan tombol konfirmasi; alarm lama yang terganti ditandai. Maksimal 100 baris. |
 | `/alarm list` | `device?` | Dari snapshot per clone |
 | `/alarm remove` | `device`, `clone` | `logout_alarm_remove` |
 | `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
