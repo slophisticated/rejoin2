@@ -90,6 +90,7 @@ export function planDevice(path, v, device) {
       return refs === 'all' ? cmd('launch_all') : cmd('restart', { clones: refs });
     }
     case 'screenshot': return cmd('screenshot');
+    case 'report': return cmd('report');
     case 'config set': return [set(v.key, v.value)];
     case 'webhook set': return [set('webhook.url', v.url)];
     case 'webhook test': return cmd('webhook_test');

@@ -288,6 +288,7 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `game` | `{preset, clones?: [..] \| "all", rejoin?: bool=true}` | Tanpa `clones` / `"all"`: preset itu jadi default **dan semua clone ikut default** (preset khusus dilepas). Dengan `clones`: clone itu dapat preset **khusus**. Rejoin berurutan |
 | `set_preset` | sama dengan `game` | alias |
 | `restart` | `{clone}` atau `{clones:[..] \| "A,B"}` | Rejoin clone itu (berurutan). `clones` boleh array atau teks dipisah koma |
+| `report` | `{}` | Report error Menu 4 (info device, login + heartbeat per clone, error/warn + aktivitas semua log; rahasia disensor) → ack `data:{name, content}`, bot lampirin sebagai file `.txt` |
 | `screenshot` | `{}` | Device `screencap` layar penuh → `POST /api/upload/<id>` → ack `data:{uploaded:true, bytes}` |
 | `launch_all` | `{}` | Rejoin semua (login duluan, satu per satu) |
 | `preset_set` | `{key, name, link, rejoin?: bool}` | Tambah/ubah preset. `key` `^[A-Za-z0-9_]{1,16}$` (bukan `default`); `link` harus `https://*roblox.com/...` atau `roblox://...`. Preset pertama otomatis jadi default. `rejoin:true` → clone pemakai preset di-rejoin |
@@ -398,6 +399,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; satu clone, device harus online |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
+| `/report` | `device?` | `report` → file report error dari device (sama kayak Menu 4, rahasia disensor) |
 | `/screenshot` | `device?` (bisa `all`) | `screenshot` → gambar layar cloud phone di balasan ephemeral (≤10 gambar per balasan untuk `all`; lebih → follow-up ephemeral) |
 
 **Opsi `clones` (pilih banyak clone):** opsi teks dengan autocomplete yang mendukung

@@ -2,6 +2,9 @@
 
 ## Unreleased / Bug fixes
 
+- **Logout beneran tuntas**: Menu `7` → `4`, `/clone logout`, dan alarm logout sekarang **matiin session di server Roblox** dulu (`auth.roblox.com/v2/logout` pake cookie clone itu, sama kayak tombol Log Out di app), baru hapus cookie lokal. Token (termasuk yang ada di backup `.bak-`) langsung ga berlaku, jadi verifikasi login rejoin langsung bilang logout. Token cuma lewat file header sementara (0600), ga pernah di command line atau log. Kalau Roblox ga ngerespon, cookie lokal tetep dihapus dan pesannya bilang session server belum dimatiin.
+- **Bot: `/report`**: report error device (sama kayak Menu `4`) dikirim ke Discord sebagai file `.txt`, rahasia disensor. Report sekarang juga punya bagian **login + heartbeat tiap clone** (state, umur, sesi ini atau lama, alasan kick), buat ngelacak disconnect yang ga ke-rejoin.
+
 - **Fix clone yang udah logout tetep dibuka ke link game** (stuck loading): Launch All / rejoin dari antrean manggil `launchAndJoin` buat semua clone, dan status login baru dicek *setelah* clone di-force-stop terus dibuka pake link game. Sekarang `launchAndJoin` ngecek login duluan, dan cek-nya **seger** (cache dilewatin, Roblox ditanya ulang kecuali <20 detik lalu / cookie baru di-inject). Jadi akun yang baru di-logout semenit lalu juga ketauan. Belum login: kalau kebuka dibiarin di layar login, kalau ketutup dibuka pelan tanpa link, **ga pernah di-force-stop**.
 
 - **Launch All ga lagi "kebuka semua barengan"**:

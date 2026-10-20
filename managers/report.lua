@@ -113,6 +113,30 @@ function Report.build()
             tostring(inst.preset or "default"))
     end
 
+    -- Per clone: login, heartbeat (state, age, from this launch?) and username, so a
+    -- kick that was not rejoined can be traced.
+    local okH, Heartbeat = pcall(require, "managers.heartbeat")
+    local okA, Auth = pcall(require, "managers.auth")
+    local okU, Username = pcall(require, "managers.username")
+    local hbLines = {}
+    for _, inst in ipairs(clones) do
+        local login = okA and select(2, pcall(Auth.isLoggedIn, inst))
+        local user = okU and select(2, pcall(Username.get, inst))
+        local okR, hbr = false, nil
+        if okH then okR, hbr = pcall(Heartbeat.read, inst) end
+        local hbText = "tidak ada"
+        if okR and type(hbr) == "table" then
+            hbText = string.format("state=%s umur=%ss %s%s%s", tostring(hbr.state), tostring(hbr.age),
+                hbr.fresh and "seger" or "basi", hbr.current and " sesi-ini" or " sesi-lama",
+                (hbr.reason and hbr.reason ~= "") and (" reason=" .. tostring(hbr.reason)) or "")
+        end
+        local at = okH and Heartbeat.launchedAt and Heartbeat.launchedAt(inst)
+        hbLines[#hbLines + 1] = string.format("%s · login=%s · user=%s · heartbeat %s · dibuka %s",
+            tostring(inst.name or inst.id), tostring(login), tostring(user), hbText,
+            at and (os.time() - at .. "s lalu") or "-")
+    end
+    section(out, "Clone: login + heartbeat", hbLines)
+
     local main = lines(logPath)
     section(out, "ERROR / WARN terakhir (" .. logPath .. ")", tail(main, 60, isProblem))
     section(out, "Crash Lua (data/crash.log)", tail(lines("data/crash.log"), 40))

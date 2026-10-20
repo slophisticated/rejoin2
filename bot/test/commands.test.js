@@ -74,7 +74,7 @@ test('all shortcut options map to individual dynamic-schema config_set commands'
 
 test('registration covers every route, valid Discord option ordering and device contract handler names', async () => {
   const definitions = commandDefinitions();
-  assert.equal(definitions.length, 21);
+  assert.equal(definitions.length, 22);
   const seen = [];
   for (const root of definitions) {
     for (const leaf of root.options?.some(o => o.type === 1) ? root.options : [{ ...root, name: null }]) {
@@ -379,4 +379,9 @@ test('overview lists every device with clones, their presets, preset list and sc
   await h.handler.handle(one);
   assert.doesNotMatch(one.edits.map(e => e.content).join('\n'), /RF-07/);
   h.replies.close();
+});
+
+test('/report queues one report command for the chosen device', () => {
+  const h = harness();
+  assert.deepEqual(planDevice('report', {}, h.device()), [{ type: 'report', args: {} }]);
 });

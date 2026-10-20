@@ -430,6 +430,41 @@ end
 -- DB, then delete its `.ROBLOSECURITY` rows. The session is not revoked at Roblox, so
 -- the same cookie can be injected again later. Only a logged-in clone is stopped (a
 -- force-stopped empty clone makes the other clones FC). Returns (ok, message).
+-- Ask Roblox to end the session behind `token` (the official logout: POST
+-- auth.roblox.com/v2/logout, once for the CSRF token, then for real), so the cookie and
+-- any backup of it stop working everywhere. curl runs as the Termux user; the token
+-- only sits in a private temp header file, never on a command line or in the log.
+-- Returns true (ended / already invalid), or false + reason.
+function CookieInjector.revokeSession(token)
+    if type(token) ~= "string" or #token < 20 or token:find("[%s'\"\\]") then return false, "token tidak terbaca" end
+    local dir = os.getenv("TMPDIR") or "/data/data/com.termux/files/usr/tmp"
+    local stamp = os.time() .. "_" .. math.random(100000, 999999)
+    local req, resp = dir .. "/rejoin_logout_req_" .. stamp, dir .. "/rejoin_logout_resp_" .. stamp
+    os.execute("umask 077; : > " .. quote(req) .. " 2>/dev/null")
+    local function post(csrf)
+        local f = io.open(req, "w")
+        if not f then return nil end
+        f:write("Cookie: .ROBLOSECURITY=", token, "\n")
+        if csrf then f:write("X-CSRF-TOKEN: ", csrf, "\n") end
+        f:close()
+        local p = io.popen("curl -s --max-time 15 -X POST -d '' -H @" .. quote(req) .. " -D " .. quote(resp)
+            .. " -o /dev/null -w '%{http_code}' https://auth.roblox.com/v2/logout </dev/null 2>/dev/null")
+        local code = p and tonumber(p:read("*a")) or nil
+        if p then p:close() end
+        local headers = io.open(resp, "r")
+        local text = headers and headers:read("*a") or ""
+        if headers then headers:close() end
+        return code, text:match("[Xx]%-[Cc][Ss][Rr][Ff]%-[Tt][Oo][Kk][Ee][Nn]:%s*([^\r\n]+)")
+    end
+    local code, csrf = post(nil)
+    if code == 403 and csrf then code = post(csrf) end
+    os.remove(req)
+    os.remove(resp)
+    if code == 200 then return true, "session Roblox dimatiin" end
+    if code == 401 then return true, "session Roblox udah ga berlaku" end
+    return false, "Roblox ga ngerespon logout (HTTP " .. tostring(code or "gagal") .. ")"
+end
+
 function CookieInjector.logout(instance)
     local pkg = instance and instance.package
     if not pkg then return false, "Instance tidak punya package" end
@@ -460,6 +495,20 @@ function CookieInjector.logout(instance)
     local stopped, stopErr = APK.forceStop(pkg)
     if not stopped then return false, "clone tidak bisa ditutup dengan aman; cookie tidak diubah: " .. tostring(stopErr) end
     Timer.sleep(1)
+    -- End the session at Roblox first (the backup below keeps the cookie, and the app
+    -- may hold its login elsewhere): once revoked, no copy of the token works.
+    local token
+    for _, db in ipairs(dbs) do
+        local out = exec(string.format(
+            "%s %s \"SELECT value FROM cookies WHERE name='.ROBLOSECURITY' AND length(value) > 0 ORDER BY last_access_utc DESC LIMIT 1;\"",
+            runner, quote(db)))
+        token = out and out:match("^%s*(.-)%s*$")
+        if token and #token >= 20 then break end
+        token = nil
+    end
+    local okRevoke, revoked, revokeMsg = pcall(CookieInjector.revokeSession, token)
+    if not okRevoke then revoked, revokeMsg = false, "error internal" end
+    token = nil
     local stamp = os.date("%Y%m%d-%H%M%S")
     local failures = {}
     for _, db in ipairs(dbs) do
@@ -477,8 +526,10 @@ function CookieInjector.logout(instance)
         Logger.warn("CookieInjector: logout " .. pkg .. " sebagian gagal: " .. table.concat(failures, "; "))
         return false, "Logout gagal sebagian: " .. table.concat(failures, "; ")
     end
-    Logger.info("CookieInjector: logout " .. pkg .. " (" .. rows .. " cookie dihapus, backup ." .. "bak-" .. stamp .. ")")
-    return true, "logout, app ditutup. Login lagi lewat app atau Inject Cookie."
+    Logger.info("CookieInjector: logout " .. pkg .. " (" .. rows .. " cookie dihapus, backup ." .. "bak-" .. stamp .. "; "
+        .. tostring(revokeMsg) .. ")")
+    return true, "logout, app ditutup" .. (revoked and (", " .. revokeMsg) or ("; " .. tostring(revokeMsg)
+        .. ", cookie lokal tetep dihapus")) .. ". Login lagi lewat app atau Inject Cookie."
 end
 
 -- Debug: dump every cookie row of EVERY Cookies DB under the instance. The

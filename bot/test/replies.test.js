@@ -91,3 +91,14 @@ test('transient Discord edit failure retries without another ACK', async () => {
   h.advance(30_000); replies.tick(); await second.chain;
   assert.match(j.edits.at(-1).content, /✅/); replies.close();
 });
+
+test('/report: the device report arrives as a text file', async () => {
+  const h = harness(); const replies = new Replies({ store: h.store, now: h.now });
+  const i = interaction(); const c = h.store.enqueue('RF-07', 'report');
+  const g = replies.create(i, [{ command: c, interval: 30 }]); h.advance(4000); h.store.sync(snapshot());
+  h.store.ack(ack(c, { message: 'report terlampir', data: { name: 'rejoin-report-RF-07.txt', content: '===== Rejoin report =====' } }));
+  await g.chain;
+  assert.equal(i.edits.at(-1).files[0].name, 'rejoin-report-RF-07.txt');
+  assert.match(i.edits.at(-1).files[0].attachment.toString(), /Rejoin report/);
+  replies.close();
+});

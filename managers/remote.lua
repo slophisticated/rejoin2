@@ -486,6 +486,18 @@ function H.cookie_inject(args, ctx)
 end
 
 -- Scheduled logout (managers/logout_alarm.lua), one clone at a time.
+-- The error report of Main Menu 4 (secrets masked), sent to Discord as a file.
+function H.report()
+    local Report = require("managers.report")
+    local okB, text = pcall(Report.build)
+    if not okB then return false, "report gagal dibuat: " .. tostring(text) end
+    pcall(function() require("utils.file").write("data/report.txt", text) end)
+    local okW, Webhook = pcall(require, "managers.webhook")
+    local label = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "device"
+    return true, "report terlampir (rahasia disensor)",
+        { name = "rejoin-report-" .. tostring(label):gsub("[^%w%-_]", "_") .. ".txt", content = text }
+end
+
 -- A key the user got from Delta themselves. Never fetch or derive keys here. The
 -- clones then reopen one by one (monitor queue) so Delta reads the new key.
 function H.delta_key_input(args, ctx)

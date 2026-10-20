@@ -11,7 +11,7 @@ export class Replies {
     this.onResult = (c, result) => {
       const entry = this.byCommand.get(c.id);
       if (!entry) { this.log('ack_received_no_active_interaction'); return; }
-      entry.item.result = { ...result, data: c.type === 'script_get' ? result.data : undefined };
+      entry.item.result = { ...result, data: ['script_get', 'report'].includes(c.type) ? result.data : undefined };
       entry.item.fileReadyAt = this.now();
       entry.group.revision++;
       this.byCommand.delete(c.id);
@@ -54,7 +54,7 @@ export class Replies {
       if (item.command.type === 'screenshot' && item.result.buffer) {
         attachment = item.result.buffer;
         name = `screenshot-${safeName(item.command.name || item.command.device)}.png`;
-      } else if (item.command.type === 'script_get' && typeof item.result.data?.content === 'string') {
+      } else if (['script_get', 'report'].includes(item.command.type) && typeof item.result.data?.content === 'string') {
         attachment = Buffer.from(item.result.data.content);
         name = safeName(item.result.data.name || item.command.args.name);
       }

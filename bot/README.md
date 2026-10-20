@@ -163,6 +163,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/alarm import file:<csv>` | Banyak alarm sekaligus dari CSV (kolom `DEVICE, USN, TANGGAL, JAM`, opsional `DAILY, NOTES, ORDER ID, Delete`; contoh `docs/alarm_import_template.csv`). Bot kirim preview + CSV hasil cek, baru diterapin setelah tombol Terapkan |
 | `/restart clones:"Clone1,Clone3"` | Rejoin pilihan; `clones:all` = Launch All |
 | `/screenshot` | Gambar layar cloud phone sekarang |
+| `/report` | Report error device sebagai file (semua log + status login/heartbeat tiap clone, rahasia disensor). Ga perlu buka Termux |
 | `/config get/set` | Setting dari schema snapshot device |
 | `/webhook set/options/test` | URL, interval, screenshot, notif key, hide names, tes |
 | `/device rename/replace` | Ganti nama / teruskan pesan status lama |

@@ -641,5 +641,39 @@ test("a logged-out clone is never force-stopped or sent to the game link", funct
     assert(calls:find("forceStop", 1, true) and calls:find("openURL", 1, true), "logged in still joins: " .. calls)
 end)
 
+test("logout ends the Roblox session (CSRF round) without the token on a command line", function()
+    local env = sandbox()
+    local files, cmds, step = {}, {}, 0
+    env.io.open = function(path, mode)
+        if mode == "w" then
+            files[path] = ""
+            return { write = function(self, ...) for _, v in ipairs({ ... }) do files[path] = files[path] .. v end; return self end,
+                close = noop }
+        end
+        if not files[path] then return nil end
+        return { read = function() return files[path] end, close = noop }
+    end
+    env.os.remove = function(path) files[path] = nil end
+    local sentCsrf
+    env.io.popen = function(cmd)
+        cmds[#cmds + 1] = cmd
+        step = step + 1
+        local req = cmd:match("%-H @'([^']+)'")
+        local resp = cmd:match("%-D '([^']+)'")
+        sentCsrf = files[req] and files[req]:match("X%-CSRF%-TOKEN: (%S+)")
+        if step == 1 then files[resp] = "HTTP/2 403\r\nx-csrf-token: abc123\r\n"; return { read = function() return "403" end, close = noop } end
+        files[resp] = "HTTP/2 200\r\n"
+        return { read = function() return "200" end, close = noop }
+    end
+    for _, m in ipairs({ "managers.auth", "managers.apk", "utils.shell", "utils.timer" }) do env.package.preload[m] = dummy end
+    local CI = env.require("managers.cookie_injector")
+    local token = "_|WARNING:-DO-NOT-SHARE-THIS.--x|_TOKENVALUE1234567890"
+    local ok, msg = CI.revokeSession(token)
+    assert(ok and msg:find("dimatiin", 1, true), tostring(msg))
+    assert(#cmds == 2 and sentCsrf == "abc123", "csrf round")
+    for _, c in ipairs(cmds) do assert(not c:find("TOKENVALUE", 1, true), "token on the command line") end
+    for path in pairs(files) do assert(not path:find("rejoin_logout", 1, true), "temp file left: " .. path) end
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
