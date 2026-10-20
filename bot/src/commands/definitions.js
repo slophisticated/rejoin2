@@ -43,7 +43,7 @@ export const routes = {
     { name: 'file', kind: 'Attachment', required: true, description: 'CSV kolom DEVICE, USN, TANGGAL, JAM (opsional DAILY, NOTES, Delete); maks 200 KB.' }] },
   restart: route('Rejoin clone pilihan, atau all untuk Launch All.', [s('clones', true, true)]),
   screenshot: route('Ambil screenshot layar device saat ini.', [], { all: true }),
-  report: route('Ambil report error device (semua log, rahasia disensor) sebagai file.'),
+  report: route('Ambil report error device (semua log, rahasia disensor) sebagai file; all = semua device.', [], { all: true }),
   'config get': route('Lihat nilai setting dari schema device.', [s('key', false, true)]),
   'config set': route('Ubah satu setting yang diizinkan device.', [key, s('value', true)], { all: true }),
   'webhook set': route('Atur URL webhook; tidak ditampilkan ulang.', [s('url', true)], { all: true }),

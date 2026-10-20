@@ -385,3 +385,18 @@ test('/report queues one report command for the chosen device', () => {
   const h = harness();
   assert.deepEqual(planDevice('report', {}, h.device()), [{ type: 'report', args: {} }]);
 });
+
+test('/report device:all asks every device and attaches one file each', async () => {
+  const h = handlerHarness(); h.store.sync(snapshot('RF-08'));
+  const i = interaction('report', { device: 'all' });
+  await h.handler.handle(i);
+  const cmds = [...h.store.commands.values()];
+  assert.deepEqual(cmds.map(c => [c.name, c.type]).sort(), [['RF-07', 'report'], ['RF-08', 'report']]);
+  h.advance(4000);
+  for (const name of ['RF-07', 'RF-08']) h.store.sync(snapshot(name));
+  for (const c of cmds) h.store.ack(ack(c, { device: c.name, message: 'report terlampir', data: { name: `rejoin-report-${c.name}.txt`, content: `report ${c.name}` } }));
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const files = [...i.edits, ...(i.follows || [])].flatMap(e => e.files || []).map(f => f.name).sort();
+  assert.deepEqual([...new Set(files)], ['rejoin-report-RF-07.txt', 'rejoin-report-RF-08.txt']);
+  h.replies.close();
+});

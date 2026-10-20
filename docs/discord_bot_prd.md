@@ -399,7 +399,7 @@ relevan). Kosong + cuma 1 device dikenal → otomatis device itu; >1 device → 
 | `/cookie inject` | `device`, `clone` | Modal ephemeral meminta cookie, lalu `cookie_inject`; satu clone, device harus online |
 | `/clone logout` | `device`, `clones` (tanpa `all`) | `logout` (pakai tombol konfirmasi dulu) |
 | `/restart` | `clones` (atau `all`), `device?` | `restart` clones=[...] / `launch_all` |
-| `/report` | `device?` | `report` → file report error dari device (sama kayak Menu 4, rahasia disensor) |
+| `/report` | `device?` (bisa `all`) | `report` → file report error dari device (1 file per device untuk `all`) (sama kayak Menu 4, rahasia disensor) |
 | `/screenshot` | `device?` (bisa `all`) | `screenshot` → gambar layar cloud phone di balasan ephemeral (≤10 gambar per balasan untuk `all`; lebih → follow-up ephemeral) |
 
 **Opsi `clones` (pilih banyak clone):** opsi teks dengan autocomplete yang mendukung
