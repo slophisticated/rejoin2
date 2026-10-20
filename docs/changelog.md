@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Executor selain Delta**: kalau folder `appAutoExecutePath` (default `/sdcard/Delta/Autoexecute`) ga ada, rejoin nyari folder autoexec executor lain di `/sdcard` (`Autoexecute`, `autoexec`, `auto-exec`, …). Ketemu satu: dipake dan disimpen ke config. Ketemu beberapa: pilih di Menu `10` → `10` (atau ketik path sendiri). Heartbeat (Workspace), Scripts, dan Autoexecute ikut folder executor itu (`managers/executor.lua`).
+
 - **Bot: `/device remove`**: device yang udah ga dipake (mis. abis replace cloud phone) bisa dihapus dari `/devices` pakai konfirmasi. Cuma device **offline** milik akun sendiri; command yang masih nyangkut ikut dibatalkan. Device yang sync lagi muncul lagi otomatis. Perlu deploy ulang bot.
 
 - **Port dari versi publish (Apeng, commit "Write Delta Key")**:

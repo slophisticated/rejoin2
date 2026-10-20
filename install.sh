@@ -178,11 +178,12 @@ case "$PM" in
     OK:*) ok "preset game: ${PM#OK: }" ;;
 esac
 
-# Heartbeat script into the Delta autoexecute folder (status from inside the game).
+# Heartbeat script into the executor's autoexecute folder (status from inside the game).
+# Delta by default; another executor's autoexec folder on /sdcard is found automatically.
 HB=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --install-heartbeat </dev/null 2>/dev/null | tail -1)
 case "$HB" in
-    OK:*) ok "script heartbeat Delta: ${HB#OK: }" ;;
-    *)    warn "script heartbeat Delta belum terpasang (${HB:-tidak ada output}). Cek appAutoExecutePath / izin storage (termux-setup-storage)." ;;
+    OK:*) ok "script heartbeat: ${HB#OK: }" ;;
+    *)    warn "script heartbeat belum terpasang (${HB:-tidak ada output}). Buka executor sekali, lalu pilih di Menu 10 -> 10 (executor) / cek izin storage (termux-setup-storage)." ;;
 esac
 
 # ---------------------------------------------------------------------------

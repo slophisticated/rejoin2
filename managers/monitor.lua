@@ -372,7 +372,7 @@ local function launchInOrder(conf, only)
             if hbWorking and active and running and not sawHeartbeat then
                 hbMisses = hbMisses + 1
                 hbWorking = hbMisses < 2
-                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (Delta belum key / script tidak jalan?)%s",
+                Logger.warn(string.format("Monitor: %s: heartbeat tidak muncul dalam %ds (executor belum key / script tidak jalan?)%s",
                     name, joinTimeout, hbWorking and "; clone berikutnya tetap ditunggu"
                         or string.format("; 2 clone berturut-turut, sisa clone pakai jeda launchSettleDelay %ds", settle)))
             elseif hbEnabled and sawHeartbeat then

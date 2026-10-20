@@ -106,6 +106,9 @@ end
 -- Install (or refresh) the script in the autoexecute folder; remove it when disabled.
 -- Returns ok, message.
 function Heartbeat.install()
+    -- Another executor than Delta (or Delta not installed): find its autoexec folder.
+    local okE, _, changed = pcall(function() return require("managers.executor").ensure() end)
+    if okE and changed then wsCache = nil end
     local c = conf()
     local dir = autoexecDir()
     if not dir then return false, "appAutoExecutePath kosong" end

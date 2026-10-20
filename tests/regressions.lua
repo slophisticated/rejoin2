@@ -405,5 +405,45 @@ test("without a license file yet, the key goes to <Delta>/internal/cache/license
     assert(files["/sdcard/Delta/internal/cache/license"] == "FREE_new")
 end)
 
+local function executorScenario(current, dirs)
+    local env = sandbox()
+    local conf = { appAutoExecutePath = current }
+    local saves = 0
+    env.package.preload["core.config"] = function()
+        return { get = function() return conf end, save = function() saves = saves + 1; return true end }
+    end
+    env.package.preload["utils.shell"] = function()
+        return { exec = function(cmd)
+            if cmd:find("find /sdcard/", 1, true) then return true, table.concat(dirs, "\n") end
+            for _, d in ipairs(dirs) do
+                if cmd:find("[ -d ", 1, true) and cmd:find(d .. "'", 1, true) then return true, "IS_DIR" end
+            end
+            return true, ""
+        end }
+    end
+    return env.require("managers.executor"), conf, function() return saves end
+end
+
+test("executor: an existing autoexec folder is kept as is", function()
+    local Executor, conf, saves = executorScenario("/sdcard/Delta/Autoexecute", { "/sdcard/Delta/Autoexecute", "/sdcard/Codex/Autoexec" })
+    assert(Executor.ensure() == "/sdcard/Delta/Autoexecute" and saves() == 0)
+    assert(conf.appAutoExecutePath == "/sdcard/Delta/Autoexecute")
+end)
+
+test("executor: Delta missing and one other executor found = switched and saved", function()
+    local Executor, conf, saves = executorScenario("/sdcard/Delta/Autoexecute",
+        { "/sdcard/Codex/autoexec", "/sdcard/Android/data/x/files/autoexec" })
+    local path, changed = Executor.ensure()
+    assert(path == "/sdcard/Codex/autoexec" and changed == true and saves() == 1, tostring(path))
+    assert(conf.appAutoExecutePath == "/sdcard/Codex/autoexec" and Executor.name(path) == "Codex")
+end)
+
+test("executor: several found = nothing guessed, user picks in the menu", function()
+    local Executor, conf, saves = executorScenario("", { "/sdcard/Codex/Autoexec", "/sdcard/Arceus X/autoexec" })
+    assert(Executor.ensure() == nil and saves() == 0 and conf.appAutoExecutePath == "")
+    local list = Executor.scan()
+    assert(#list == 2 and list[1].name == "Arceus X" and list[2].name == "Codex")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
