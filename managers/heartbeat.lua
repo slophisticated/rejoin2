@@ -5,12 +5,12 @@ local Shell = require("utils.shell")
 
 -- In-game status from inside Roblox.
 --
--- rejoin installs scripts/rejoin_heartbeat.lua into the executor's autoexecute folder
--- (appAutoExecutePath). Inside the game that script writes
+-- rejoin installs scripts/rejoin_heartbeat.lua into appAutoExecutePath and any
+-- heartbeat.additionalAutoExecutePaths. Inside the game that script writes
 --   <workspace>/rejoin/hb_<username>.txt
 -- every `interval` seconds: state (ingame / kicked), fps, ping, memory, time.
--- The workspace folder is found next to the autoexecute folder (Workspace/workspace)
--- unless heartbeat.workspacePath is set.
+-- Each executor's workspace folder is found next to its autoexecute folder
+-- (Workspace/workspace); heartbeat.workspacePath overrides the primary executor.
 --
 -- Only a heartbeat written AFTER the clone's latest launch counts, so an old file
 -- (e.g. the "kicked" one from before a relaunch) never triggers anything.
@@ -30,11 +30,12 @@ local Heartbeat = {}
 local SCRIPT_NAME = "rejoin_heartbeat.lua"
 local MARKER = "REJOIN_HEARTBEAT"
 local FOLDER = "rejoin"
+local DEFAULT_EXTRA_AUTOEXEC = { "/sdcard/Arceus X/Autoexec" }
 
 local launchedAt = {} -- pkg -> os.time() of the latest launch
 -- Files older than this engine run never count (e.g. yesterday's stale heartbeat).
 local startedAt = os.time()
-local wsCache = nil
+local wsCache, wsCacheKey = nil, nil
 local readCache = {} -- pkg -> { at, hb } ; the monitor asks several times per cycle
 local expected = {} -- pkg -> session request written before opening the app
 local serial = 0
@@ -79,6 +80,8 @@ local function conf()
         interval = math.max(3, math.floor(tonumber(hb.interval) or 10)),
         staleAfter = math.max(20, math.floor(tonumber(hb.staleAfter) or 90)),
         workspacePath = type(hb.workspacePath) == "string" and hb.workspacePath or "",
+        additionalAutoExecutePaths = type(hb.additionalAutoExecutePaths) == "table"
+            and hb.additionalAutoExecutePaths or DEFAULT_EXTRA_AUTOEXEC,
         saver = {
             enabled = sv.enabled == true,
             disable3d = sv.disable3d ~= false,
@@ -95,11 +98,19 @@ function Heartbeat.saverEnabled()
     return c.enabled and c.saver.enabled
 end
 
-local function autoexecDir()
-    local _, c = conf()
-    local dir = c.appAutoExecutePath
-    if type(dir) ~= "string" or dir == "" then return nil end
-    return (dir:gsub("/+$", ""))
+local function autoexecDirs()
+    local hb, c = conf()
+    local dirs, seen = {}, {}
+    local function add(path)
+        if type(path) ~= "string" then return end
+        path = path:gsub("%s+$", ""):gsub("/+$", "")
+        if path == "" or not path:match("^/") or path:find("[%c]") or seen[path] then return end
+        seen[path] = true
+        dirs[#dirs + 1] = path
+    end
+    add(c.appAutoExecutePath)
+    for _, path in ipairs(hb.additionalAutoExecutePaths) do add(path) end
+    return dirs, hb
 end
 
 local function dirExists(path)
@@ -109,20 +120,37 @@ end
 
 -- The executor's workspace folder (where writefile() lands).
 function Heartbeat.workspaceDir()
-    local c = conf()
-    if c.workspacePath ~= "" then return (c.workspacePath:gsub("/+$", "")) end
-    if wsCache then return wsCache end
-    local ae = autoexecDir()
-    if not ae then return nil end
-    local parent = ae:match("^(.*)/[^/]+$") or ae
-    for _, name in ipairs({ "Workspace", "workspace" }) do
-        local p = parent .. "/" .. name
-        if dirExists(p) then
-            wsCache = p
-            return p
+    local dirs = Heartbeat.workspaceDirs()
+    return dirs[1]
+end
+
+function Heartbeat.workspaceDirs()
+    local autoexec, hb = autoexecDirs()
+    local key = table.concat(autoexec, "\n") .. "\n" .. tostring(hb.workspacePath)
+    if wsCache and wsCacheKey == key then return wsCache end
+    local workspaces, seen = {}, {}
+    local function add(path)
+        path = path:gsub("/+$", "")
+        if path ~= "" and not seen[path] then
+            seen[path] = true
+            workspaces[#workspaces + 1] = path
         end
     end
-    return parent .. "/Workspace"
+    for i, ae in ipairs(autoexec) do
+        if i == 1 and hb.workspacePath ~= "" then
+            add(hb.workspacePath)
+        else
+            local parent = ae:match("^(.*)/[^/]+$") or ae
+            local found
+            for _, name in ipairs({ "Workspace", "workspace" }) do
+                local path = parent .. "/" .. name
+                if dirExists(path) then found = path; break end
+            end
+            add(found or (parent .. "/Workspace"))
+        end
+    end
+    wsCache, wsCacheKey = workspaces, key
+    return workspaces
 end
 
 local function scriptSource()
@@ -143,15 +171,17 @@ end
 -- Returns ok, message.
 function Heartbeat.install()
     local c = conf()
-    local dir = autoexecDir()
-    if not dir then return false, "appAutoExecutePath kosong" end
-    local target = dir .. "/" .. SCRIPT_NAME
+    local dirs = autoexecDirs()
+    if #dirs == 0 then return false, "appAutoExecutePath kosong" end
 
     if not c.enabled then
-        local existing = File.read(target)
-        if existing and existing:find(MARKER, 1, true) then
-            os.remove(target)
-            Logger.info("Heartbeat: script dilepas dari " .. target)
+        for _, dir in ipairs(dirs) do
+            local target = dir .. "/" .. SCRIPT_NAME
+            local existing = File.read(target)
+            if existing and existing:find(MARKER, 1, true) then
+                os.remove(target)
+                Logger.info("Heartbeat: script dilepas dari " .. target)
+            end
         end
         return true, "disabled"
     end
@@ -168,14 +198,27 @@ function Heartbeat.install()
     if not s or not s2 then return false, "template rusak" end
     local out = src:sub(1, e) .. cfg .. src:sub(s2)
 
-    if File.read(target) == out then return true, "up to date" end
-    local ok, err = File.write(target, out)
-    if not ok then
-        Logger.warn("Heartbeat: gagal menulis " .. target .. ": " .. tostring(err))
-        return false, tostring(err)
+    local installed, targets, errors = 0, {}, {}
+    for _, dir in ipairs(dirs) do
+        local target = dir .. "/" .. SCRIPT_NAME
+        if File.read(target) == out then
+            installed = installed + 1
+            targets[#targets + 1] = target
+        else
+            local ok, err = File.write(target, out)
+            if ok then
+                installed = installed + 1
+                targets[#targets + 1] = target
+            else
+                errors[#errors + 1] = target .. ": " .. tostring(err)
+                Logger.warn("Heartbeat: gagal menulis " .. target .. ": " .. tostring(err))
+            end
+        end
     end
-    Logger.info("Heartbeat: script terpasang di " .. target .. (c.saver.enabled and " (mode hemat)" or ""))
-    return true, target
+    if installed == 0 then return false, table.concat(errors, "; ") end
+    Logger.info("Heartbeat: script terpasang di " .. table.concat(targets, ", ")
+        .. (c.saver.enabled and " (mode hemat)" or ""))
+    return true, table.concat(targets, ", ")
 end
 
 -- os.time() of this clone's latest launch by this engine, or nil.
@@ -191,8 +234,8 @@ function Heartbeat.markLaunched(instance)
         if not Heartbeat.isEnabled() then return true end
         local name, err = Heartbeat.identity(instance)
         if not name then return false, err end
-        local ws = Heartbeat.workspaceDir()
-        if not ws then return false, "folder Workspace belum ditemukan" end
+        local workspaces = Heartbeat.workspaceDirs()
+        if #workspaces == 0 then return false, "folder Workspace belum ditemukan" end
         serial = serial + 1
         local random = io.open("/dev/urandom", "rb")
         local bytes = random and random:read(8) or nil
@@ -201,14 +244,18 @@ function Heartbeat.markLaunched(instance)
             or string.format("%d_%d", math.random(100000, 999999), math.floor(os.clock() * 1000000))
         local token = string.format("%d_%s_%d", os.time(), suffix, serial)
         local request = { name = name, package = pkg, session = token, started = os.time() }
-        local dir = ws .. "/" .. FOLDER
-        local path = dir .. "/start_" .. name .. ".txt"
         local content = string.format("name=%s\npackage=%s\nsession=%s\nstarted=%d\n", name, pkg, token, request.started)
-        local ok = File.write(path, content)
-        if not ok then
-            ok = Shell.exec("sh -c " .. quote("mkdir -p " .. quote(dir) .. " && printf %s " .. quote(content) .. " > " .. quote(path)))
+        local written = 0
+        for _, ws in ipairs(workspaces) do
+            local dir = ws .. "/" .. FOLDER
+            local path = dir .. "/start_" .. name .. ".txt"
+            local ok = File.write(path, content)
+            if not ok then
+                ok = Shell.exec("sh -c " .. quote("mkdir -p " .. quote(dir) .. " && printf %s " .. quote(content) .. " > " .. quote(path)))
+            end
+            if ok then written = written + 1 end
         end
-        if not ok then return false, "gagal menulis penanda sesi heartbeat" end
+        if written == 0 then return false, "gagal menulis penanda sesi heartbeat ke semua Workspace" end
         expected[pkg] = request
         return true
     end
@@ -240,37 +287,51 @@ function Heartbeat.readNow(instance, c)
     c = c or conf()
     local name = Heartbeat.identity(instance)
     if not name or name == "" then return nil end
-    local ws = Heartbeat.workspaceDir()
-    if not ws then return nil end
-    local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
-    if not content then return nil end
-
-    local hb = fields(content)
-    hb.time = tonumber(hb.time)
-    if not hb.time or tostring(hb.name):lower() ~= name then return nil end
-    if type(hb.session) ~= "string" or not hb.session:match("^[%w_%-]+$") then return nil end
-    hb.seq = tonumber(hb.seq)
-    if not hb.seq or hb.seq < 1 then return nil end
-    hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
-    local now = os.time()
-    hb.age = now - hb.time
-    if hb.age < -5 then return nil end
-    hb.fresh = hb.age >= -5 and hb.age <= c.staleAfter
-    local since = launchedAt[instance.package] or startedAt
+    local workspaces = Heartbeat.workspaceDirs()
+    if #workspaces == 0 then return nil end
     local request = expected[instance.package]
     if not request then
-        local saved = fields(readFile(ws .. "/" .. FOLDER .. "/start_" .. name .. ".txt"))
-        if saved.package == instance.package and saved.name == name and saved.session then
-            request = saved
-            expected[instance.package] = saved
+        for _, ws in ipairs(workspaces) do
+            local saved = fields(readFile(ws .. "/" .. FOLDER .. "/start_" .. name .. ".txt"))
+            if saved.package == instance.package and saved.name == name and saved.session then
+                request = saved
+                expected[instance.package] = saved
+                break
+            end
         end
     end
-    -- Manual app starts can report a self-generated session; an engine launch must
-    -- echo its exact request. A previous run cannot satisfy a new launch in the same second.
-    local matches = request and hb.session == request.session and hb.package == instance.package
-        or (not request and not launchedAt[instance.package] and (hb.package == "" or hb.package == instance.package))
-    hb.current = matches and hb.time >= since
-    return hb
+    local now = os.time()
+    local since = launchedAt[instance.package] or startedAt
+    local best
+    for _, ws in ipairs(workspaces) do
+        local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
+        if content then
+            local hb = fields(content)
+            hb.time = tonumber(hb.time)
+            if hb.time and tostring(hb.name):lower() == name
+                and type(hb.session) == "string" and hb.session:match("^[%w_%-]+$") then
+                hb.seq = tonumber(hb.seq)
+                if hb.seq and hb.seq >= 1 then
+                    hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
+                    hb.age = now - hb.time
+                    if hb.age >= -5 then
+                        hb.fresh = hb.age <= c.staleAfter
+                        -- Manual app starts can report a self-generated session; an
+                        -- engine launch must echo its exact request in the same workspace set.
+                        local matches = request and hb.session == request.session and hb.package == instance.package
+                            or (not request and not launchedAt[instance.package]
+                                and (hb.package == "" or hb.package == instance.package))
+                        hb.current = matches and hb.time >= since
+                        if not best or (hb.current and not best.current)
+                            or (hb.current == best.current and hb.time > best.time) then
+                            best = hb
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
 end
 
 -- Is the game up, judged from inside it?

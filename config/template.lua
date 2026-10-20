@@ -116,8 +116,10 @@ return {
         screenHeight = 0,
         overlap = 80,
     },
-    -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
-    -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
+    -- In-game heartbeat: rejoin installs the managed script into both Delta and
+    -- Arceus X Autoexec folders. Set additionalAutoExecutePaths = {} to disable
+    -- the Arceus X copy, or replace the list with other executor Autoexec paths.
+    -- Inside the game it reports in-game / kicked, fps, memory;
     -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
     -- low graphics, mute). Without a ready heartbeat the queue waits; RSS is diagnostic only.
     heartbeat = {
@@ -125,6 +127,7 @@ return {
         interval = 10,
         staleAfter = 90,
         workspacePath = "",
+        additionalAutoExecutePaths = { "/sdcard/Arceus X/Autoexec" },
         saver = {
             enabled = false,
             disable3d = true,

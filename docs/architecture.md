@@ -169,8 +169,9 @@ or duplicate username mappings hold identification. Manual app starts can report
 self-generated session only when there is no expected engine request.
 
 Default admission to the next clone needs 3 distinct in-order ingame reports spanning
-20 seconds. Missing license + no working heartbeat produces wait_key (heuristic,
-not proof of Get Key UI); waiting does not spend retries or the loading deadline.
+20 seconds. Delta key files are not inspected by the launch queue; a missing key file
+does not create a special gate or block launches. Heartbeat identity and loading checks
+continue to control normal queue progression.
 A deadline produces needs_check and holds the slot, while late ready reports can
 resume it. Explicit retries restart that held clone in place. Confirmed process
 death/kick/stopped ingame heartbeat use bounded retries (120 s, 3 attempts); a live

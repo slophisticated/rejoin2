@@ -125,8 +125,10 @@ return {
         screenHeight = 0,
         overlap = 80,
     },
-    -- In-game heartbeat: rejoin puts scripts/rejoin_heartbeat.lua into the Delta
-    -- autoexecute folder. Inside the game it reports in-game / kicked, fps, memory;
+    -- In-game heartbeat: rejoin installs the managed script into both Delta and
+    -- Arceus X Autoexec folders. Set additionalAutoExecutePaths = {} to disable
+    -- the Arceus X copy, or replace the list with other executor Autoexec paths.
+    -- Inside the game it reports in-game / kicked, fps, memory;
     -- a kick is rejoined at once. saver = lower CPU/GPU/RAM (3D rendering off, FPS cap,
     -- low graphics, mute). Without a ready heartbeat the queue waits; RSS is diagnostic only.
     heartbeat = {
@@ -134,6 +136,7 @@ return {
         interval = 10,
         staleAfter = 90,
         workspacePath = "",
+        additionalAutoExecutePaths = { "/sdcard/Arceus X/Autoexec" },
         saver = {
             enabled = false,
             disable3d = true,
@@ -536,8 +539,8 @@ function CLI.run()
         key = nil
         if called and ok then
             local Monitor = require("managers.monitor")
-            if Monitor.requestDeltaActivationFile({ "all" }) then
-                print("Berhasil: satu clone akan dibuka untuk validasi Delta; clone lain menunggu file .license.")
+            if Monitor.requestRejoinFile({ "all" }) then
+                print("Key tersimpan; rejoin semua clone masuk antrean satu per satu.")
                 local started = Monitor.start(Config.get())
                 if not started then
                     print("Engine monitor lain akan mengambil antrean; jika tidak ada, request tetap tersimpan untuk monitor berikutnya.")
@@ -4448,24 +4451,17 @@ local Config = require("core.config")
 local File = require("utils.file")
 local Shell = require("utils.shell")
 
--- Has Delta completed key validation?
---
--- Delta keeps its key in Internals/Cache/license (next to entries such as data and
--- ui), then creates a hidden .license companion after the official key flow succeeds.
--- When the key runs out the license entry is gone
--- and every clone shows the key screen again. The folder is shared by all clones, so
--- this is one status for the whole device.
+-- Resolve Delta's license destination and store a user-supplied key there.
 --
 -- Config (optional): deltaLicensePath = "" -- "" = find it automatically.
--- The path found once is remembered in data/delta_license_path.txt, so a key that is
--- already gone when the engine starts (e.g. after a reboot) is still noticed.
+-- The path found once is remembered in data/delta_license_path.txt so later manual
+-- key input uses the same Delta folder.
 
 local DeltaKey = {}
 
 local REMEMBER = Paths.data("delta_license_path.txt")
 local DEFAULT_LICENSE = "/sdcard/Delta/Internals/Cache/license"
 local cached = nil
-local warnedMissing = false
 
 local function q(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 
@@ -4512,35 +4508,6 @@ function DeltaKey.path()
             end
         end
     end
-    if not warnedMissing then
-        warnedMissing = true
-        Logger.info("[KEY] file license Delta belum ditemukan di " .. tostring(dir) .. " (cek key dilewati)")
-    end
-    return nil
-end
-
-function DeltaKey.processedPath()
-    local path = DeltaKey.path()
-    local dir = path and path:match("^(.*)/[^/]+$")
-    return dir and (dir .. "/.license") or nil
-end
-
--- true = raw key and Delta-generated companion both exist, false = key missing or
--- awaiting Delta validation, nil = path unknown / Delta folder unreadable.
-function DeltaKey.present()
-    local dir = deltaDir()
-    local p = DeltaKey.path()
-    if not p then return nil end
-    local processed = DeltaKey.processedPath()
-    if not processed then return nil end
-    local parent = p:match("^(.*)/[^/]+$") or dir or "/"
-    local cmd = "if [ -s " .. q(p) .. " ] && [ -s " .. q(processed) .. " ]; then echo KEY_YES; "
-        .. "elif [ -d " .. q(parent) .. " ]; then echo KEY_NO; else echo KEY_UNKNOWN; fi"
-    -- Shell.exec prefixes a timeout, so a compound command needs its own sh -c.
-    local ok, out = Shell.exec("sh -c " .. q(cmd))
-    out = ok and out or ""
-    if out:find("KEY_YES", 1, true) then return true end
-    if out:find("KEY_NO", 1, true) then return false end
     return nil
 end
 
@@ -4554,7 +4521,7 @@ function DeltaKey.input(key)
         return false, "format key tidak valid (1–256 karakter tanpa spasi)"
     end
 
-    -- Reuse the exact path the monitor detected/remembered; this Delta build stores
+    -- Reuse the exact path detected/remembered; this Delta build stores
     -- its license beside data/ui in Internals/Cache.
     local path = DeltaKey.path() or DEFAULT_LICENSE
     local dir = path:match("^(.*)/[^/]+$")
@@ -4576,7 +4543,7 @@ function DeltaKey.input(key)
     cached = path
     File.write(REMEMBER, path .. "\n")
     Logger.info("[KEY] input key Delta tersimpan di file license")
-    return true, "key Delta tersimpan di " .. path .. "; Delta perlu memvalidasinya dan membuat .license"
+    return true, "key Delta tersimpan di " .. path
 end
 
 return DeltaKey
@@ -4745,25 +4712,47 @@ local MAX_FILES = 100
 local MAX_DEPTH = 5
 local MAX_BYTES = 2 * 1024 * 1024 * 1024
 local DOWNLOAD_DIR = "/sdcard/Download/Rejoin"
+local resolvedCurl = false
 
 local function shq(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
 local function termuxCurl()
+    if resolvedCurl then return resolvedCurl end
     local prefix = os.getenv("PREFIX") or "/data/data/com.termux/files/usr"
-    local candidate = prefix:gsub("/+$", "") .. "/bin/curl"
-    local f = io.open(candidate, "r")
-    if f then f:close(); return candidate end
-    return "curl"
+    local candidates = {
+        prefix:gsub("/+$", "") .. "/bin/curl",
+        "/data/data/com.termux/files/usr/bin/curl",
+        "/system/bin/curl",
+    }
+    local seen = {}
+    for _, candidate in ipairs(candidates) do
+        if not seen[candidate] then
+            seen[candidate] = true
+            local ok, _, code = os.execute("test -x " .. shq(candidate) .. " >/dev/null 2>&1")
+            if ok == true or code == 0 then resolvedCurl = candidate; return candidate end
+        end
+    end
+    local ok, _, code = os.execute("command -v curl >/dev/null 2>&1")
+    if ok == true or code == 0 then resolvedCurl = "curl"; return resolvedCurl end
+    return nil
 end
 
 local function runCapture(cmd, quiet)
-    if quiet ~= false then cmd = cmd .. " 2>/dev/null" end
-    if not f then return nil, "curl tidak bisa dijalankan; pastikan curl terpasang" end
-    local out = f:read("*a") or ""
-    local ok, _, code = f:close()
-    return out, ok == true, code
+    local outputPath = os.tmpname()
+    local full = cmd .. " > " .. shq(outputPath)
+    if quiet ~= false then full = full .. " 2>/dev/null" end
+    local ok, why, code = os.execute(full)
+    local f = io.open(outputPath, "r")
+    local out = f and (f:read("*a") or "") or nil
+    if f then f:close() end
+    os.remove(outputPath)
+    if not out then
+        return nil, "curl gagal dijalankan (" .. tostring(why or "shell") .. ", exit " .. tostring(code or "?")
+            .. "); cek instalasi Termux: pkg install curl"
+    end
+    return out, ok == true or code == 0, code
 end
 
 local function extractId(link)
@@ -4781,6 +4770,7 @@ end
 
 local function request(url, token, method, body)
     local curl = termuxCurl()
+    if not curl then return nil, "curl tidak ditemukan. Jalankan `pkg install curl` di Termux." end
     local args = { shq(curl), "-sS", "-L", "--fail", "--max-time", "30", "-w", shq("\nHTTP_STATUS:%{http_code}") }
     local headerPath
     if token and token ~= "" then
@@ -4925,12 +4915,14 @@ end
 local function download(item, index, token)
     local url = directUrl(item, token)
     if not url then return nil, "GoFile tidak memberikan tautan unduh aman untuk " .. tostring(item.name) end
+    local curl = termuxCurl()
+    if not curl then return nil, "curl tidak ditemukan. Jalankan `pkg install curl` di Termux." end
     local made = os.execute("mkdir -p " .. shq(DOWNLOAD_DIR))
     if made ~= true and made ~= 0 then return nil, "Folder Download tidak bisa dibuat." end
     local stamp = tostring(os.time()) .. "_" .. tostring(index)
     local name = stamp .. "_" .. safeName(item.name)
     local path = DOWNLOAD_DIR .. "/" .. name
-    local cmd = table.concat({ shq(termuxCurl()), "-fL", "--show-error", "--progress-bar", "--proto", "'=https'",
+    local cmd = table.concat({ shq(curl), "-fL", "--show-error", "--progress-bar", "--proto", "'=https'",
         "--proto-redir", "'=https'", "--max-time", "1800", "--max-filesize", tostring(MAX_BYTES),
         "-o", shq(path), "-w", shq("EFFECTIVE_URL:%{url_effective}"), shq(url) }, " ")
     local out, ok = runCapture(cmd, false)
@@ -4978,12 +4970,12 @@ local Shell = require("utils.shell")
 
 -- In-game status from inside Roblox.
 --
--- rejoin installs scripts/rejoin_heartbeat.lua into the executor's autoexecute folder
--- (appAutoExecutePath). Inside the game that script writes
+-- rejoin installs scripts/rejoin_heartbeat.lua into appAutoExecutePath and any
+-- heartbeat.additionalAutoExecutePaths. Inside the game that script writes
 --   <workspace>/rejoin/hb_<username>.txt
 -- every `interval` seconds: state (ingame / kicked), fps, ping, memory, time.
--- The workspace folder is found next to the autoexecute folder (Workspace/workspace)
--- unless heartbeat.workspacePath is set.
+-- Each executor's workspace folder is found next to its autoexecute folder
+-- (Workspace/workspace); heartbeat.workspacePath overrides the primary executor.
 --
 -- Only a heartbeat written AFTER the clone's latest launch counts, so an old file
 -- (e.g. the "kicked" one from before a relaunch) never triggers anything.
@@ -5003,11 +4995,12 @@ local Heartbeat = {}
 local SCRIPT_NAME = "rejoin_heartbeat.lua"
 local MARKER = "REJOIN_HEARTBEAT"
 local FOLDER = "rejoin"
+local DEFAULT_EXTRA_AUTOEXEC = { "/sdcard/Arceus X/Autoexec" }
 
 local launchedAt = {} -- pkg -> os.time() of the latest launch
 -- Files older than this engine run never count (e.g. yesterday's stale heartbeat).
 local startedAt = os.time()
-local wsCache = nil
+local wsCache, wsCacheKey = nil, nil
 local readCache = {} -- pkg -> { at, hb } ; the monitor asks several times per cycle
 local expected = {} -- pkg -> session request written before opening the app
 local serial = 0
@@ -5052,6 +5045,8 @@ local function conf()
         interval = math.max(3, math.floor(tonumber(hb.interval) or 10)),
         staleAfter = math.max(20, math.floor(tonumber(hb.staleAfter) or 90)),
         workspacePath = type(hb.workspacePath) == "string" and hb.workspacePath or "",
+        additionalAutoExecutePaths = type(hb.additionalAutoExecutePaths) == "table"
+            and hb.additionalAutoExecutePaths or DEFAULT_EXTRA_AUTOEXEC,
         saver = {
             enabled = sv.enabled == true,
             disable3d = sv.disable3d ~= false,
@@ -5068,11 +5063,19 @@ function Heartbeat.saverEnabled()
     return c.enabled and c.saver.enabled
 end
 
-local function autoexecDir()
-    local _, c = conf()
-    local dir = c.appAutoExecutePath
-    if type(dir) ~= "string" or dir == "" then return nil end
-    return (dir:gsub("/+$", ""))
+local function autoexecDirs()
+    local hb, c = conf()
+    local dirs, seen = {}, {}
+    local function add(path)
+        if type(path) ~= "string" then return end
+        path = path:gsub("%s+$", ""):gsub("/+$", "")
+        if path == "" or not path:match("^/") or path:find("[%c]") or seen[path] then return end
+        seen[path] = true
+        dirs[#dirs + 1] = path
+    end
+    add(c.appAutoExecutePath)
+    for _, path in ipairs(hb.additionalAutoExecutePaths) do add(path) end
+    return dirs, hb
 end
 
 local function dirExists(path)
@@ -5082,20 +5085,37 @@ end
 
 -- The executor's workspace folder (where writefile() lands).
 function Heartbeat.workspaceDir()
-    local c = conf()
-    if c.workspacePath ~= "" then return (c.workspacePath:gsub("/+$", "")) end
-    if wsCache then return wsCache end
-    local ae = autoexecDir()
-    if not ae then return nil end
-    local parent = ae:match("^(.*)/[^/]+$") or ae
-    for _, name in ipairs({ "Workspace", "workspace" }) do
-        local p = parent .. "/" .. name
-        if dirExists(p) then
-            wsCache = p
-            return p
+    local dirs = Heartbeat.workspaceDirs()
+    return dirs[1]
+end
+
+function Heartbeat.workspaceDirs()
+    local autoexec, hb = autoexecDirs()
+    local key = table.concat(autoexec, "\n") .. "\n" .. tostring(hb.workspacePath)
+    if wsCache and wsCacheKey == key then return wsCache end
+    local workspaces, seen = {}, {}
+    local function add(path)
+        path = path:gsub("/+$", "")
+        if path ~= "" and not seen[path] then
+            seen[path] = true
+            workspaces[#workspaces + 1] = path
         end
     end
-    return parent .. "/Workspace"
+    for i, ae in ipairs(autoexec) do
+        if i == 1 and hb.workspacePath ~= "" then
+            add(hb.workspacePath)
+        else
+            local parent = ae:match("^(.*)/[^/]+$") or ae
+            local found
+            for _, name in ipairs({ "Workspace", "workspace" }) do
+                local path = parent .. "/" .. name
+                if dirExists(path) then found = path; break end
+            end
+            add(found or (parent .. "/Workspace"))
+        end
+    end
+    wsCache, wsCacheKey = workspaces, key
+    return workspaces
 end
 
 local function scriptSource()
@@ -5116,15 +5136,17 @@ end
 -- Returns ok, message.
 function Heartbeat.install()
     local c = conf()
-    local dir = autoexecDir()
-    if not dir then return false, "appAutoExecutePath kosong" end
-    local target = dir .. "/" .. SCRIPT_NAME
+    local dirs = autoexecDirs()
+    if #dirs == 0 then return false, "appAutoExecutePath kosong" end
 
     if not c.enabled then
-        local existing = File.read(target)
-        if existing and existing:find(MARKER, 1, true) then
-            os.remove(target)
-            Logger.info("Heartbeat: script dilepas dari " .. target)
+        for _, dir in ipairs(dirs) do
+            local target = dir .. "/" .. SCRIPT_NAME
+            local existing = File.read(target)
+            if existing and existing:find(MARKER, 1, true) then
+                os.remove(target)
+                Logger.info("Heartbeat: script dilepas dari " .. target)
+            end
         end
         return true, "disabled"
     end
@@ -5141,14 +5163,27 @@ function Heartbeat.install()
     if not s or not s2 then return false, "template rusak" end
     local out = src:sub(1, e) .. cfg .. src:sub(s2)
 
-    if File.read(target) == out then return true, "up to date" end
-    local ok, err = File.write(target, out)
-    if not ok then
-        Logger.warn("Heartbeat: gagal menulis " .. target .. ": " .. tostring(err))
-        return false, tostring(err)
+    local installed, targets, errors = 0, {}, {}
+    for _, dir in ipairs(dirs) do
+        local target = dir .. "/" .. SCRIPT_NAME
+        if File.read(target) == out then
+            installed = installed + 1
+            targets[#targets + 1] = target
+        else
+            local ok, err = File.write(target, out)
+            if ok then
+                installed = installed + 1
+                targets[#targets + 1] = target
+            else
+                errors[#errors + 1] = target .. ": " .. tostring(err)
+                Logger.warn("Heartbeat: gagal menulis " .. target .. ": " .. tostring(err))
+            end
+        end
     end
-    Logger.info("Heartbeat: script terpasang di " .. target .. (c.saver.enabled and " (mode hemat)" or ""))
-    return true, target
+    if installed == 0 then return false, table.concat(errors, "; ") end
+    Logger.info("Heartbeat: script terpasang di " .. table.concat(targets, ", ")
+        .. (c.saver.enabled and " (mode hemat)" or ""))
+    return true, table.concat(targets, ", ")
 end
 
 -- os.time() of this clone's latest launch by this engine, or nil.
@@ -5164,8 +5199,8 @@ function Heartbeat.markLaunched(instance)
         if not Heartbeat.isEnabled() then return true end
         local name, err = Heartbeat.identity(instance)
         if not name then return false, err end
-        local ws = Heartbeat.workspaceDir()
-        if not ws then return false, "folder Workspace belum ditemukan" end
+        local workspaces = Heartbeat.workspaceDirs()
+        if #workspaces == 0 then return false, "folder Workspace belum ditemukan" end
         serial = serial + 1
         local random = io.open("/dev/urandom", "rb")
         local bytes = random and random:read(8) or nil
@@ -5174,14 +5209,18 @@ function Heartbeat.markLaunched(instance)
             or string.format("%d_%d", math.random(100000, 999999), math.floor(os.clock() * 1000000))
         local token = string.format("%d_%s_%d", os.time(), suffix, serial)
         local request = { name = name, package = pkg, session = token, started = os.time() }
-        local dir = ws .. "/" .. FOLDER
-        local path = dir .. "/start_" .. name .. ".txt"
         local content = string.format("name=%s\npackage=%s\nsession=%s\nstarted=%d\n", name, pkg, token, request.started)
-        local ok = File.write(path, content)
-        if not ok then
-            ok = Shell.exec("sh -c " .. quote("mkdir -p " .. quote(dir) .. " && printf %s " .. quote(content) .. " > " .. quote(path)))
+        local written = 0
+        for _, ws in ipairs(workspaces) do
+            local dir = ws .. "/" .. FOLDER
+            local path = dir .. "/start_" .. name .. ".txt"
+            local ok = File.write(path, content)
+            if not ok then
+                ok = Shell.exec("sh -c " .. quote("mkdir -p " .. quote(dir) .. " && printf %s " .. quote(content) .. " > " .. quote(path)))
+            end
+            if ok then written = written + 1 end
         end
-        if not ok then return false, "gagal menulis penanda sesi heartbeat" end
+        if written == 0 then return false, "gagal menulis penanda sesi heartbeat ke semua Workspace" end
         expected[pkg] = request
         return true
     end
@@ -5213,37 +5252,51 @@ function Heartbeat.readNow(instance, c)
     c = c or conf()
     local name = Heartbeat.identity(instance)
     if not name or name == "" then return nil end
-    local ws = Heartbeat.workspaceDir()
-    if not ws then return nil end
-    local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
-    if not content then return nil end
-
-    local hb = fields(content)
-    hb.time = tonumber(hb.time)
-    if not hb.time or tostring(hb.name):lower() ~= name then return nil end
-    if type(hb.session) ~= "string" or not hb.session:match("^[%w_%-]+$") then return nil end
-    hb.seq = tonumber(hb.seq)
-    if not hb.seq or hb.seq < 1 then return nil end
-    hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
-    local now = os.time()
-    hb.age = now - hb.time
-    if hb.age < -5 then return nil end
-    hb.fresh = hb.age >= -5 and hb.age <= c.staleAfter
-    local since = launchedAt[instance.package] or startedAt
+    local workspaces = Heartbeat.workspaceDirs()
+    if #workspaces == 0 then return nil end
     local request = expected[instance.package]
     if not request then
-        local saved = fields(readFile(ws .. "/" .. FOLDER .. "/start_" .. name .. ".txt"))
-        if saved.package == instance.package and saved.name == name and saved.session then
-            request = saved
-            expected[instance.package] = saved
+        for _, ws in ipairs(workspaces) do
+            local saved = fields(readFile(ws .. "/" .. FOLDER .. "/start_" .. name .. ".txt"))
+            if saved.package == instance.package and saved.name == name and saved.session then
+                request = saved
+                expected[instance.package] = saved
+                break
+            end
         end
     end
-    -- Manual app starts can report a self-generated session; an engine launch must
-    -- echo its exact request. A previous run cannot satisfy a new launch in the same second.
-    local matches = request and hb.session == request.session and hb.package == instance.package
-        or (not request and not launchedAt[instance.package] and (hb.package == "" or hb.package == instance.package))
-    hb.current = matches and hb.time >= since
-    return hb
+    local now = os.time()
+    local since = launchedAt[instance.package] or startedAt
+    local best
+    for _, ws in ipairs(workspaces) do
+        local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
+        if content then
+            local hb = fields(content)
+            hb.time = tonumber(hb.time)
+            if hb.time and tostring(hb.name):lower() == name
+                and type(hb.session) == "string" and hb.session:match("^[%w_%-]+$") then
+                hb.seq = tonumber(hb.seq)
+                if hb.seq and hb.seq >= 1 then
+                    hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
+                    hb.age = now - hb.time
+                    if hb.age >= -5 then
+                        hb.fresh = hb.age <= c.staleAfter
+                        -- Manual app starts can report a self-generated session; an
+                        -- engine launch must echo its exact request in the same workspace set.
+                        local matches = request and hb.session == request.session and hb.package == instance.package
+                            or (not request and not launchedAt[instance.package]
+                                and (hb.package == "" or hb.package == instance.package))
+                        hb.current = matches and hb.time >= since
+                        if not best or (hb.current and not best.current)
+                            or (hb.current == best.current and hb.time > best.time) then
+                            best = hb
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
 end
 
 -- Is the game up, judged from inside it?
@@ -5520,7 +5573,7 @@ function Queue.new(conf, deps)
     local self = setmetatable({ conf = conf or {}, pending = {}, active = nil,
         states = {}, attempts = {}, healthySince = {}, seenAt = {}, lastEmpty = {} }, Queue)
     for key, mod in pairs({ hb = "heartbeat", apk = "apk", auth = "auth", recovery = "recovery",
-        key = "delta_key", optimizer = "optimizer" }) do
+        optimizer = "optimizer" }) do
         self[key] = deps[key] or require("managers." .. mod)
     end
     self.log = deps.log or require("core.logger")
@@ -5533,17 +5586,6 @@ function Queue:setting(key)
     local s = type(self.conf.launchSafety) == "table" and self.conf.launchSafety or {}
     local minimum = ({ stableHeartbeats = 2, stableSeconds = 5, retryCooldown = 30, maxAttempts = 1 })[key] or 0
     return math.max(minimum, math.floor(tonumber(s[key]) or Queue.DEFAULTS[key]))
-end
-
-function Queue:keyStatus()
-    local now = self.now()
-    if not self.keyAt or now - self.keyAt >= 5 then
-        local ok, value = pcall(self.key.present)
-        self.keyValue, self.keyAt = ok and value or nil, now
-        -- Lua's `and/or` idiom loses false; missing is different from unknown.
-        if ok and value == false then self.keyValue = false end
-    end
-    return self.keyValue
 end
 
 function Queue:set(job, state, detail)
@@ -5561,27 +5603,7 @@ function Queue:contains(pkg)
     return false
 end
 
-function Queue:request(instances, manual, opts)
-    opts = opts or {}
-    local allowDeltaActivation = opts.deltaActivation == true
-    -- A key may be entered while Launch All is already held at the key gate. Reuse
-    -- that one active slot for activation instead of leaving the new request stranded.
-    if allowDeltaActivation and self.active then
-        local pkg = self.active.inst.package
-        self.attempts[pkg] = nil
-        self.active.started, self.active.samples, self.active.firstBeatTime, self.active.lastSeq = nil, nil, nil, nil
-        self.active.retryAt, self.active.manual = nil, true
-        self.active.deltaActivation, self.active.deltaActivationStarted = true, false
-        self:set(self.active, "queued")
-        allowDeltaActivation = false
-    end
-    if allowDeltaActivation then
-        for _, job in ipairs(self.pending) do
-            job.deltaActivation = true
-            allowDeltaActivation = false
-            break
-        end
-    end
+function Queue:request(instances, manual)
     local ordered, later = {}, {}
     for _, inst in ipairs(instances or {}) do
         local target = self.auth.isLoggedIn(inst) == false and later or ordered
@@ -5600,11 +5622,7 @@ function Queue:request(instances, manual, opts)
             end
             if not self:contains(pkg) then
                 if manual then self.attempts[pkg] = nil end
-                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true,
-                    deltaActivation = allowDeltaActivation }
-                -- Only the first clone may open to let Delta process a manually entered
-                -- key. The rest stay behind the normal accepted-license gate.
-                allowDeltaActivation = false
+                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true }
                 self.states[pkg] = "queued"
             end
         end
@@ -5631,14 +5649,6 @@ end
 function Queue:advance(job)
     local inst, now = job.inst, self.now()
     local process = self:process(inst)
-    local missingKey = self.hb.isEnabled() and self:keyStatus() == false
-    local activationLaunch = job.deltaActivation and not job.deltaActivationStarted
-    if missingKey and not activationLaunch then
-        job.keyWait = true
-        job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
-        self:set(job, "wait_key", "license Delta belum tervalidasi; menunggu .license")
-        return
-    end
     if self.auth.isLoggedIn(inst) == false then
         -- Logging out during a wait must never lead to a force-stop/rejoin.
         if process == nil then self:set(job, "needs_check", "proses tidak terbaca"); return end
@@ -5656,31 +5666,12 @@ function Queue:advance(job)
             job.emptyAt = now
         end
         job.emptyAt = job.emptyAt or now
-        if missingKey and activationLaunch then
-            -- Logged-out clones are opened gently; keep the shared slot here until
-            -- Delta completes validation instead of opening the remaining clones.
-            job.deltaActivationStarted = true
-            job.keyWait = true
-            self:set(job, "wait_key", "clone aktivasi dibuka; menunggu .license Delta")
-            return
-        end
         self:set(job, "nologin")
         if now - job.emptyAt >= (tonumber(self.conf.launchEmptyDelay) or 5) then self:finish(job, "nologin") end
         return
     end
 
     local alive, why = self.hb.alive(inst)
-    if self.hb.isEnabled() and self:keyStatus() == false and (alive ~= true or process ~= true)
-        and not (job.deltaActivation and not job.deltaActivationStarted) then
-        job.keyWait = true
-        job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
-        self:set(job, "wait_key", "license tidak tersedia; perlu dicek/diisi manual")
-        return
-    end
-    if job.keyWait then
-        job.keyWait = nil
-        if job.started then job.started = now end -- key entry time is not loading time
-    end
     if self.hb.isEnabled() then
         local name, err = self.hb.identity(inst)
         if not name then
@@ -5707,7 +5698,6 @@ function Queue:advance(job)
         self.attempts[inst.package] = attempt
         local ok, launched, err = pcall(self.recovery.launchAndJoin, inst)
         if not ok or not launched then self:retry(job, tostring(ok and err or launched)); return end
-        if job.deltaActivation then job.deltaActivationStarted = true end
         if (attempt.count > 1 or job.recovering) and self.onRecovery then
             pcall(self.onRecovery, inst.id)
         end
@@ -5804,7 +5794,7 @@ function Queue:tick(instances)
                     self.states[pkg] = "running"
                 else
                     self.seenAt[pkg] = self.seenAt[pkg] or now
-                    self.states[pkg] = self:keyStatus() == false and "wait_key" or "starting"
+                    self.states[pkg] = "starting"
                     -- Adopt a running clone without restarting it just because HB is absent.
                     if not self.active then self.active = { inst = inst, started = self.seenAt[pkg], samples = 0 } end
                 end
@@ -6073,18 +6063,6 @@ local LaunchQueue = require("managers.launch_queue")
 local queue = nil
 local windowState = {}
 local monitorConf = {}
-local keyState = nil
-
-local function checkKey()
-    local present = queue:keyStatus()
-    if present == nil or present == keyState then return end
-    keyState = present
-    if present then Logger.info("[KEY] license Delta tersedia lagi; tetap tunggu heartbeat"); return end
-    Logger.warn("[KEY] validasi key Delta belum lengkap (.license belum tersedia); antrean ditahan")
-    Webhook.event("key", "🔑 Delta perlu dicek",
-        "File license belum ada atau Delta belum membuat .license setelah validasi. Antrean menunggu; masukkan key yang kamu dapatkan lewat alur resmi Delta.", 16705372)
-end
-
 local function checkWindow(inst)
     if not WindowLayout.isEnabled() then return end
     local pkg = inst and inst.package
@@ -6118,15 +6096,9 @@ local function takeAuthForget()
     for pkg in text:gmatch("[^\r\n]+") do Auth.forget(pkg) end
 end
 local rejoinQueue = {}
-local deltaActivationRequested = false
 
 function Monitor.requestRejoin(ids)
     for _, id in ipairs(ids or {}) do rejoinQueue[#rejoinQueue + 1] = id end
-end
-
-function Monitor.requestDeltaActivation(ids)
-    Monitor.requestRejoin(ids or { "all" })
-    deltaActivationRequested = true
 end
 
 -- From another process: append ids (or "all") to the request file.
@@ -6134,15 +6106,6 @@ function Monitor.requestRejoinFile(ids)
     local f = io.open(REQUEST_FILE, "a")
     if not f then return false end
     for _, id in ipairs(ids or {}) do f:write(tostring(id), "\n") end
-    f:close()
-    return true
-end
-
-function Monitor.requestDeltaActivationFile(ids)
-    local f = io.open(REQUEST_FILE, "a")
-    if not f then return false end
-    f:write("__delta_key_activate__\n")
-    for _, id in ipairs(ids or { "all" }) do f:write(tostring(id), "\n") end
     f:close()
     return true
 end
@@ -6161,8 +6124,7 @@ local function takeFileRequests()
     end)
     for line in text:gmatch("[^\r\n]+") do
         local ref = line:match("^%s*(.-)%s*$")
-        if ref == "__delta_key_activate__" then deltaActivationRequested = true
-        else rejoinQueue[#rejoinQueue + 1] = ref end
+        if ref ~= "__delta_key_activate__" then rejoinQueue[#rejoinQueue + 1] = ref end
     end
 end
 
@@ -6177,8 +6139,7 @@ local function runRejoinQueue()
         end
     end
     rejoinQueue = {}
-    queue:request(list, true, { deltaActivation = deltaActivationRequested })
-    deltaActivationRequested = false
+    queue:request(list, true)
 end
 
 local CONFIG_FILE = Paths.config()
@@ -6274,15 +6235,13 @@ function Monitor.start(conf, opts)
                 if inst.package == queue.active.inst.package then activeIndex = i; break end
             end
         end
-        local labels = { wait_key = "Menunggu key", wait_identity = "Identifikasi",
+        local labels = { wait_identity = "Identifikasi",
             needs_check = "Perlu dicek", stabilizing = "Stabil", cooldown = "Jeda retry" }
         Status.setProgress(activeIndex, activeIndex and #instances or nil,
             queue.active and (labels[queue.active.state] or "Loading") or nil)
         Status.printSummary(instances)
-        pcall(checkKey)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin,
-            requestDeltaActivation = Monitor.requestDeltaActivation, launchBusy = queue.active ~= nil })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = queue.active ~= nil })
         pcall(require("managers.logout_alarm").tick, instances, queue.active ~= nil)
         -- Expensive probes do not run on every loading poll.
         if os.time() - lastDiagnostics >= 30 then
@@ -7121,12 +7080,10 @@ function H.delta_key_input(args, ctx)
     local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
     if not okCall then return false, "input key Delta gagal (error internal)" end
     if not ok then return false, tostring(message or "gagal menyimpan key Delta") end
-    if ctx and type(ctx.requestDeltaActivation) == "function" then
-        ctx.requestDeltaActivation({ "all" })
-    elseif ctx and type(ctx.requestRejoin) == "function" then
+    if ctx and type(ctx.requestRejoin) == "function" then
         ctx.requestRejoin({ "all" })
     end
-    return true, "key tersimpan; satu clone masuk antrean validasi Delta, clone lain menunggu .license"
+    return true, "key tersimpan; rejoin semua clone masuk antrean satu per satu"
 end
 
 function H.logout_alarm_set(args)
@@ -7658,7 +7615,6 @@ local C = {
 local STATUS_UI = {
     queued = { "Antre", C.dim },
     stabilizing = { "Menunggu stabil", C.blue },
-    wait_key = { "Menunggu key", C.yellow },
     wait_identity = { "Cek username", C.yellow },
     needs_check = { "Perlu dicek", C.red },
     cooldown = { "Jeda retry", C.yellow },
@@ -8479,7 +8435,7 @@ end
 
 -- Report body ---------------------------------------------------------------------
 local ICON = {
-    queued = "⏳", stabilizing = "🟡", wait_key = "🔑",
+    queued = "⏳", stabilizing = "🟡",
     wait_identity = "❔", needs_check = "⚠️", cooldown = "⏳", running = "🟡",
     ingame = "🟢", starting = "🟡", recovery = "🟡", resetting = "🟡",
     nologin = "⚪", kicked = "🔴", freeze = "🔴", stuck = "🔴", offline = "🔴",

@@ -162,7 +162,6 @@ local C = {
 local STATUS_UI = {
     queued = { "Antre", C.dim },
     stabilizing = { "Menunggu stabil", C.blue },
-    wait_key = { "Menunggu key", C.yellow },
     wait_identity = { "Cek username", C.yellow },
     needs_check = { "Perlu dicek", C.red },
     cooldown = { "Jeda retry", C.yellow },

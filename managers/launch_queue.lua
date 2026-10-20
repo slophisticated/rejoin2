@@ -12,7 +12,7 @@ function Queue.new(conf, deps)
     local self = setmetatable({ conf = conf or {}, pending = {}, active = nil,
         states = {}, attempts = {}, healthySince = {}, seenAt = {}, lastEmpty = {} }, Queue)
     for key, mod in pairs({ hb = "heartbeat", apk = "apk", auth = "auth", recovery = "recovery",
-        key = "delta_key", optimizer = "optimizer" }) do
+        optimizer = "optimizer" }) do
         self[key] = deps[key] or require("managers." .. mod)
     end
     self.log = deps.log or require("core.logger")
@@ -25,17 +25,6 @@ function Queue:setting(key)
     local s = type(self.conf.launchSafety) == "table" and self.conf.launchSafety or {}
     local minimum = ({ stableHeartbeats = 2, stableSeconds = 5, retryCooldown = 30, maxAttempts = 1 })[key] or 0
     return math.max(minimum, math.floor(tonumber(s[key]) or Queue.DEFAULTS[key]))
-end
-
-function Queue:keyStatus()
-    local now = self.now()
-    if not self.keyAt or now - self.keyAt >= 5 then
-        local ok, value = pcall(self.key.present)
-        self.keyValue, self.keyAt = ok and value or nil, now
-        -- Lua's `and/or` idiom loses false; missing is different from unknown.
-        if ok and value == false then self.keyValue = false end
-    end
-    return self.keyValue
 end
 
 function Queue:set(job, state, detail)
@@ -53,27 +42,7 @@ function Queue:contains(pkg)
     return false
 end
 
-function Queue:request(instances, manual, opts)
-    opts = opts or {}
-    local allowDeltaActivation = opts.deltaActivation == true
-    -- A key may be entered while Launch All is already held at the key gate. Reuse
-    -- that one active slot for activation instead of leaving the new request stranded.
-    if allowDeltaActivation and self.active then
-        local pkg = self.active.inst.package
-        self.attempts[pkg] = nil
-        self.active.started, self.active.samples, self.active.firstBeatTime, self.active.lastSeq = nil, nil, nil, nil
-        self.active.retryAt, self.active.manual = nil, true
-        self.active.deltaActivation, self.active.deltaActivationStarted = true, false
-        self:set(self.active, "queued")
-        allowDeltaActivation = false
-    end
-    if allowDeltaActivation then
-        for _, job in ipairs(self.pending) do
-            job.deltaActivation = true
-            allowDeltaActivation = false
-            break
-        end
-    end
+function Queue:request(instances, manual)
     local ordered, later = {}, {}
     for _, inst in ipairs(instances or {}) do
         local target = self.auth.isLoggedIn(inst) == false and later or ordered
@@ -92,11 +61,7 @@ function Queue:request(instances, manual, opts)
             end
             if not self:contains(pkg) then
                 if manual then self.attempts[pkg] = nil end
-                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true,
-                    deltaActivation = allowDeltaActivation }
-                -- Only the first clone may open to let Delta process a manually entered
-                -- key. The rest stay behind the normal accepted-license gate.
-                allowDeltaActivation = false
+                self.pending[#self.pending + 1] = { inst = inst, manual = manual == true, recovering = manual ~= true }
                 self.states[pkg] = "queued"
             end
         end
@@ -123,14 +88,6 @@ end
 function Queue:advance(job)
     local inst, now = job.inst, self.now()
     local process = self:process(inst)
-    local missingKey = self.hb.isEnabled() and self:keyStatus() == false
-    local activationLaunch = job.deltaActivation and not job.deltaActivationStarted
-    if missingKey and not activationLaunch then
-        job.keyWait = true
-        job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
-        self:set(job, "wait_key", "license Delta belum tervalidasi; menunggu .license")
-        return
-    end
     if self.auth.isLoggedIn(inst) == false then
         -- Logging out during a wait must never lead to a force-stop/rejoin.
         if process == nil then self:set(job, "needs_check", "proses tidak terbaca"); return end
@@ -148,31 +105,12 @@ function Queue:advance(job)
             job.emptyAt = now
         end
         job.emptyAt = job.emptyAt or now
-        if missingKey and activationLaunch then
-            -- Logged-out clones are opened gently; keep the shared slot here until
-            -- Delta completes validation instead of opening the remaining clones.
-            job.deltaActivationStarted = true
-            job.keyWait = true
-            self:set(job, "wait_key", "clone aktivasi dibuka; menunggu .license Delta")
-            return
-        end
         self:set(job, "nologin")
         if now - job.emptyAt >= (tonumber(self.conf.launchEmptyDelay) or 5) then self:finish(job, "nologin") end
         return
     end
 
     local alive, why = self.hb.alive(inst)
-    if self.hb.isEnabled() and self:keyStatus() == false and (alive ~= true or process ~= true)
-        and not (job.deltaActivation and not job.deltaActivationStarted) then
-        job.keyWait = true
-        job.samples, job.firstBeatTime, job.lastSeq = 0, nil, nil
-        self:set(job, "wait_key", "license tidak tersedia; perlu dicek/diisi manual")
-        return
-    end
-    if job.keyWait then
-        job.keyWait = nil
-        if job.started then job.started = now end -- key entry time is not loading time
-    end
     if self.hb.isEnabled() then
         local name, err = self.hb.identity(inst)
         if not name then
@@ -199,7 +137,6 @@ function Queue:advance(job)
         self.attempts[inst.package] = attempt
         local ok, launched, err = pcall(self.recovery.launchAndJoin, inst)
         if not ok or not launched then self:retry(job, tostring(ok and err or launched)); return end
-        if job.deltaActivation then job.deltaActivationStarted = true end
         if (attempt.count > 1 or job.recovering) and self.onRecovery then
             pcall(self.onRecovery, inst.id)
         end
@@ -296,7 +233,7 @@ function Queue:tick(instances)
                     self.states[pkg] = "running"
                 else
                     self.seenAt[pkg] = self.seenAt[pkg] or now
-                    self.states[pkg] = self:keyStatus() == false and "wait_key" or "starting"
+                    self.states[pkg] = "starting"
                     -- Adopt a running clone without restarting it just because HB is absent.
                     if not self.active then self.active = { inst = inst, started = self.seenAt[pkg], samples = 0 } end
                 end

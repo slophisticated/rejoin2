@@ -32,6 +32,9 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   maksimal 3 percobaan. Default runtime berlaku untuk config lama.
 - **Menu 14**: masukkan key Delta yang kamu dapatkan sendiri; key disembunyikan saat
   diketik dan disimpan ke file license Delta.
+- Heartbeat otomatis dipasang di `/sdcard/Delta/Autoexecute` dan
+  `/sdcard/Arceus X/Autoexec`. Path kedua bisa diubah lewat
+  `heartbeat.additionalAutoExecutePaths`; isi `{}` untuk menonaktifkan salinan Arceus X.
 - **Menu 15**: masukkan link folder GoFile, pilih APK dari daftar (contoh `1-3`), lalu
   Rejoin mengunduh dan memasang pilihan satu per satu. File APK dihapus setelah
   pemasangan sukses; jika gagal, file tetap di `/sdcard/Download/Rejoin`. Jika GoFile
@@ -49,8 +52,8 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
   modal privat; device harus online dan monitor aktif.
 - `/delta input-key` membuka modal privat untuk key Delta yang kamu dapatkan sendiri.
   Key dikirim sekali ke device online dan tidak disimpan bot; device menulisnya ke file
-  `license`, lalu membuka satu clone untuk aktivasi. Clone lain menunggu Delta membuat
-  `.license` setelah validasi resmi berhasil; file `.license` tidak dibuat Rejoin.
+  `license`, lalu menjadwalkan rejoin semua clone satu per satu. Rejoin tidak memeriksa
+  file key atau menahan antrean berdasarkan file tersebut; validasi tetap dilakukan Delta.
 - Force-stop saat logout, inject cookie, atau recovery menyasar package clone pada user
   Android aktif. Pastikan satu package hanya dipakai satu instance; Rejoin membatalkan
   force-stop jika package terdaftar ganda.
@@ -73,8 +76,8 @@ menunggu sampai karakter muncul.
 Tidak ada batas RAM atau keputusan recovery berdasarkan RSS. Tanpa heartbeat siap,
 clone tetap menahan slot. Timeout 240 detik menampilkan **Perlu dicek**, tidak membuka
 clone berikutnya/restart berulang. Heartbeat siap yang datang terlambat melanjutkan
-antrean. **Menunggu key** berarti license diketahui hilang tanpa heartbeat siap:
-cek Delta dan masukkan key manual, tanpa bypass. Key ada belum menjamin valid.
+antrean. Rejoin tidak mendeteksi status key Delta; jika layar Delta meminta key,
+masukkan key lewat alur resmi Delta atau gunakan Menu 14 untuk menyimpan key manual.
 
 Bot `/restart clones:<clone>` mencoba ulang clone yang ditahan. Tanpa bot, hentikan
 monitor lalu pilih Menu 1. Proses mati/kick/heartbeat ingame berhenti masuk retry
@@ -92,7 +95,6 @@ kill $(cat /sdcard/yanamin/data/monitor.pid)
 
 | Gejala | Pemeriksaan |
 |---|---|
-| Menunggu key | Pastikan file `license` dan `.license` Delta tersedia; isi `deltaLicensePath` bila lokasi license berbeda |
 | Cek username | Pastikan akun terbaca dan username tidak dipakai dua package |
 | Perlu dicek | Selesaikan loading/menu/get key; heartbeat siap bisa melanjutkan sendiri |
 | Clone terakhir sering FC | Kurangi clone serentak yang menetap, coba mode hemat; batas fisik RAM tetap berlaku |

@@ -343,7 +343,7 @@ end
 
 -- Report body ---------------------------------------------------------------------
 local ICON = {
-    queued = "⏳", stabilizing = "🟡", wait_key = "🔑",
+    queued = "⏳", stabilizing = "🟡",
     wait_identity = "❔", needs_check = "⚠️", cooldown = "⏳", running = "🟡",
     ingame = "🟢", starting = "🟡", recovery = "🟡", resetting = "🟡",
     nologin = "⚪", kicked = "🔴", freeze = "🔴", stuck = "🔴", offline = "🔴",

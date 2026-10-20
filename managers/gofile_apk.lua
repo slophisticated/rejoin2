@@ -7,25 +7,47 @@ local MAX_FILES = 100
 local MAX_DEPTH = 5
 local MAX_BYTES = 2 * 1024 * 1024 * 1024
 local DOWNLOAD_DIR = "/sdcard/Download/Rejoin"
+local resolvedCurl = false
 
 local function shq(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
 local function termuxCurl()
+    if resolvedCurl then return resolvedCurl end
     local prefix = os.getenv("PREFIX") or "/data/data/com.termux/files/usr"
-    local candidate = prefix:gsub("/+$", "") .. "/bin/curl"
-    local f = io.open(candidate, "r")
-    if f then f:close(); return candidate end
-    return "curl"
+    local candidates = {
+        prefix:gsub("/+$", "") .. "/bin/curl",
+        "/data/data/com.termux/files/usr/bin/curl",
+        "/system/bin/curl",
+    }
+    local seen = {}
+    for _, candidate in ipairs(candidates) do
+        if not seen[candidate] then
+            seen[candidate] = true
+            local ok, _, code = os.execute("test -x " .. shq(candidate) .. " >/dev/null 2>&1")
+            if ok == true or code == 0 then resolvedCurl = candidate; return candidate end
+        end
+    end
+    local ok, _, code = os.execute("command -v curl >/dev/null 2>&1")
+    if ok == true or code == 0 then resolvedCurl = "curl"; return resolvedCurl end
+    return nil
 end
 
 local function runCapture(cmd, quiet)
-    if quiet ~= false then cmd = cmd .. " 2>/dev/null" end
-    if not f then return nil, "curl tidak bisa dijalankan; pastikan curl terpasang" end
-    local out = f:read("*a") or ""
-    local ok, _, code = f:close()
-    return out, ok == true, code
+    local outputPath = os.tmpname()
+    local full = cmd .. " > " .. shq(outputPath)
+    if quiet ~= false then full = full .. " 2>/dev/null" end
+    local ok, why, code = os.execute(full)
+    local f = io.open(outputPath, "r")
+    local out = f and (f:read("*a") or "") or nil
+    if f then f:close() end
+    os.remove(outputPath)
+    if not out then
+        return nil, "curl gagal dijalankan (" .. tostring(why or "shell") .. ", exit " .. tostring(code or "?")
+            .. "); cek instalasi Termux: pkg install curl"
+    end
+    return out, ok == true or code == 0, code
 end
 
 local function extractId(link)
@@ -43,6 +65,7 @@ end
 
 local function request(url, token, method, body)
     local curl = termuxCurl()
+    if not curl then return nil, "curl tidak ditemukan. Jalankan `pkg install curl` di Termux." end
     local args = { shq(curl), "-sS", "-L", "--fail", "--max-time", "30", "-w", shq("\nHTTP_STATUS:%{http_code}") }
     local headerPath
     if token and token ~= "" then
@@ -187,12 +210,14 @@ end
 local function download(item, index, token)
     local url = directUrl(item, token)
     if not url then return nil, "GoFile tidak memberikan tautan unduh aman untuk " .. tostring(item.name) end
+    local curl = termuxCurl()
+    if not curl then return nil, "curl tidak ditemukan. Jalankan `pkg install curl` di Termux." end
     local made = os.execute("mkdir -p " .. shq(DOWNLOAD_DIR))
     if made ~= true and made ~= 0 then return nil, "Folder Download tidak bisa dibuat." end
     local stamp = tostring(os.time()) .. "_" .. tostring(index)
     local name = stamp .. "_" .. safeName(item.name)
     local path = DOWNLOAD_DIR .. "/" .. name
-    local cmd = table.concat({ shq(termuxCurl()), "-fL", "--show-error", "--progress-bar", "--proto", "'=https'",
+    local cmd = table.concat({ shq(curl), "-fL", "--show-error", "--progress-bar", "--proto", "'=https'",
         "--proto-redir", "'=https'", "--max-time", "1800", "--max-filesize", tostring(MAX_BYTES),
         "-o", shq(path), "-w", shq("EFFECTIVE_URL:%{url_effective}"), shq(url) }, " ")
     local out, ok = runCapture(cmd, false)

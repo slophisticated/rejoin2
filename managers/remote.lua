@@ -470,12 +470,10 @@ function H.delta_key_input(args, ctx)
     local okCall, ok, message = pcall(require("managers.delta_key").input, args.key)
     if not okCall then return false, "input key Delta gagal (error internal)" end
     if not ok then return false, tostring(message or "gagal menyimpan key Delta") end
-    if ctx and type(ctx.requestDeltaActivation) == "function" then
-        ctx.requestDeltaActivation({ "all" })
-    elseif ctx and type(ctx.requestRejoin) == "function" then
+    if ctx and type(ctx.requestRejoin) == "function" then
         ctx.requestRejoin({ "all" })
     end
-    return true, "key tersimpan; satu clone masuk antrean validasi Delta, clone lain menunggu .license"
+    return true, "key tersimpan; rejoin semua clone masuk antrean satu per satu"
 end
 
 function H.logout_alarm_set(args)

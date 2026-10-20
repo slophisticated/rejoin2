@@ -94,18 +94,6 @@ local LaunchQueue = require("managers.launch_queue")
 local queue = nil
 local windowState = {}
 local monitorConf = {}
-local keyState = nil
-
-local function checkKey()
-    local present = queue:keyStatus()
-    if present == nil or present == keyState then return end
-    keyState = present
-    if present then Logger.info("[KEY] license Delta tersedia lagi; tetap tunggu heartbeat"); return end
-    Logger.warn("[KEY] validasi key Delta belum lengkap (.license belum tersedia); antrean ditahan")
-    Webhook.event("key", "🔑 Delta perlu dicek",
-        "File license belum ada atau Delta belum membuat .license setelah validasi. Antrean menunggu; masukkan key yang kamu dapatkan lewat alur resmi Delta.", 16705372)
-end
-
 local function checkWindow(inst)
     if not WindowLayout.isEnabled() then return end
     local pkg = inst and inst.package
@@ -139,15 +127,9 @@ local function takeAuthForget()
     for pkg in text:gmatch("[^\r\n]+") do Auth.forget(pkg) end
 end
 local rejoinQueue = {}
-local deltaActivationRequested = false
 
 function Monitor.requestRejoin(ids)
     for _, id in ipairs(ids or {}) do rejoinQueue[#rejoinQueue + 1] = id end
-end
-
-function Monitor.requestDeltaActivation(ids)
-    Monitor.requestRejoin(ids or { "all" })
-    deltaActivationRequested = true
 end
 
 -- From another process: append ids (or "all") to the request file.
@@ -155,15 +137,6 @@ function Monitor.requestRejoinFile(ids)
     local f = io.open(REQUEST_FILE, "a")
     if not f then return false end
     for _, id in ipairs(ids or {}) do f:write(tostring(id), "\n") end
-    f:close()
-    return true
-end
-
-function Monitor.requestDeltaActivationFile(ids)
-    local f = io.open(REQUEST_FILE, "a")
-    if not f then return false end
-    f:write("__delta_key_activate__\n")
-    for _, id in ipairs(ids or { "all" }) do f:write(tostring(id), "\n") end
     f:close()
     return true
 end
@@ -182,8 +155,7 @@ local function takeFileRequests()
     end)
     for line in text:gmatch("[^\r\n]+") do
         local ref = line:match("^%s*(.-)%s*$")
-        if ref == "__delta_key_activate__" then deltaActivationRequested = true
-        else rejoinQueue[#rejoinQueue + 1] = ref end
+        if ref ~= "__delta_key_activate__" then rejoinQueue[#rejoinQueue + 1] = ref end
     end
 end
 
@@ -198,8 +170,7 @@ local function runRejoinQueue()
         end
     end
     rejoinQueue = {}
-    queue:request(list, true, { deltaActivation = deltaActivationRequested })
-    deltaActivationRequested = false
+    queue:request(list, true)
 end
 
 local CONFIG_FILE = Paths.config()
@@ -295,15 +266,13 @@ function Monitor.start(conf, opts)
                 if inst.package == queue.active.inst.package then activeIndex = i; break end
             end
         end
-        local labels = { wait_key = "Menunggu key", wait_identity = "Identifikasi",
+        local labels = { wait_identity = "Identifikasi",
             needs_check = "Perlu dicek", stabilizing = "Stabil", cooldown = "Jeda retry" }
         Status.setProgress(activeIndex, activeIndex and #instances or nil,
             queue.active and (labels[queue.active.state] or "Loading") or nil)
         Status.printSummary(instances)
-        pcall(checkKey)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin,
-            requestDeltaActivation = Monitor.requestDeltaActivation, launchBusy = queue.active ~= nil })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = queue.active ~= nil })
         pcall(require("managers.logout_alarm").tick, instances, queue.active ~= nil)
         -- Expensive probes do not run on every loading poll.
         if os.time() - lastDiagnostics >= 30 then

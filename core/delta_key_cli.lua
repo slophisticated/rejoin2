@@ -33,8 +33,8 @@ function CLI.run()
         key = nil
         if called and ok then
             local Monitor = require("managers.monitor")
-            if Monitor.requestDeltaActivationFile({ "all" }) then
-                print("Berhasil: satu clone akan dibuka untuk validasi Delta; clone lain menunggu file .license.")
+            if Monitor.requestRejoinFile({ "all" }) then
+                print("Key tersimpan; rejoin semua clone masuk antrean satu per satu.")
                 local started = Monitor.start(Config.get())
                 if not started then
                     print("Engine monitor lain akan mengambil antrean; jika tidak ada, request tetap tersimpan untuk monitor berikutnya.")

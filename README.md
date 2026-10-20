@@ -28,8 +28,9 @@ Loader dan source modular memakai config dan state yang sama:
 
 `YANAMIN_HOME` bisa mengganti root saat debugging. Config lama di working directory
 hanya dipindahkan bila tujuan belum ada; config yang sudah ada tidak ditimpa.
-Folder Scripts/Autoexecute/Workspace Delta tetap di lokasi Delta, dipakai bersama
-semua clone dalam satu device. Heartbeat memakai username unik tiap clone.
+Folder Scripts/Autoexecute/Workspace executor tetap di storage device dan dipakai
+bersama clone. Heartbeat dipasang ke Autoexecute Delta serta Arceus X/Autoexec secara
+default, dan memakai username unik tiap clone.
 
 ## Antrean heartbeat v3
 
@@ -43,10 +44,10 @@ package dan token sesi launch; `hb_<username>.txt` menggemakan sesi + sequence.
 Heartbeat lama, akun berbeda, atau username terduplikasi tidak meloloskan antrean.
 
 Timeout `launchJoinTimeout` (default 240 detik) menahan slot sebagai **Perlu dicek**.
-Heartbeat yang akhirnya siap bisa melanjutkan antrean. License hilang tanpa
-heartbeat siap menampilkan **Menunggu key**; ini dugaan perlu pemeriksaan, bukan
-bukti layar Get Key. Isi key secara manual. Status key tidak diketahui tidak
-dianggap key hilang. Dashboard dan bot tetap diperiksa selama menunggu.
+Heartbeat yang akhirnya siap bisa melanjutkan antrean. Rejoin tidak lagi mendeteksi
+status file key Delta atau menahan antrean berdasarkan file tersebut. Jika perlu,
+masukkan key secara manual dan biarkan Delta memvalidasinya saat aplikasi dibuka.
+Dashboard dan bot tetap diperiksa selama menunggu heartbeat.
 
 **Tidak ada batas/gate RAM. RSS hanya informasi.** Recovery menggunakan proses mati,
 kick, atau heartbeat ingame yang berhenti, dengan jeda retry 120 detik dan batas
@@ -96,8 +97,7 @@ Key Delta yang kamu dapatkan sendiri bisa dimasukkan lewat Menu 14 atau `/delta 
 bot memakai modal privat dan command sementara. Key ditulis ke path license yang
 dikonfigurasi atau dideteksi dari instalasi Delta; jika belum ditemukan, dipakai
 `/sdcard/Delta/Internals/Cache/license`. Key tidak disimpan di config atau log. Setelah
-ditulis, satu clone masuk antrean aktivasi supaya Delta memproses key. Clone lain baru
-lanjut setelah Delta membuat `.license` dan heartbeat siap; Rejoin tidak membuat file itu.
+ditulis, semua clone dijadwalkan lewat antrean rejoin biasa; validasi key dilakukan Delta.
 Menu 15 memindai APK di link GoFile, menampilkan daftar bernomor, lalu menerima pilihan
 seperti `1-3` atau `1,3,5`. APK yang dipilih diunduh dan dipasang satu per satu; file
 unduhan dihapus setelah pemasangan sukses. Jika pemasangan gagal, file tetap ada di

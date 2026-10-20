@@ -4,24 +4,17 @@ local Config = require("core.config")
 local File = require("utils.file")
 local Shell = require("utils.shell")
 
--- Has Delta completed key validation?
---
--- Delta keeps its key in Internals/Cache/license (next to entries such as data and
--- ui), then creates a hidden .license companion after the official key flow succeeds.
--- When the key runs out the license entry is gone
--- and every clone shows the key screen again. The folder is shared by all clones, so
--- this is one status for the whole device.
+-- Resolve Delta's license destination and store a user-supplied key there.
 --
 -- Config (optional): deltaLicensePath = "" -- "" = find it automatically.
--- The path found once is remembered in data/delta_license_path.txt, so a key that is
--- already gone when the engine starts (e.g. after a reboot) is still noticed.
+-- The path found once is remembered in data/delta_license_path.txt so later manual
+-- key input uses the same Delta folder.
 
 local DeltaKey = {}
 
 local REMEMBER = Paths.data("delta_license_path.txt")
 local DEFAULT_LICENSE = "/sdcard/Delta/Internals/Cache/license"
 local cached = nil
-local warnedMissing = false
 
 local function q(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 
@@ -68,35 +61,6 @@ function DeltaKey.path()
             end
         end
     end
-    if not warnedMissing then
-        warnedMissing = true
-        Logger.info("[KEY] file license Delta belum ditemukan di " .. tostring(dir) .. " (cek key dilewati)")
-    end
-    return nil
-end
-
-function DeltaKey.processedPath()
-    local path = DeltaKey.path()
-    local dir = path and path:match("^(.*)/[^/]+$")
-    return dir and (dir .. "/.license") or nil
-end
-
--- true = raw key and Delta-generated companion both exist, false = key missing or
--- awaiting Delta validation, nil = path unknown / Delta folder unreadable.
-function DeltaKey.present()
-    local dir = deltaDir()
-    local p = DeltaKey.path()
-    if not p then return nil end
-    local processed = DeltaKey.processedPath()
-    if not processed then return nil end
-    local parent = p:match("^(.*)/[^/]+$") or dir or "/"
-    local cmd = "if [ -s " .. q(p) .. " ] && [ -s " .. q(processed) .. " ]; then echo KEY_YES; "
-        .. "elif [ -d " .. q(parent) .. " ]; then echo KEY_NO; else echo KEY_UNKNOWN; fi"
-    -- Shell.exec prefixes a timeout, so a compound command needs its own sh -c.
-    local ok, out = Shell.exec("sh -c " .. q(cmd))
-    out = ok and out or ""
-    if out:find("KEY_YES", 1, true) then return true end
-    if out:find("KEY_NO", 1, true) then return false end
     return nil
 end
 
@@ -110,7 +74,7 @@ function DeltaKey.input(key)
         return false, "format key tidak valid (1–256 karakter tanpa spasi)"
     end
 
-    -- Reuse the exact path the monitor detected/remembered; this Delta build stores
+    -- Reuse the exact path detected/remembered; this Delta build stores
     -- its license beside data/ui in Internals/Cache.
     local path = DeltaKey.path() or DEFAULT_LICENSE
     local dir = path:match("^(.*)/[^/]+$")
@@ -132,7 +96,7 @@ function DeltaKey.input(key)
     cached = path
     File.write(REMEMBER, path .. "\n")
     Logger.info("[KEY] input key Delta tersimpan di file license")
-    return true, "key Delta tersimpan di " .. path .. "; Delta perlu memvalidasinya dan membuat .license"
+    return true, "key Delta tersimpan di " .. path
 end
 
 return DeltaKey

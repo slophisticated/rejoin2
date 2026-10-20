@@ -2,6 +2,13 @@
 
 ## Unreleased — port rejoinversifinal
 
+- **Deteksi key Delta dinonaktifkan sementara**: antrean tidak lagi memeriksa `license` /
+  `.license`, menampilkan status `Menunggu key`, atau mengirim webhook key karena file
+  terdeteksi hilang. Input key manual tetap tersedia dan menjadwalkan rejoin biasa.
+- **Heartbeat multi-executor**: `rejoin_heartbeat.lua` dipasang ke Autoexecute Delta
+  dan `/sdcard/Arceus X/Autoexec`; penanda sesi dan laporan heartbeat dicari di Workspace
+  tiap executor. Path tambahan dapat diubah lewat `heartbeat.additionalAutoExecutePaths`.
+
 - **Download & Install APK GoFile**: Menu 15 memindai folder GoFile, menampilkan APK
   bernomor, menerima pilihan tunggal/rentang (misalnya `1-3`), lalu mengunduh dan
   memasang pilihan secara berurutan. Token API GoFile hanya diminta bila diperlukan,
@@ -38,19 +45,16 @@
 - **Input Key Delta**: Menu 14 dan `/delta input-key` menerima key yang dimasukkan user
   secara manual. Device memakai path license yang dikonfigurasi/dideteksi, dengan fallback
   `/sdcard/Delta/Internals/Cache/license`; input bot lewat
-  modal privat, command tidak dipersist atau dicatat ke log. Status siap butuh file `license`
-  dan `.license` buatan Delta. Setelah input, satu clone masuk antrean aktivasi; clone lain
-  menunggu validasi Delta dan heartbeat sebelum lanjut.
+  modal privat, command tidak dipersist atau dicatat ke log. Setelah input, semua clone
+  dijadwalkan melalui antrean rejoin biasa. Deteksi file key Delta kini dinonaktifkan.
 
 - **Antrean heartbeat (v3)**: Launch All, restart bot/preset, dan recovery memakai
   satu slot loading. Default menunggu 3 heartbeat baru dalam sesi yang sama dengan
   rentang minimal 20 detik. Timeout `launchJoinTimeout` menampilkan **Perlu dicek**,
   menahan antrean tanpa restart; heartbeat yang akhirnya siap melanjutkan antrean.
   Tidak ada fallback setelah 2 heartbeat gagal. Bot/dashboard tetap berjalan.
-- **Menunggu key**: license diketahui hilang + tidak ada heartbeat siap menahan
-  launch/retry, tanpa force-stop berulang atau menghitung waktu menunggu key sebagai
-  loading. License ada tidak membuktikan key valid; status tak diketahui tidak
-  dianggap layar Get Key. Notifikasi key tetap sekali per perubahan.
+- **Menunggu key**: detector status license Delta pernah menahan antrean saat file
+  diketahui hilang. Fitur itu sekarang dinonaktifkan sementara; lihat catatan Unreleased.
 - **Username + sesi**: heartbeat memakai `hb_<username>.txt`, menggemakan request
   `start_<username>.txt` yang berisi package dan token sesi dari Termux. Token terikat
   saat script mulai; username/duplikasi mapping/sesi lama ditolak. App yang dibuka
