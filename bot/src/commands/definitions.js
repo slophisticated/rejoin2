@@ -45,6 +45,9 @@ export const routes = {
   'webhook options': route('Atur laporan status dan notifikasi key.', [n('interval'), b('screenshot'), b('notif_key'), b('hide_names')], { all: true }),
   'webhook test': route('Kirim laporan webhook sekarang.'),
   'device rename': route('Ganti nama device.', [name]),
+  'device remove': route('Hapus device offline dari daftar bot (mis. device lama yang sudah diganti).', [], {
+    options: [{ ...device, required: true }], confirm: true,
+    confirmText: 'hapus device ini dari daftar bot (muncul lagi kalau device itu sync lagi)' }),
   'device replace': route('Lanjutkan pesan status device lama.', [s('message_link', true)], { options: [s('message_link', true), { ...device, required: true }] }),
   window: route('Atur grid jendela floating.', [b('enabled'), n('columns'), n('gap'), n('overlap')], { all: true }),
   saver: route('Atur heartbeat dan mode hemat.', [b('heartbeat'), b('enabled'), n('fps_cap'), b('disable3d')], { all: true }),

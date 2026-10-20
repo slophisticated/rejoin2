@@ -164,6 +164,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/config get/set` | Setting dari schema snapshot device |
 | `/webhook set/options/test` | URL, interval, screenshot, notif key, hide names, tes |
 | `/device rename/replace` | Ganti nama / teruskan pesan status lama |
+| `/device remove device:<device>` | Hapus device **offline** dari daftar bot (mis. device lama abis replace), pakai konfirmasi; command yang nyangkut ikut dibatalkan. Device muncul lagi kalau sync lagi |
 | `/window`, `/saver`, `/launch` | Shortcut grid, heartbeat/mode hemat, jeda launch |
 | `/script list/add/view/remove` | Gudang Scripts; view mengirim attachment |
 | `/autoexec list/add/remove` | Copy dari Scripts atau hapus copy Autoexecute |

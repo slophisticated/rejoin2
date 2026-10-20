@@ -180,6 +180,17 @@ export class Store extends EventEmitter {
     return commands;
   }
 
+  // Forget a device: its pending commands end as failed so open replies settle.
+  removeDevice(key) {
+    if (!this.devices.has(key)) return false;
+    for (const c of [...this.commands.values()]) {
+      if (c.device === key) this.finish(c, { ok: false, message: 'Device dihapus dari bot.' });
+    }
+    this.devices.delete(key);
+    this.changed();
+    return true;
+  }
+
   moveDevice(c, target) {
     if (!target || target === c.device) return;
     this.assertRename(c.device, target, c.id);

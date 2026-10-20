@@ -406,6 +406,7 @@ clone) berisi clone dari snapshot.
 | `/webhook options` | `interval?`, `screenshot?`, `notif_key?`, `hide_names?`, `device?`(+`all`) | beberapa `config_set` |
 | `/webhook test` | `device?` | `webhook_test` |
 | `/device rename` | `name`, `device?` | `device_rename` |
+| `/device remove` | `device` (wajib) | Lokal di bot (ga ada command ke device): hapus device yang **offline** dari daftar akun pemanggil setelah konfirmasi. Command pending device itu diselesaikan gagal ("Device dihapus dari bot."). Device online ditolak. Device yang sync lagi otomatis muncul lagi |
 | `/device replace` | `message_link`, `device` | `webhook_use_message` — dipakai setelah ganti/replace cloud phone: pesan status device lama dilanjutkan oleh device baru |
 | `/window` | `enabled?`, `columns?`, `gap?`, `overlap?`, `device?`(+`all`) | `config_set windowLayout.*` |
 | `/saver` | `heartbeat?`, `enabled?`, `fps_cap?`, `disable3d?`, `device?`(+`all`) | `config_set heartbeat.*` |

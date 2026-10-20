@@ -52,6 +52,9 @@ export class Handler {
         if ([values.file, values.url, values.code].filter(present).length !== 1) throw new Error('Isi tepat satu: file, url, atau code.');
         if (values.file) values.content = await downloadScript(values.file, this.fetcher);
       }
+      if (path === 'device remove' && this.store.online(devices[0])) {
+        throw new Error('Device ini masih online; cuma device offline yang bisa dihapus.');
+      }
       if (routes[path].confirm) {
         // Freeze the chosen clone ID and device list, rather than resolving a new target on confirmation.
         if (path === 'clone remove') values.clone = String(planDevice(path, values, devices[0])[0].args.clone);
@@ -171,6 +174,13 @@ export class Handler {
     await group.chain;
   }
 
+  // Bot-side only: forget an offline device (and its pending commands). Nothing is sent to it.
+  async removeDevice(i, device) {
+    if (this.store.online(device)) throw new Error('Device ini online lagi; tidak dihapus.');
+    this.store.removeDevice(device.key);
+    await i.editReply({ content: `🗑️ Device ${escape(device.name)} dihapus dari daftar bot.`, components: [], allowedMentions: mentions });
+  }
+
   async show(i, pages, refreshDevice = null) {
     const id = randomUUID();
     const session = { kind: 'pages', owner: i.user.id, expires: this.now() + 14 * 60_000, pages, page: 0, refreshDevice };
@@ -204,6 +214,7 @@ export class Handler {
         if (!d) throw new Error('Target berubah nama atau tidak dikenal; jalankan command lagi.');
         return d;
       });
+      if (session.path === 'device remove') return await this.removeDevice(i, devices[0]);
       await this.queue(i, session.path, session.values, devices);
       return;
     }

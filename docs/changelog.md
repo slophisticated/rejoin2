@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Bot: `/device remove`**: device yang udah ga dipake (mis. abis replace cloud phone) bisa dihapus dari `/devices` pakai konfirmasi. Cuma device **offline** milik akun sendiri; command yang masih nyangkut ikut dibatalkan. Device yang sync lagi muncul lagi otomatis. Perlu deploy ulang bot.
+
 - **Port dari versi publish (Apeng, commit "Write Delta Key")**:
   - **Input Key Delta**: Main Menu `12` + bot `/delta input-key` (popup privat). Key yang didapat user sendiri ditulis ke file license Delta yang terdeteksi, atau `<Delta>/internal/cache/license` kalau belum ada. Bedanya dari versi publish: path license yang udah kedeteksi dipake duluan. Key ga masuk config, log, atau command shell; command bot transient kayak cookie. Deteksi key sekarang juga ngecek `<Delta>/internal/cache`.
   - **Force-stop lebih aman**: nama package divalidasi + di-quote; kalau satu package dipake lebih dari satu clone, force-stop dibatalkan (biar clone lain ga ikut ketutup). Logout / inject cookie ga ngubah cookie kalau clone gagal ditutup. Semua jalur force-stop lewat `APKManager.forceStop`.

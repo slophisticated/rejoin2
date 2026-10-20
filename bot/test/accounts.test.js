@@ -124,3 +124,38 @@ test('rename only clashes inside the same account; persistence keeps accounts', 
   assert.equal(legacy.view('').devices.has('OLD'), true);
   assert.equal(JSON.parse(await readFile(join(dataDir, 'state.json'), 'utf8')).version, 1);
 });
+
+test('device remove: offline only, own account only, confirmed, pending commands settled', async () => {
+  const h = twoOwners();
+  h.store.sync(snapshot('OLD-01'), h.accounts.get(me));
+  h.store.sync(snapshot('TW-01'), h.accounts.get(friend));
+  const as = (user, path, values, extra = {}) => interaction(path, values, { user: { id: user }, ...extra });
+  const mine = keyOf(h.accounts.get(me), 'OLD-01');
+
+  // Online: refused before any confirmation.
+  const online = as(me, 'device remove', { device: 'OLD-01' }); await h.handler.handle(online);
+  assert.match(online.edits.at(-1).content, /masih online/);
+  assert.equal(h.handler.sessions.size, 0);
+
+  h.advance(100_000);
+  const pending = h.store.enqueue(mine, 'status');
+  const results = []; h.store.on('result', (c, r) => results.push([c.id, r.ok]));
+  // Another owner cannot even see it.
+  const other = as(friend, 'device remove', { device: 'OLD-01' }); await h.handler.handle(other);
+  assert.match(other.edits.at(-1).content, /tidak ditemukan/);
+
+  await h.handler.handle(as(me, 'device remove', { device: 'OLD-01' }));
+  assert.ok(h.store.devices.has(mine), 'removed before confirmation');
+  const id = [...h.handler.sessions.keys()][0];
+  const confirm = as(me, '', {}, { isButton: () => true, customId: `confirm:${id}` });
+  await h.handler.handle(confirm);
+  assert.equal(h.store.devices.has(mine), false);
+  assert.ok(h.store.devices.has(keyOf(h.accounts.get(friend), 'TW-01')));
+  assert.deepEqual(results, [[pending.id, false]]);
+  assert.equal(h.store.commands.size, 0);
+  assert.match(confirm.edits.at(-1).content, /dihapus/);
+  // A device that syncs again simply comes back.
+  h.store.sync(snapshot('OLD-01'), h.accounts.get(me));
+  assert.ok(h.store.devices.has(mine));
+  h.replies.close();
+});
