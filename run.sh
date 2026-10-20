@@ -38,10 +38,13 @@ stop_child() {
 }
 trap 'stop_child 130' INT
 trap 'stop_child 143' TERM
+# crash_guard keeps the traceback of a Lua crash in data/crash.log (error report, Menu 4).
+GUARD=
+[ -f utils/crash_guard.lua ] && GUARD=utils/crash_guard.lua
 while :; do
     # Explicit stdin redirection prevents POSIX sh from assigning /dev/null to
     # background Lua. fd 3 retains original terminal even without /dev/tty.
-    REJOIN_WRAPPER=1 lua main.lua "$@" <&3 &
+    REJOIN_WRAPPER=1 lua $GUARD main.lua "$@" <&3 &
     PID=$!
     wait "$PID"
     STATUS=$?

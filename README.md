@@ -73,7 +73,7 @@ cd ~/rejoin && lua main.lua
 | `1` Start Monitor | Pantau + sambungan bot, tanpa launch ulang clone yang lagi jalan |
 | `2` Instances Manager | Package clone + link game / private server |
 | `3` Settings | Pengaturan umum; `13` = jeda launch (`launchJoinTimeout`, `launchSettleDelay`, dst.) |
-| `4` View Logs | Lihat `data/rejoin.log` |
+| `4` Logs & Report Error | `1` (default): **report error lengkap**. Info device + error/warning dari semua log (rejoin.log, boot.log + update, crash.log, launch.log) digabung, rahasia disensor (URL webhook, secret, HWID, cookie), disimpen ke `data/report.txt` + `/sdcard/Download/rejoin-report.txt`, terus **otomatis di-copy ke clipboard**. Tinggal paste. Lainnya: lihat rejoin.log / boot.log / crash.log. Menu ga bisa kebuka? `cd ~/rejoin && lua main.lua --report` |
 | `5` Launch All + Monitor | Buka semua clone berurutan, lalu pantau |
 | `6` Script Manager | Script di folder Scripts + masukin/keluarin dari Autoexecute (copy dari Scripts) |
 | `7` Inject Cookie | Login clone pakai cookie, cek token, logout akun clone |

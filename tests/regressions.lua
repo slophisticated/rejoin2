@@ -503,5 +503,24 @@ test("Delta license detection never takes the hidden .license companion", functi
     assert(DeltaKey.path() == "/sdcard/Delta/Internals/Cache/license", tostring(DeltaKey.path()))
 end)
 
+test("error report masks webhook URLs, cookies, bearer tokens, the bot secret and the HWID", function()
+    local env = sandbox()
+    env.package.preload["core.config"] = function() return { get = function() return {} end } end
+    local Report = env.require("managers.report")
+    local text = Report.redact(table.concat({
+        "kirim ke https://discord.com/api/webhooks/123/abc_DEF-xyz gagal",
+        "https://canary.discordapp.com/api/webhooks/9/zz",
+        "cookie _|WARNING:-DO-NOT-SHARE-THIS.--x|_ABC123; next",
+        ".ROBLOSECURITY=ABCDEF123; path=/",
+        "Authorization: Bearer topsecret123",
+        "secret=my-bot-secret-0123456789 hwid 0123456789abcdef",
+    }, "\n"), { secret = "my-bot-secret-0123456789", hwid = "0123456789abcdef" })
+    for _, leak in ipairs({ "abc_DEF", "/9/zz", "DO-NOT-SHARE", "ABCDEF123", "topsecret123", "my-bot-secret", "0123456789abcdef" }) do
+        assert(not text:find(leak, 1, true), "leaked: " .. leak .. "\n" .. text)
+    end
+    assert(text:find("[webhook]", 1, true) and text:find("[cookie]", 1, true) and text:find("[hwid]", 1, true))
+    assert(Report.base64("foobar") == "Zm9vYmFy" and Report.base64("fo") == "Zm8=")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

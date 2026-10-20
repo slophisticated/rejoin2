@@ -120,6 +120,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Inject Cookie sukses tapi clone tetep logout | Liat blok **Kemungkinan penyebab** di bawah `[VERDICT]`. Biasanya proteksi lokasi Roblox (cookie diambil dari negara lain, misal device server Taiwan) → login manual di clone itu, atau ambil cookie dari login di jaringan device itu. Kalau app ga baca cookie WebView → bandingin versi Roblox antar device |
 | `apt update` gagal / 404 | `termux-change-repo` → **Mirror group** → **Mirrors in Asia**, lalu ulangi |
 | Reboot tapi clone tidak terbuka | `cat ~/rejoin/data/boot.log` — kosong/tidak ada = Termux:Boot belum aktif: tap ikonnya sekali, cek `su -c "dumpsys package com.termux.boot \| grep stopped="` harus `stopped=false` |
+| **Ada error apa pun** | Menu `4` → Enter (report lengkap, otomatis ke-copy) → paste ke chat. Menu rusak? `cd ~/rejoin && lua main.lua --report`. Copy ke clipboard paling lancar kalau app **Termux:API** + `pkg install termux-api` terpasang; tanpa itu dicoba lewat terminal, dan file-nya tetep ada di `/sdcard/Download/rejoin-report.txt` |
 | Status / login aneh | `grep -E "\[LOGIN\]\|\[STATUS\]" ~/rejoin/data/rejoin.log \| tail -40` |
 | Jendela floating tidak di grid | `grep WINDOW ~/rejoin/data/rejoin.log \| tail` (dibetulkan otomatis saat clone dibuka ulang) |
 | Notif key tidak pernah muncul | `grep KEY ~/rejoin/data/rejoin.log` — harus ada baris `file license Delta: <path>`. Tidak ketemu → isi `deltaLicensePath` di `config/config.lua` |

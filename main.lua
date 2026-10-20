@@ -46,6 +46,7 @@ local autoLaunchFlag = false
 local configSource = nil
 local dryRun = false
 local doctorFlag = false
+local reportFlag = false
 local installHeartbeatFlag = false
 local migratePresetsFlag = false
 local enableWindowLayoutFlag = false
@@ -57,6 +58,7 @@ for i = 1, #args do
     if a == "--auto-launch" then autoLaunchFlag = true end
     if a == "--dry-run" then dryRun = true end
     if a == "--doctor" then doctorFlag = true end
+    if a == "--report" then reportFlag = true end
     if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
     if a == "--migrate-presets" then migratePresetsFlag = true end
@@ -86,7 +88,8 @@ end
 do
     local okC, c = pcall(dofile, "config/config.lua")
     local rootOff = okC and type(c) == "table" and c.useRoot == false
-    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or rootOff) then
+    -- --report must work exactly when something (root included) is broken.
+    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or reportFlag or rootOff) then
         local RootCheck = require("core.root_check")
         if not RootCheck.ok() then
             Logger.error("Root belum aktif; rejoin berhenti")
@@ -125,6 +128,16 @@ local data = conf
 
 local InstanceManager = require("managers.instance")
 InstanceManager.load(Config.get())
+
+-- One-shot: the error report of Main Menu 4 (all logs, secrets masked, copied to the
+-- clipboard). Usable when the menu itself does not work: cd ~/rejoin && lua main.lua --report
+if reportFlag then
+    local Report = require("managers.report")
+    local text, status = Report.run()
+    print(text)
+    for _, line in ipairs(status) do print(line) end
+    os.exit(0)
+end
 
 -- One-shot: environment doctor -- run on EACH device, diff outputs to find the
 -- dependency/fingerprint difference causing "inject [OK] tapi app ga login" on one
@@ -216,7 +229,7 @@ end
 local infoLine = installInfo()
 
 while true do
-    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) View Logs\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n 13) Install APK dari GoFile\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) Logs & Report Error\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n 13) Install APK dari GoFile\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "5" then

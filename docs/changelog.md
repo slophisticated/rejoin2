@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Report error 1 tempat + auto copy**: Main Menu `4` → `1` (atau Enter) / `lua main.lua --report` (jalan juga kalau root lagi rusak). Isinya info device (versi rejoin, Android, engine jalan?, executor, bot/webhook diset?, RAM, storage, clone) + error/warning dan aktivitas terakhir dari `rejoin.log`, `boot.log` (termasuk auto-update), `crash.log`, `launch.log`. Rahasia disensor (URL webhook, secret bot, HWID, cookie Roblox, Bearer). Disimpen ke `data/report.txt` + `/sdcard/Download/rejoin-report.txt`, terus di-copy ke clipboard (Termux:API, fallback OSC 52). **Crash Lua sekarang kecatet**: `run.sh` sama boot jalanin `main.lua` lewat `utils/crash_guard.lua`, traceback-nya masuk `data/crash.log`.
+
 - **Fix daftar di bot telat keupdate** (mis. `/script add` sukses tapi `/script list` masih "Kosong"): snapshot dikirim device *sebelum* command dijalanin, jadi perubahan baru keliatan di sync berikutnya. Sekarang ACK tiap command bawa snapshot terbaru, jadi `/script list`, `/clone list`, `/preset list`, `/overview` langsung berubah. Perlu update engine + deploy ulang bot.
 
 - **Device senyap + setting ga penting dimatiin** (`device_setup.sh`): semua volume (media/game, dering, notif, sistem, alarm) 0; suara sentuh, getar, suara kunci layar, nada dial, suara charging mati; notif pop-up (heads-up) mati biar ga nutupin jendela clone; auto-rotate, lokasi, scan Wi-Fi/Bluetooth di background mati. Tiap item dicek ulang abis di-set. Device lama dapet sekali lewat migrasi `update.sh` (`data/.migrated-quiet-device`) pas reboot. `--undo` ngebalikin volume ke setengah dan setting ke bawaan Android. App bawaan / batas proses / verifikasi APK sengaja ga disentuh.

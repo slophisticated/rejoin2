@@ -64,7 +64,9 @@ if su -c id </dev/null >/dev/null 2>&1; then log "root ok"; else log "WARN: su -
 restarts=0
 while :; do
     log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
-    lua main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    # crash_guard also keeps a crash's traceback in data/crash.log (error report).
+    GUARD=; [ -f utils/crash_guard.lua ] && GUARD=utils/crash_guard.lua
+    lua $GUARD main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
     code=$?
     case "$code" in
         0|130|143)

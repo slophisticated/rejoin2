@@ -56,7 +56,7 @@ Fitur utama:
 ```
 main.lua              entry + Main Menu (1 Start Monitor, 2-4, 5 Launch All + Monitor, 6-8, 9 Discord Webhook & Bot,
                       10 Jendela & Mode Hemat, 11 Preset Game, 12 Input Key Delta, 13 Install APK GoFile, 0 Exit)
-                      flag: --headless --start-monitor --auto-launch --dry-run --no-wizard
+                      flag: --headless --start-monitor --auto-launch --dry-run --no-wizard --report (error report)
                             --install-heartbeat --enable-window-layout (one-shot installer)
 run.sh                supervisor terminal (Ctrl+C). main.lua jalan di bawahnya (REJOIN_WRAPPER=1)
 core/                 menu CLI (settings_cli = Menu 3, item 13 jeda launch; webhook_cli = 9;
@@ -88,6 +88,10 @@ managers/executor.lua  executor yang dipake = appAutoExecutePath. Scan autoexec 
                       ke semua; pindah otomatis ke executor yang heartbeat-nya seger (<5 mnt) kalau yang
                       sekarang basi; dicek monitor tiap 5 mnt. Heartbeat dibaca dari semua Workspace (terbaru
                       menang). Menu 10 -> 10 = pilih manual. Workspace/Scripts ngikut
+managers/report.lua   report error gabungan (Menu 4 -> 1 / --report): info device + semua log, rahasia disensor
+                      (webhook, secret, HWID, cookie, Bearer), simpan data/report.txt + /sdcard/Download, copy clipboard
+                      (termux-clipboard-set, fallback OSC 52). utils/crash_guard.lua: run.sh & boot jalanin main.lua
+                      lewat sini, crash Lua -> data/crash.log
 managers/gofile_apk.lua  Menu 13: list APK dari link GoFile (cuma gofile.io/https), download, pm install (root)
 managers/delta_key.lua cek file "license" Delta (notif minta key; <Delta>/Internals/Cache dulu, ".license" ga pernah) +
                       DeltaKey.input = key yang diketik user (Menu 12 / bot /delta input-key)
@@ -102,7 +106,7 @@ device_setup.sh       animasi, dev options, izin background, smallest width (SMA
 tools/update_log.lua  update log -> Discord components (2 kotak); template + update_logs/
 .github/workflows/update-log.yml  kirim otomatis log baru / version naik (secret UPDATE_LOG_WEBHOOK)
 config/config.lua     config user (dipertahanin pas update); template.lua = default + dok key
-data/                 rejoin.log, boot.log, monitor.pid, webhook_msg.txt, delta_license_path.txt
+data/                 rejoin.log, boot.log, crash.log, report.txt, monitor.pid, webhook_msg.txt, delta_license_path.txt
 ```
 
 Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
