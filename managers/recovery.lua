@@ -96,6 +96,20 @@ function Recovery.launchAndJoin(instance)
 
     Logger.debug("Recovery.launchAndJoin: launching " .. tostring(instance.name or pkg))
 
+    -- No logged-in account: never force-stop it and never open the game link (it would
+    -- hang on the loading screen). Closed = opened gently at its login screen, open =
+    -- left alone. Launch All / rejoins then treat it as "belum login" (short pause).
+    if Auth.isLoggedIn(instance, true) == false then
+        local name = tostring(instance.name or pkg)
+        local okR, up = pcall(APK.isRunning, pkg)
+        if okR and up then
+            Logger.info("[NOLOGIN] " .. name .. " belum login; ga dibuka ke game (dibiarin di layar login)")
+            return true
+        end
+        Logger.info("[NOLOGIN] " .. name .. " belum login; dibuka ke layar login aja, tanpa link game")
+        return Recovery.reopenNoLogin(instance)
+    end
+
     local hasLink = gameLink(instance) ~= nil
 
     if hasLink then

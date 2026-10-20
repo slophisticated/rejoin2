@@ -172,14 +172,18 @@ end
 
 -- Returns true (Roblox accepts the token), false (Roblox rejects it), or nil when it
 -- could not be checked (no token, no curl, no network, unexpected answer).
-local function remoteCheck(pkg, base)
+-- `fresh` (a launch is about to open the game link): ask Roblox again unless the last
+-- answer is under 20 s old, or the token was just injected (see markLoggedIn).
+local function remoteCheck(pkg, base, fresh)
     if confValue("loginVerifyRemote") == false then return nil end
     local ttl = tonumber(confValue("loginVerifyInterval")) or 600
     local now = os.time()
     local token, source = readToken(base)
     -- Re-check right away when the token changed (e.g. the user logged in again).
     local c = remote[pkg]
-    if c and c.token == token and now - c.at < ttl then return c.result end
+    if c and c.token == token and now - c.at < ttl and (not fresh or c.injected or now - c.at < 20) then
+        return c.result
+    end
 
     local result, code, name, note = nil, nil, nil, nil
     local bin = resolveCurl()
@@ -252,7 +256,9 @@ local function baseDirExists(base)
     return nil
 end
 
-function Auth.isLoggedIn(instance)
+-- `fresh` skips the caches (used right before a clone is sent to its game link: an
+-- account logged out a minute ago must not be joined and hang on the loading screen).
+function Auth.isLoggedIn(instance, fresh)
     local pkg = instance and instance.package
     if not pkg then return nil end
     local base = baseDir(instance)
@@ -261,7 +267,7 @@ function Auth.isLoggedIn(instance)
     -- Cache check.
     local cached = cache[pkg]
     local now = os.time()
-    if cached and now - cached.at < TTL then
+    if cached and now - cached.at < TTL and not fresh then
         return cached.result
     end
 
@@ -298,7 +304,7 @@ function Auth.isLoggedIn(instance)
     -- A token on disk is not proof of a session: ask Roblox whether it still accepts it.
     local remoteResult = nil
     if result == true then
-        remoteResult = remoteCheck(pkg, base)
+        remoteResult = remoteCheck(pkg, base, fresh)
         if remoteResult == false then result = false end
     end
 
@@ -324,7 +330,7 @@ end
 function Auth.markLoggedIn(pkg, token)
     local now = os.time()
     cache[pkg] = { result = true, at = now }
-    remote[pkg] = { result = true, at = now, token = token }
+    remote[pkg] = { result = true, at = now, token = token, injected = true }
     Logger.info(string.format("[LOGIN] %s login = true (cookie baru di-inject)", tostring(pkg)))
 end
 

@@ -606,5 +606,40 @@ test("Launch All: a real join (heartbeat after 30s) is waited for before the nex
     assert(#launches == 3 and launches[2] - launches[1] >= 30 and launches[3] - launches[2] >= 30)
 end)
 
+local function recoveryScenario(loggedIn, running)
+    local env = sandbox()
+    local calls, freshAsked = {}, nil
+    env.package.preload["managers.apk"] = function()
+        return { forceStop = function() calls[#calls + 1] = "forceStop"; return true end,
+            isRunning = function() return running end,
+            launch = function() calls[#calls + 1] = "launch"; return true end }
+    end
+    env.package.preload["utils.android"] = function()
+        return { openURL = function() calls[#calls + 1] = "openURL"; return true end }
+    end
+    env.package.preload["managers.auth"] = function()
+        return { isLoggedIn = function(_, fresh) freshAsked = fresh; return loggedIn end }
+    end
+    env.package.preload["managers.instance"] = function()
+        return { gameLink = function() return "https://www.roblox.com/games/1" end,
+            presetOf = function() return "A", "default", "https://www.roblox.com/games/1" end }
+    end
+    for _, m in ipairs({ "utils.timer", "core.config", "managers.status", "managers.window_layout", "managers.heartbeat" }) do
+        env.package.preload[m] = dummy
+    end
+    local Recovery = env.require("managers.recovery")
+    local ok = Recovery.launchAndJoin({ id = 1, name = "Clone1", package = "com.t.one", preset = "A" })
+    return ok, table.concat(calls, ","), freshAsked
+end
+
+test("a logged-out clone is never force-stopped or sent to the game link", function()
+    local ok, calls, fresh = recoveryScenario(false, true)
+    assert(ok and calls == "" and fresh == true, "open at the login screen: " .. calls)
+    ok, calls = recoveryScenario(false, false)
+    assert(ok and calls == "launch", "closed: opened gently only, got " .. calls)
+    ok, calls = recoveryScenario(true, true)
+    assert(calls:find("forceStop", 1, true) and calls:find("openURL", 1, true), "logged in still joins: " .. calls)
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

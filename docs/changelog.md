@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix clone yang udah logout tetep dibuka ke link game** (stuck loading): Launch All / rejoin dari antrean manggil `launchAndJoin` buat semua clone, dan status login baru dicek *setelah* clone di-force-stop terus dibuka pake link game. Sekarang `launchAndJoin` ngecek login duluan, dan cek-nya **seger** (cache dilewatin, Roblox ditanya ulang kecuali <20 detik lalu / cookie baru di-inject). Jadi akun yang baru di-logout semenit lalu juga ketauan. Belum login: kalau kebuka dibiarin di layar login, kalau ketutup dibuka pelan tanpa link, **ga pernah di-force-stop**.
+
 - **Launch All ga lagi "kebuka semua barengan"**:
   - **Satu engine aja**: Menu `1`/`5` pas engine boot masih jalan sekarang nawarin "stop engine itu terus lanjut di sini?" (SIGTERM, jadi ga di-restart). Sebelumnya langsung keluar. `termux-boot.sh` juga ga nyalain/restart engine kalau udah ada engine lain di `data/monitor.pid`. Sebelumnya engine boot yang mati bukan secara normal (mis. `kill -9`) idup lagi 30 detik kemudian dan ikut Launch All bareng engine menu.
   - **Heartbeat kecepetan ga dianggep**: heartbeat "in game" yang muncul < 10 detik abis clone dibuka (ga mungkin secepet itu join) ditunggu lagi, bukan langsung lanjut ke clone berikutnya.
