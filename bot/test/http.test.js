@@ -145,3 +145,13 @@ test('long poll answers as soon as a command is queued, and lets the device sync
   await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(h.store.listenerCount('queued'), 0);
 });
+
+test('a broken snapshot on a non-status ACK is dropped but the ACK still counts', async t => {
+  const h = await api(t); h.advance(4000);
+  const c = h.store.enqueue('RF-07', 'script_add', { name: 'x.lua', content: 'print(1)' });
+  await h.send('/api/sync', snapshot());
+  const before = structuredClone(h.device().snapshot);
+  assert.equal((await h.send('/api/ack', ack(c, { data: { protocol: 1, device: 'RF-07' } }))).status, 200);
+  assert.equal(h.store.commands.has(c.id), false);
+  assert.deepEqual(h.device().snapshot, before);
+});

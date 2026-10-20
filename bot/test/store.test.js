@@ -144,3 +144,14 @@ test('atomic persistence restores snapshots and pending commands, without upload
   const broken = new Store({ dataDir }); await broken.load();
   assert.equal(broken.devices.size, 0);
 });
+
+test('a snapshot riding on any ACK refreshes the device at once (script add -> /script list)', () => {
+  const h = harness();
+  h.advance(4000);
+  const c = h.store.enqueue('RF-07', 'script_add', { name: 'yanamin.lua', content: 'print(1)' });
+  h.store.sync(snapshot());
+  const after = snapshot(); after.scripts = [...after.scripts, { name: 'yanamin.lua', size: 117, auto: false }];
+  h.store.ack(ack(c, { data: after }));
+  assert.ok(h.device().snapshot.scripts.some(s => s.name === 'yanamin.lua'));
+  assert.equal(h.store.commands.has(c.id), false);
+});

@@ -810,6 +810,12 @@ function Remote.sync(instances, ctx)
     if #cmds > 0 then fastUntil = os.time() + FAST_WINDOW end
     for _, cmd in ipairs(cmds) do
         local ok, msg, extra = Remote.run(cmd, ctx, instances)
+        -- Fresh snapshot with the ACK, so /script list, /clone list, ... show the change
+        -- right away instead of after the next sync (the one above was taken before).
+        if extra == nil and cmd.type ~= "screenshot" then
+            local okS, snap = pcall(snapshot, require("managers.instance").getAll())
+            if okS and type(snap) == "table" then extra = snap end
+        end
         Logger.info(string.format("Remote: %s %s -> %s %s", tostring(cmd.type), tostring(cmd.id),
             ok and "OK" or "GAGAL", (cmd.type == "cookie_inject" or cmd.type == "delta_key_input")
                 and "(detail disembunyikan)" or tostring(msg)))

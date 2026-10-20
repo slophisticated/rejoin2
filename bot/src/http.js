@@ -133,6 +133,10 @@ export function createApi({ store, secret, secrets = [{ account: '', secret }], 
       if (!object(b) || b.protocol !== 1 || typeof b.device !== 'string' || typeof b.id !== 'string'
         || typeof b.ok !== 'boolean' || typeof b.message !== 'string') throw fail(400, 'invalid_ack');
       if (b.ok && b.data && store.commands.get(b.id)?.type === 'status') validateSnapshot(b.data);
+      else if (b.data?.protocol === 1) {
+        // A snapshot riding along another command's ACK: a bad one is dropped, the ACK still counts.
+        try { b.data = validateSnapshot(b.data); } catch { delete b.data; }
+      }
       store.ack(b, account);
       return reply(200, { ok: true });
     } catch (e) {

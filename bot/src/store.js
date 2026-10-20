@@ -221,7 +221,8 @@ export class Store extends EventEmitter {
         try { this.moveDevice(c, target); }
         catch { result = { ok: false, message: 'Device sudah berubah nama, tapi nama bentrok. Cek /devices setelah sync berikutnya.' }; }
       }
-      if (c.type === 'status' && payload.data?.protocol === 1) {
+      // Any command's ACK may carry the snapshot taken after it ran (status always does).
+      if (payload.data?.protocol === 1) {
         const d = this.devices.get(c.device);
         d.snapshot = { ...structuredClone(payload.data), device: d.name };
         d.lastSeen = this.now();

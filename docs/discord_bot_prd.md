@@ -241,7 +241,11 @@ Response 200:
   "message": "Clone2 → B (Fisch), rejoin berurutan", "data": null }
 ```
 - `message` sudah berbahasa Indonesia, siap ditampilkan.
-- `data` opsional (mis. command `status` mengirim snapshot lengkap).
+- `data` opsional (mis. command `status` mengirim snapshot lengkap). Device juga
+  nempelin snapshot terbaru (`protocol: 1`) ke ACK command lain yang ga punya data
+  sendiri (kecuali `screenshot`), jadi `/script list`, `/clone list`, `/overview`
+  langsung ikut berubah. Bot nyimpen snapshot itu; snapshot rusak di ACK non-`status`
+  dibuang tanpa nolak ACK-nya.
 - Bot: cari command by `id` → hapus dari antrian → `editReply` interaction asal
   (ephemeral) dengan ✅/❌ + `message`. Response `{"ok":true}`. Id tidak dikenal → 200
   juga (abaikan).

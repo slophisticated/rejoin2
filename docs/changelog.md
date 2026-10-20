@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix daftar di bot telat keupdate** (mis. `/script add` sukses tapi `/script list` masih "Kosong"): snapshot dikirim device *sebelum* command dijalanin, jadi perubahan baru keliatan di sync berikutnya. Sekarang ACK tiap command bawa snapshot terbaru, jadi `/script list`, `/clone list`, `/preset list`, `/overview` langsung berubah. Perlu update engine + deploy ulang bot.
+
 - **Device senyap + setting ga penting dimatiin** (`device_setup.sh`): semua volume (media/game, dering, notif, sistem, alarm) 0; suara sentuh, getar, suara kunci layar, nada dial, suara charging mati; notif pop-up (heads-up) mati biar ga nutupin jendela clone; auto-rotate, lokasi, scan Wi-Fi/Bluetooth di background mati. Tiap item dicek ulang abis di-set. Device lama dapet sekali lewat migrasi `update.sh` (`data/.migrated-quiet-device`) pas reboot. `--undo` ngebalikin volume ke setengah dan setting ke bawaan Android. App bawaan / batas proses / verifikasi APK sengaja ga disentuh.
 
 - **Bot: `/overview`**: satu tampilan buat semua device di akun (atau satu device): versi rejoin tiap device (⚠️ kalau beda-beda, tandanya ada device yang ketinggalan update), tiap clone (status, posisi, username ikut setting sembunyikan nama, preset + sumbernya), daftar preset (⭐ default), Scripts (⚡ = ikut Autoexecute), dan Autoexecute. Dibaca dari snapshot, jadi langsung muncul tanpa nunggu device. Perlu deploy ulang bot.
