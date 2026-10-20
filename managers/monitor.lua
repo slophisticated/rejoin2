@@ -758,7 +758,7 @@ function Monitor.start(conf, opts)
                 -- A clone that has no logged-in account is treated as idle (low memory is
                 -- expected while it sits on the login screen). Never force-recover it,
                 -- regardless of the transient status shown.
-                if status == "nologin" or Auth.isLoggedIn(inst) == false then
+                if status == "nologin" or Auth.isLoggedIn(inst, true) == false then
                     -- On the login screen: leave it. Closed: reopen gently (see above).
                     if not reopenNoLoginIfClosed(inst, id, name, pkg) then
                         Logger.debug(string.format("Monitor: instance %s not logged in; treating as idle (no recovery)", name))

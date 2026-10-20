@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Fix auto-rejoin abis kick masih join link game buat akun yang udah logout**: cek login seger (Roblox ditanya ulang, bukan cache 10 menit) sekarang juga dipake di recovery abis kick/disconnect (`checkAndRecover`), restart pas freeze (`relaunch`), dan keputusan monitor sebelum recovery. Sebelumnya cuma Launch All / rejoin dari antrean yang ngecek seger, jadi akun yang ke-logout terus ke-kick dalam 10 menit masih dimasukin ke game dan nyangkut loading. Clone tanpa akun tetep dibuka ke layar login kayak biasa.
+
 - **Disconnect ga lolos lagi** (heartbeat v3): script heartbeat sekarang juga ngecek **sambungan ke server** (ClientReplicator di NetworkClient ilang = koneksi putus) dan ngecek ulang pesan error **tiap nulis heartbeat**, bukan cuma ngandelin event. Waktu nunggu UI popup error dipanjangin dari 30 detik ke 10 menit (di device lambat UI-nya telat muncul, jadi kick ga pernah ketangkep). Script baru kepasang sendiri pas monitor mulai, dan kepake pas clone masuk game berikutnya.
 - **Clone belum login ga nyepam log lagi**: monitor ga ngecek kesehatan clone yang statusnya belum login (RAM kecil di layar login itu wajar). Cuma dibuka lagi pelan kalau ketutup. Sebelumnya muncul `instance not healthy` tiap siklus.
 - **Report: warning yang sama digabung** jadi 1 baris + jumlah (`(x38)`) + jam terakhir, biar error beneran ga ketutup.

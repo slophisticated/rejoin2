@@ -628,13 +628,19 @@ local function recoveryScenario(loggedIn, running)
         env.package.preload[m] = dummy
     end
     local Recovery = env.require("managers.recovery")
-    local ok = Recovery.launchAndJoin({ id = 1, name = "Clone1", package = "com.t.one", preset = "A" })
-    return ok, table.concat(calls, ","), freshAsked
+    local inst = { id = 1, name = "Clone1", package = "com.t.one", preset = "A" }
+    local ok = Recovery.launchAndJoin(inst)
+    local launchCalls, launchFresh = table.concat(calls, ","), freshAsked
+    -- Auto-rejoin after a kick goes through checkAndRecover: same rule.
+    calls, freshAsked = {}, nil
+    local okR = Recovery.checkAndRecover(inst)
+    return ok, launchCalls, launchFresh, okR, table.concat(calls, ","), freshAsked
 end
 
 test("a logged-out clone is never force-stopped or sent to the game link", function()
-    local ok, calls, fresh = recoveryScenario(false, true)
+    local ok, calls, fresh, okR, recCalls, recFresh = recoveryScenario(false, true)
     assert(ok and calls == "" and fresh == true, "open at the login screen: " .. calls)
+    assert(okR == false and recCalls == "" and recFresh == true, "kick recovery joined a logged-out clone: " .. recCalls)
     ok, calls = recoveryScenario(false, false)
     assert(ok and calls == "launch", "closed: opened gently only, got " .. calls)
     ok, calls = recoveryScenario(true, true)

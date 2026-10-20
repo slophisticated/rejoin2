@@ -222,7 +222,7 @@ function Recovery.relaunch(instance)
 
     -- Never force-relaunch a clone that has no logged-in account: low RSS is expected
     -- while it sits on the login screen, and relaunching it is pointless.
-    if Auth.isLoggedIn(instance) == false then
+    if Auth.isLoggedIn(instance, true) == false then
         Logger.info("Recovery.relaunch: skipped restart (" .. tostring(pkg) .. ") not logged in")
         return false
     end
@@ -280,7 +280,7 @@ function Recovery.checkAndRecover(instance)
 
     -- Never recover/relaunch a clone that has no logged-in account: low RSS / inactivity
     -- is expected on the login screen, and recovering it only wastes resources.
-    if Auth.isLoggedIn(instance) == false then
+    if Auth.isLoggedIn(instance, true) == false then
         Logger.info("Recovery: skipped recovery (" .. tostring(pkg) .. ") not logged in")
         return false
     end
