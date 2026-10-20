@@ -84,8 +84,10 @@ managers/window_layout.lua grid floating window App Cloner
 managers/auth.lua     cek login (cookie + verifikasi curl)
 managers/logout_alarm.lua  logout terjadwal per clone (WIB), dipanggil tiap siklus monitor
                       (bot /alarm; /cookie inject = command transient, token ga dipersist/log)
-managers/executor.lua  executor yang dipake = appAutoExecutePath; folder ga ada -> cari autoexec di /sdcard
-                      (1 ketemu = dipake & disimpen, banyak = pilih Menu 10 -> 10). Workspace/Scripts ngikut
+managers/executor.lua  executor yang dipake = appAutoExecutePath. Scan autoexec di /sdcard, heartbeat dipasang
+                      ke semua; pindah otomatis ke executor yang heartbeat-nya seger (<5 mnt) kalau yang
+                      sekarang basi; dicek monitor tiap 5 mnt. Heartbeat dibaca dari semua Workspace (terbaru
+                      menang). Menu 10 -> 10 = pilih manual. Workspace/Scripts ngikut
 managers/delta_key.lua cek file "license" Delta (notif minta key; juga <Delta>/internal/cache) +
                       DeltaKey.input = key yang diketik user (Menu 12 / bot /delta input-key)
 managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute

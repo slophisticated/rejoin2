@@ -7,14 +7,21 @@ local Shell = require("utils.shell")
 -- Everything executor-related follows appAutoExecutePath: the heartbeat script goes in
 -- it, its Workspace / Scripts siblings are found next to it, and the Delta license
 -- check looks in its parent. Executors other than Delta keep that folder elsewhere and
--- name it differently (/sdcard/<Executor>/autoexec, AutoExec, ...). When the configured
--- folder does not exist, look for one on /sdcard: exactly one found = use it (saved to
--- the config), several = the user picks one in Main Menu 10.
+-- name it differently (/sdcard/<Executor>/autoexec, AutoExec, ...).
+--
+-- Automatic, so the user never has to open Termux: every autoexec folder on /sdcard
+-- gets the heartbeat script (Heartbeat.install), so whichever executor runs writes
+-- heartbeats into its own Workspace. The executor whose heartbeat is newest is the one
+-- in use; the monitor re-checks every few minutes. No heartbeat anywhere yet: keep the
+-- configured folder when it exists, else the one with the newest Workspace file.
+-- Main Menu 10 -> 10 still picks one by hand.
 
 local Executor = {}
 
 local AUTOEXEC_NAMES = { "autoexecute", "autoexec", "auto-execute", "auto-exec", "auto_execute", "auto_exec" }
 local warned = false
+local STALE = 300 -- the current executor's heartbeat older than this = not in use
+Executor.found = {} -- the latest scan, for Heartbeat.install
 
 local function q(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
 
@@ -47,7 +54,35 @@ function Executor.scan()
         end
     end
     table.sort(list, function(a, b) return a.name:lower() < b.name:lower() end)
+    Executor.found = list
     return list
+end
+
+-- Newest mtime per candidate (0 = none): of its rejoin heartbeat files, or with
+-- anyFile of any file in its Workspace. One root call for all candidates.
+local function newest(list, anyFile)
+    local lines = {}
+    for i, e in ipairs(list) do
+        local parent = e.path:match("^(.*)/[^/]+$") or e.path
+        local files = anyFile
+            and ("find " .. q(parent) .. "/[Ww]orkspace -maxdepth 2 -type f -exec stat -c %Y {} + 2>/dev/null")
+            or ("stat -c %Y " .. q(parent) .. "/[Ww]orkspace/rejoin/hb_*.txt 2>/dev/null")
+        lines[#lines + 1] = "echo \"" .. i .. ":$(" .. files .. " | sort -n | tail -1)\""
+    end
+    local ok, out = Shell.exec("sh -c " .. q(table.concat(lines, "; ")))
+    local times = {}
+    for i, t in tostring(ok and out or ""):gmatch("(%d+):(%d*)") do times[tonumber(i)] = tonumber(t) or 0 end
+    return times
+end
+
+-- With `fresh`, only times within STALE count (old leftovers never win).
+local function pickNewest(list, times, fresh)
+    local best, bestTime = nil, 0
+    for i, e in ipairs(list) do
+        local t = times[i] or 0
+        if t > bestTime and (not fresh or os.time() - t < STALE) then best, bestTime = e, t end
+    end
+    return best
 end
 
 -- Save `path` as the autoexec folder (the executor in use).
@@ -59,30 +94,44 @@ function Executor.use(path)
     return ok, err
 end
 
--- Make sure appAutoExecutePath points at an existing folder. Returns the path in use
--- (nil when none could be chosen) and whether it was changed.
+-- Point appAutoExecutePath at the executor in use (see the top of this file).
+-- Returns the path in use (nil when none) and whether it was changed.
 function Executor.ensure()
     local conf = Config.get() or {}
     local current = type(conf.appAutoExecutePath) == "string" and conf.appAutoExecutePath:gsub("/+$", "") or ""
-    if current ~= "" and isDir(current) then return current, false end
     local list = Executor.scan()
-    if #list == 1 then
-        Logger.info("[EXECUTOR] folder " .. (current ~= "" and current or "autoexec") .. " ga ada; ketemu "
-            .. list[1].name .. " (" .. list[1].path .. ")")
-        Executor.use(list[1].path)
-        return list[1].path, true
+    if #list == 0 then
+        if not warned then
+            warned = true
+            Logger.warn("[EXECUTOR] folder autoexec executor ga ketemu di /sdcard; buka executor-nya sekali")
+        end
+        return current ~= "" and current or nil, false
     end
-    if not warned then
-        warned = true
-        if #list == 0 then
-            Logger.warn("[EXECUTOR] folder autoexec ga ketemu (" .. tostring(current) .. "); buka executor sekali, lalu Menu 10 -> executor")
-        else
-            local names = {}
-            for _, e in ipairs(list) do names[#names + 1] = e.name end
-            Logger.warn("[EXECUTOR] ada " .. #list .. " executor (" .. table.concat(names, ", ") .. "); pilih di Menu 10 -> executor")
+    warned = false
+    local why = "heartbeat terbaru"
+    local pick
+    if #list > 1 then
+        local times = newest(list, false)
+        pick = pickNewest(list, times, true)
+        -- Stay while the current executor still reports (a recent heartbeat), so a
+        -- choice made in the menu is not undone by another executor's leftovers.
+        for i, e in ipairs(list) do
+            if e.path == current and os.time() - (times[i] or 0) < STALE then pick = nil end
         end
     end
-    return nil, false
+    if not pick then
+        local currentOk = current ~= "" and isDir(current)
+        if currentOk then return current, false end
+        if #list == 1 then
+            pick, why = list[1], "satu-satunya executor"
+        else
+            pick, why = pickNewest(list, newest(list, true)) or list[1], "Workspace paling baru dipakai"
+        end
+    end
+    if pick.path == current then return current, false end
+    Logger.info(string.format("[EXECUTOR] pindah ke %s (%s): %s", pick.name, why, pick.path))
+    Executor.use(pick.path)
+    return pick.path, true
 end
 
 return Executor

@@ -35,6 +35,7 @@ local launchedAt = {} -- pkg -> os.time() of the latest launch
 -- Files older than this engine run never count (e.g. yesterday's stale heartbeat).
 local startedAt = os.time()
 local wsCache = nil
+local otherWorkspaces = {} -- Workspace folders of the other executors found (set by install)
 local readCache = {} -- pkg -> { at, hb } ; the monitor asks several times per cycle
 
 local function conf()
@@ -105,20 +106,37 @@ end
 
 -- Install (or refresh) the script in the autoexecute folder; remove it when disabled.
 -- Returns ok, message.
+-- Also called by the monitor every few minutes: follows a switch to another executor.
 function Heartbeat.install()
-    -- Another executor than Delta (or Delta not installed): find its autoexec folder.
+    -- Which executor is in use (managers/executor.lua); a switch drops cached reads.
     local okE, _, changed = pcall(function() return require("managers.executor").ensure() end)
-    if okE and changed then wsCache = nil end
+    if okE and changed then wsCache = nil; readCache = {} end
     local c = conf()
     local dir = autoexecDir()
     if not dir then return false, "appAutoExecutePath kosong" end
     local target = dir .. "/" .. SCRIPT_NAME
+    -- Every executor found gets the script, so the one that runs reports itself.
+    local others = {}
+    local okX, Executor = pcall(require, "managers.executor")
+    local wsList = {}
+    for _, e in ipairs(okX and Executor.found or {}) do
+        if e.path ~= dir then
+            others[#others + 1] = e.path .. "/" .. SCRIPT_NAME
+            local parent = e.path:match("^(.*)/[^/]+$") or e.path
+            for _, name in ipairs({ "Workspace", "workspace" }) do
+                if dirExists(parent .. "/" .. name) then wsList[#wsList + 1] = parent .. "/" .. name; break end
+            end
+        end
+    end
+    otherWorkspaces = wsList
 
     if not c.enabled then
-        local existing = File.read(target)
-        if existing and existing:find(MARKER, 1, true) then
-            os.remove(target)
-            Logger.info("Heartbeat: script dilepas dari " .. target)
+        for _, t in ipairs({ target, table.unpack(others) }) do
+            local existing = File.read(t)
+            if existing and existing:find(MARKER, 1, true) then
+                os.remove(t)
+                Logger.info("Heartbeat: script dilepas dari " .. t)
+            end
         end
         return true, "disabled"
     end
@@ -135,6 +153,9 @@ function Heartbeat.install()
     if not s or not s2 then return false, "template rusak" end
     local out = src:sub(1, e) .. cfg .. src:sub(s2)
 
+    for _, t in ipairs(others) do
+        if File.read(t) ~= out and File.write(t, out) then Logger.info("Heartbeat: script juga dipasang di " .. t) end
+    end
     if File.read(target) == out then return true, "up to date" end
     local ok, err = File.write(target, out)
     if not ok then
@@ -186,16 +207,22 @@ function Heartbeat.readNow(instance, c)
     if not name or name == "" then return nil end
     local ws = Heartbeat.workspaceDir()
     if not ws then return nil end
-    local content = readFile(ws .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt")
-    if not content then return nil end
-
-    local hb = {}
-    for line in content:gmatch("[^\r\n]+") do
-        local k, v = line:match("^(%w+)=(.*)$")
-        if k then hb[k] = v end
+    -- The executor in use first; another executor that just took over may hold the
+    -- newer file (before the switch is noticed), so the newest one wins.
+    local hb
+    for i, dir in ipairs({ ws, table.unpack(otherWorkspaces) }) do
+        -- Other executors: plain read only (no root call for a file that is usually absent).
+        local path = dir .. "/" .. FOLDER .. "/hb_" .. name:lower() .. ".txt"
+        local content = i == 1 and readFile(path) or File.read(path)
+        local one = {}
+        for line in (content or ""):gmatch("[^\r\n]+") do
+            local k, v = line:match("^(%w+)=(.*)$")
+            if k then one[k] = v end
+        end
+        one.time = tonumber(one.time)
+        if one.time and (not hb or one.time > hb.time) then hb = one end
     end
-    hb.time = tonumber(hb.time)
-    if not hb.time then return nil end
+    if not hb then return nil end
     hb.fps, hb.ping, hb.mem = tonumber(hb.fps), tonumber(hb.ping), tonumber(hb.mem)
     local now = os.time()
     hb.age = now - hb.time

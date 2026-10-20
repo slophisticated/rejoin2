@@ -721,6 +721,8 @@ function Monitor.start(conf, opts)
             for _, inst in ipairs(instances) do pcall(checkWindow, inst) end
             pcall(checkKey)
         end
+        -- Follow a switch to another executor (no Termux needed): ~every 5 minutes.
+        if running and cycle % (windowEvery * 5) == 0 then pcall(Heartbeat.install) end
 
         -- The wait between cycles is a long poll on the bot: a command sent from Discord
         -- runs within a second or two instead of on the next remote.interval.

@@ -405,8 +405,9 @@ test("without a license file yet, the key goes to <Delta>/internal/cache/license
     assert(files["/sdcard/Delta/internal/cache/license"] == "FREE_new")
 end)
 
-local function executorScenario(current, dirs)
+local function executorScenario(current, dirs, hbTimes, wsTimes)
     local env = sandbox()
+    env.os.time = function() return 100000 end
     local conf = { appAutoExecutePath = current }
     local saves = 0
     env.package.preload["core.config"] = function()
@@ -415,6 +416,12 @@ local function executorScenario(current, dirs)
     env.package.preload["utils.shell"] = function()
         return { exec = function(cmd)
             if cmd:find("find /sdcard/", 1, true) then return true, table.concat(dirs, "\n") end
+            if cmd:find("stat -c", 1, true) then
+                local times = cmd:find("hb_", 1, true) and hbTimes or wsTimes
+                local out = {}
+                for i = 1, #dirs do out[#out + 1] = i .. ":" .. tostring(times and times[i] or "") end
+                return true, table.concat(out, "\n")
+            end
             for _, d in ipairs(dirs) do
                 if cmd:find("[ -d ", 1, true) and cmd:find(d .. "'", 1, true) then return true, "IS_DIR" end
             end
@@ -424,25 +431,41 @@ local function executorScenario(current, dirs)
     return env.require("managers.executor"), conf, function() return saves end
 end
 
-test("executor: an existing autoexec folder is kept as is", function()
-    local Executor, conf, saves = executorScenario("/sdcard/Delta/Autoexecute", { "/sdcard/Delta/Autoexecute", "/sdcard/Codex/Autoexec" })
-    assert(Executor.ensure() == "/sdcard/Delta/Autoexecute" and saves() == 0)
-    assert(conf.appAutoExecutePath == "/sdcard/Delta/Autoexecute")
+local DELTA, CODEX = "/sdcard/Delta/Autoexecute", "/sdcard/Codex/autoexec"
+
+test("executor: the configured folder stays while no other executor reports", function()
+    local Executor, conf, saves = executorScenario(DELTA, { CODEX, DELTA }, { 0, 0 })
+    assert(Executor.ensure() == DELTA and saves() == 0 and conf.appAutoExecutePath == DELTA)
 end)
 
 test("executor: Delta missing and one other executor found = switched and saved", function()
-    local Executor, conf, saves = executorScenario("/sdcard/Delta/Autoexecute",
-        { "/sdcard/Codex/autoexec", "/sdcard/Android/data/x/files/autoexec" })
+    local Executor, conf, saves = executorScenario(DELTA, { CODEX, "/sdcard/Android/data/x/files/autoexec" })
     local path, changed = Executor.ensure()
-    assert(path == "/sdcard/Codex/autoexec" and changed == true and saves() == 1, tostring(path))
-    assert(conf.appAutoExecutePath == "/sdcard/Codex/autoexec" and Executor.name(path) == "Codex")
+    assert(path == CODEX and changed == true and saves() == 1, tostring(path))
+    assert(conf.appAutoExecutePath == CODEX and Executor.name(path) == "Codex")
 end)
 
-test("executor: several found = nothing guessed, user picks in the menu", function()
-    local Executor, conf, saves = executorScenario("", { "/sdcard/Codex/Autoexec", "/sdcard/Arceus X/autoexec" })
-    assert(Executor.ensure() == nil and saves() == 0 and conf.appAutoExecutePath == "")
+test("executor: switches to the executor with a fresh heartbeat, without the menu", function()
+    -- Delta's last heartbeat is an hour old; Codex wrote one a minute ago.
+    local Executor, conf = executorScenario(DELTA, { CODEX, DELTA }, { 100000 - 60, 100000 - 3600 })
+    local path, changed = Executor.ensure()
+    assert(path == CODEX and changed and conf.appAutoExecutePath == CODEX)
+end)
+
+test("executor: old leftovers never undo the current one, a reporting one stays", function()
+    -- Picked Codex in the menu; Delta has a 2 hour old heartbeat file left over.
+    local Executor, conf = executorScenario(CODEX, { CODEX, DELTA }, { 0, 100000 - 7200 })
+    assert(Executor.ensure() == CODEX and conf.appAutoExecutePath == CODEX)
+    -- Both report, Delta slightly newer: the current one (still reporting) stays.
+    Executor, conf = executorScenario(CODEX, { CODEX, DELTA }, { 100000 - 30, 100000 - 5 })
+    assert(Executor.ensure() == CODEX and conf.appAutoExecutePath == CODEX)
+end)
+
+test("executor: no heartbeat yet and no folder configured = newest Workspace wins", function()
+    local Executor, conf = executorScenario("", { CODEX, DELTA }, { 0, 0 }, { 100000 - 50, 100000 - 900 })
+    assert(Executor.ensure() == CODEX and conf.appAutoExecutePath == CODEX)
     local list = Executor.scan()
-    assert(#list == 2 and list[1].name == "Arceus X" and list[2].name == "Codex")
+    assert(#list == 2 and list[1].name == "Codex" and list[2].name == "Delta")
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))
