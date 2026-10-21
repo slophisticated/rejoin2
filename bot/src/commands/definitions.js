@@ -47,7 +47,7 @@ export const routes = {
   'config get': route('Lihat nilai setting dari schema device.', [s('key', false, true)]),
   'config set': route('Ubah satu setting yang diizinkan device.', [key, s('value', true)], { all: true }),
   'webhook set': route('Atur URL webhook; tidak ditampilkan ulang.', [s('url', true)], { all: true }),
-  'webhook options': route('Atur laporan status dan notifikasi key.', [n('interval'), b('screenshot'), b('notif_key'), b('hide_names')], { all: true }),
+  'webhook options': route('Atur laporan status webhook.', [n('interval'), b('screenshot'), b('hide_names')], { all: true }),
   'webhook test': route('Kirim laporan webhook sekarang.'),
   'device rename': route('Ganti nama device.', [name]),
   'device remove': route('Hapus device offline dari daftar bot (mis. device lama yang sudah diganti).', [], {

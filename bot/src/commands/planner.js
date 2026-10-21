@@ -2,7 +2,7 @@ import { routes } from './definitions.js';
 import { cloneRefs, configValue, findClone, gameLink, loaderUrl, present, presetExists, scriptContent, scriptName, text } from './validate.js';
 
 const shortcuts = {
-  'webhook options': { interval: 'webhook.interval', screenshot: 'webhook.screenshot', notif_key: 'webhook.events', hide_names: 'webhook.hideNames' },
+  'webhook options': { interval: 'webhook.interval', screenshot: 'webhook.screenshot', hide_names: 'webhook.hideNames' },
   window: { enabled: 'windowLayout.enabled', columns: 'windowLayout.columns', gap: 'windowLayout.gap', overlap: 'windowLayout.overlap' },
   saver: { heartbeat: 'heartbeat.enabled', enabled: 'heartbeat.saver.enabled', fps_cap: 'heartbeat.saver.fpsCap', disable3d: 'heartbeat.saver.disable3d' },
   launch: { join_timeout: 'launchJoinTimeout', settle: 'launchSettleDelay', empty: 'launchEmptyDelay' },

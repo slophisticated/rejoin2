@@ -24,8 +24,8 @@ Fitur utama:
   3D mati, FPS cap).
 - **Grid jendela floating**: posisi ditulis ke prefs App Cloner. Baris atas sedikit
   numpuk (`overlap`).
-- **Discord webhook**: satu pesan status yang di-edit tiap 5 menit, plus notif
-  "Delta minta key" dan nama device.
+- **Discord webhook**: **satu** pesan status yang di-edit tiap 5 menit (ada nama device,
+  dan baris "🔑 Delta minta key" kalau key ilang). Ga ada pesan terpisah.
 - **Install 1 perintah** (`install.sh`), **auto-update + auto-start pas boot**
   (Termux:Boot), **setting device** (`device_setup.sh`), **root handler** di awal.
 
@@ -93,7 +93,7 @@ managers/report.lua   report error gabungan (Menu 4 -> 1 / --report): info devic
                       (termux-clipboard-set, fallback OSC 52). utils/crash_guard.lua: run.sh & boot jalanin main.lua
                       lewat sini, crash Lua -> data/crash.log
 managers/gofile_apk.lua  Menu 13: list APK dari link GoFile (cuma gofile.io/https), download, pm install (root)
-managers/delta_key.lua cek file "license" Delta (notif minta key; <Delta>/Internals/Cache dulu, ".license" ga pernah) +
+managers/delta_key.lua cek file "license" Delta (baris "minta key" di pesan status; <Delta>/Internals/Cache dulu, ".license" ga pernah) +
                       DeltaKey.input = key yang diketik user (Menu 12 / bot /delta input-key)
 managers/autoexecute.lua  folder Scripts (scriptSave/Remove/Read, scriptsDir) + Autoexecute
                       (autoAdd = copy dari Scripts, autoRemove). Menu 6 = core/autoexecute_cli.lua
@@ -139,7 +139,8 @@ Key config penting: `launchJoinTimeout` (240), `launchSettleDelay` (20),
 - **Webhook**: curl jalan sebagai user Termux, **bukan su**. URL webhook ga boleh
   di-log atau di-commit. ID pesan disimpen di `data/webhook_msg.txt`. ID-nya diambil
   dari key `"id"` tingkat atas JSON (urutan key Discord ga tetap). CPU butuh 2 sampel.
-  Notif terpisah **cuma** buat "Delta minta key" (permintaan user).
+  **Ga ada pesan terpisah sama sekali** (permintaan user): webhook = satu pesan status
+  aja. Status key Delta cuma jadi baris di pesan itu.
 - **Config user ga boleh ditimpa** pas update. Default baru buat device lama dipasang
   lewat migrasi `update.sh` (`data/.migrated-<nama>`), dan cuma jalan sekali.
 - **Smallest width tetap 600dp.** 900dp udah dicoba dan user ga suka (kekecilan).

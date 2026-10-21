@@ -14,7 +14,6 @@ local Shell = require("utils.shell")
 --       url = "",          -- Discord webhook URL; "" = feature off (nothing runs)
 --       interval = 300,    -- seconds between status updates
 --       screenshot = true, -- attach a screenshot of the cloud phone
---       events = true,     -- separate messages for engine start / kick / failures
 --       hideNames = true,  -- show account names as spoilers
 --   }
 --
@@ -27,7 +26,6 @@ local conf = {}
 local lastReport = 0
 local firstReportAt = nil
 local warned = {}
-local eventLast = {}
 local cpuPrev = nil      -- { total, idle }
 local procPrev = {}      -- pkg -> { proc, total }
 local PIDS_FILE = "data/clone_pids.txt"
@@ -50,7 +48,6 @@ function Webhook.configure(c)
         url = type(w.url) == "string" and w.url:gsub("%s+", "") or "",
         interval = math.max(60, math.floor(tonumber(w.interval) or 300)),
         screenshot = w.screenshot ~= false,
-        events = w.events ~= false,
         hideNames = w.hideNames ~= false,
         deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
@@ -317,6 +314,11 @@ local function buildReport(instances, sys, withImage)
         "🔴 Offline: " .. offline,
     }
     if nologin > 0 then lines[#lines + 1] = "⚪ Belum login: " .. nologin end
+    -- Delta's key: shown here (one message only, no separate notification).
+    local okK, DeltaKey = pcall(require, "managers.delta_key")
+    if okK and select(2, pcall(DeltaKey.present)) == false then
+        lines[#lines + 1] = "🔑 Delta minta key"
+    end
     lines[#lines + 1] = "🤖 Total: " .. #(instances or {})
     lines[#lines + 1] = ""
     lines[#lines + 1] = "**Application Details**"
@@ -493,24 +495,6 @@ function Webhook.tick(instances)
     local ok, res = pcall(Webhook.report, instances)
     if not ok then warnOnce("err", "error: " .. tostring(res)) end
     return ok and res
-end
-
--- Separate event message, e.g. Delta asking for a key (rate-limited per key: at most
--- one per 60s).
-function Webhook.event(key, title, text, color)
-    if not Webhook.enabled() or not conf.events then return false end
-    local now = os.time()
-    if eventLast[key] and now - eventLast[key] < 60 then return false end
-    eventLast[key] = now
-    local payload = '{"embeds":[{"title":' .. js(title .. " — " .. Webhook.deviceLabel()) .. ',"description":' .. js(text or "")
-        .. ',"color":' .. tostring(color or 16705372)
-        .. ',"timestamp":' .. js(os.date("!%Y-%m-%dT%H:%M:%SZ", now)) .. '}]}'
-    local ok, code = pcall(send, payload, false, "POST", conf.url)
-    if not ok or not code or code < 200 or code >= 300 then
-        warnOnce("event" .. tostring(code), "kirim event gagal (HTTP " .. tostring(code or "?") .. ")")
-        return false
-    end
-    return true
 end
 
 return Webhook

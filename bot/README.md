@@ -165,7 +165,7 @@ Opsi `device` boleh kosong bila hanya satu device dikenal.
 | `/screenshot` | Gambar layar cloud phone sekarang |
 | `/report device:<device/all>` | Report error device sebagai file (`all` = 1 file per device) (semua log + status login/heartbeat tiap clone, rahasia disensor). Ga perlu buka Termux |
 | `/config get/set` | Setting dari schema snapshot device |
-| `/webhook set/options/test` | URL, interval, screenshot, notif key, hide names, tes |
+| `/webhook set/options/test` | URL, interval, screenshot, hide names, tes |
 | `/device rename/replace` | Ganti nama / teruskan pesan status lama |
 | `/device remove device:<device>` | Hapus device **offline** dari daftar bot (mis. device lama abis replace), pakai konfirmasi; command yang nyangkut ikut dibatalkan. Device muncul lagi kalau sync lagi |
 | `/window`, `/saver`, `/launch` | Shortcut grid, heartbeat/mode hemat, jeda launch |

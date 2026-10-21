@@ -162,7 +162,6 @@ local SCHEMA = {
       pattern = "^https://[%w%.%-]+/api/webhooks/", label = "URL Discord webhook" },
     { key = "webhook.interval", type = "int", min = 60, max = 3600, label = "Interval laporan webhook (dtk)" },
     { key = "webhook.screenshot", type = "bool", label = "Screenshot di laporan" },
-    { key = "webhook.events", type = "bool", label = "Notif Delta minta key" },
     { key = "webhook.hideNames", type = "bool", label = "Sembunyikan nama akun" },
     { key = "webhook.deviceName", type = "string", max = 60, label = "Nama device" },
     { key = "deltaLicensePath", type = "string", max = 300, label = "Path file license Delta (kosong = otomatis)" },
@@ -200,7 +199,7 @@ local DEFAULTS = {
     ["windowLayout.enabled"] = false, ["windowLayout.columns"] = 0, ["windowLayout.gap"] = 0,
     ["windowLayout.overlap"] = 80, ["heartbeat.enabled"] = true, ["heartbeat.saver.enabled"] = false,
     ["heartbeat.saver.fpsCap"] = 15, ["heartbeat.saver.disable3d"] = true, ["webhook.url"] = "",
-    ["webhook.interval"] = 300, ["webhook.screenshot"] = true, ["webhook.events"] = true,
+    ["webhook.interval"] = 300, ["webhook.screenshot"] = true,
     ["webhook.hideNames"] = true, ["webhook.deviceName"] = "", deltaLicensePath = "",
     appAutoExecutePath = "/sdcard/Delta/Autoexecute", scriptsPath = "", ["remote.interval"] = 30,
 }

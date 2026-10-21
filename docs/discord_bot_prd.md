@@ -18,7 +18,7 @@ dengan balasan **ephemeral** (cuma pemilik yang lihat, channel tidak spam):
 - preset game & pindah game (semua clone / sebagian / satu)
 - daftar clone (tambah / ubah / hapus, link, preset)
 - restart satu clone, Launch All
-- Discord webhook status (URL, interval, screenshot, notif key, sembunyikan nama),
+- Discord webhook status (URL, interval, screenshot, sembunyikan nama),
   nama device, **ganti device** (lanjutkan pesan status lama)
 - jendela floating, heartbeat & mode hemat, jeda launch, dll (semua setting di §6)
 - **screenshot** layar cloud phone saat itu juga (balasan ephemeral)
@@ -357,7 +357,6 @@ Daftar resmi dikirim device di `settings` (pakai itu). Saat ini:
 | `webhook.url` | string (secret) | pola `https://*/api/webhooks/...` atau "" | URL webhook status |
 | `webhook.interval` | int | 60–3600 | interval laporan |
 | `webhook.screenshot` | bool | | screenshot |
-| `webhook.events` | bool | | notif Delta minta key |
 | `webhook.hideNames` | bool | | sembunyikan nama akun |
 | `webhook.deviceName` | string | ≤60 | nama device |
 | `deltaLicensePath` | string | ≤300 | path file license Delta ("" = otomatis) |
@@ -411,7 +410,7 @@ clone) berisi clone dari snapshot.
 | `/config get` | `device?`, `key?` | dari snapshot (`settings`), secret tampil "diset"/"kosong" |
 | `/config set` | `key` (autocomplete dari `settings`), `value`, `device?`(+`all`) | `config_set` |
 | `/webhook set` | `url`, `device?`(+`all`) | `config_set webhook.url` |
-| `/webhook options` | `interval?`, `screenshot?`, `notif_key?`, `hide_names?`, `device?`(+`all`) | beberapa `config_set` |
+| `/webhook options` | `interval?`, `screenshot?`, `hide_names?`, `device?`(+`all`) | beberapa `config_set` |
 | `/webhook test` | `device?` | `webhook_test` |
 | `/device rename` | `name`, `device?` | `device_rename` |
 | `/device remove` | `device` (wajib) | Lokal di bot (ga ada command ke device): hapus device yang **offline** dari daftar akun pemanggil setelah konfirmasi. Command pending device itu diselesaikan gagal ("Device dihapus dari bot."). Device online ditolak. Device yang sync lagi otomatis muncul lagi |

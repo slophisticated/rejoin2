@@ -202,10 +202,8 @@ local function checkKey()
         if was == false then Logger.info("[KEY] key Delta aktif lagi") end
         return
     end
+    -- No separate webhook message: the status message shows "Delta minta key".
     Logger.warn("[KEY] file license Delta hilang (" .. tostring(DeltaKey.path()) .. "): Delta minta key")
-    Webhook.event("key", "🔑 Delta minta key",
-        "File license Delta hilang. Script (heartbeat, autoexecute) tidak jalan sampai key dimasukkan lagi.",
-        16705372)
 end
 
 local function checkWindow(inst)

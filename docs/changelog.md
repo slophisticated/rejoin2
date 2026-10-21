@@ -2,6 +2,8 @@
 
 ## Unreleased / Bug fixes
 
+- **Webhook cuma satu pesan**: notif terpisah "🔑 Delta minta key" dihapus. Status key sekarang jadi baris `🔑 Delta minta key` di pesan status yang di-edit tiap 5 menit. Setting-nya ikut dihapus: Menu `9` → `4`, bot `/webhook options notif_key`, `webhook.events` (nomor menu lain tetep sama). Perlu deploy ulang bot.
+
 - **Fix auto-rejoin abis kick masih join link game buat akun yang udah logout**: cek login seger (Roblox ditanya ulang, bukan cache 10 menit) sekarang juga dipake di recovery abis kick/disconnect (`checkAndRecover`), restart pas freeze (`relaunch`), dan keputusan monitor sebelum recovery. Sebelumnya cuma Launch All / rejoin dari antrean yang ngecek seger, jadi akun yang ke-logout terus ke-kick dalam 10 menit masih dimasukin ke game dan nyangkut loading. Clone tanpa akun tetep dibuka ke layar login kayak biasa.
 
 - **Disconnect ga lolos lagi** (heartbeat v3): script heartbeat sekarang juga ngecek **sambungan ke server** (ClientReplicator di NetworkClient ilang = koneksi putus) dan ngecek ulang pesan error **tiap nulis heartbeat**, bukan cuma ngandelin event. Waktu nunggu UI popup error dipanjangin dari 30 detik ke 10 menit (di device lambat UI-nya telat muncul, jadi kick ga pernah ketangkep). Script baru kepasang sendiri pas monitor mulai, dan kepake pas clone masuk game berikutnya.

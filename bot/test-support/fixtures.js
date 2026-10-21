@@ -26,7 +26,6 @@ export function snapshot(device = 'RF-07') {
       { key: 'webhook.url', type: 'string', max: 300, secret: true, value: 'set' },
       { key: 'webhook.interval', type: 'int', min: 60, max: 3600, value: 300 },
       { key: 'webhook.screenshot', type: 'bool', value: true },
-      { key: 'webhook.events', type: 'bool', value: true },
       { key: 'webhook.hideNames', type: 'bool', value: true },
       { key: 'webhook.deviceName', type: 'string', max: 60, value: device },
       { key: 'remote.interval', type: 'int', min: 10, max: 600, value: 30 },

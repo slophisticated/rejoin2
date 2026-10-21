@@ -57,7 +57,7 @@ test('clone logout refuses all and needs confirmation', () => {
 test('all shortcut options map to individual dynamic-schema config_set commands', () => {
   const h = harness();
   const cases = [
-    ['webhook options', { interval: 600, screenshot: false, notif_key: true, hide_names: false }, ['webhook.interval', 'webhook.screenshot', 'webhook.events', 'webhook.hideNames']],
+    ['webhook options', { interval: 600, screenshot: false, hide_names: false }, ['webhook.interval', 'webhook.screenshot', 'webhook.hideNames']],
     ['window', { enabled: true, columns: 2, gap: 5, overlap: 80 }, ['windowLayout.enabled', 'windowLayout.columns', 'windowLayout.gap', 'windowLayout.overlap']],
     ['saver', { heartbeat: false, enabled: true, fps_cap: 10, disable3d: false }, ['heartbeat.enabled', 'heartbeat.saver.enabled', 'heartbeat.saver.fpsCap', 'heartbeat.saver.disable3d']],
     ['launch', { join_timeout: 100, settle: 10, empty: 3 }, ['launchJoinTimeout', 'launchSettleDelay', 'launchEmptyDelay']],

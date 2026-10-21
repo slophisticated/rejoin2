@@ -76,7 +76,6 @@ return {
         url = "",
         interval = 300,
         screenshot = true,
-        events = true,      -- separate message when Delta asks for a key
         hideNames = true,
         deviceName = "",    -- shown in every message; "" = device model
     },
