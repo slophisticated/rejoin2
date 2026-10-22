@@ -72,7 +72,7 @@ opsional; mulai dari 15 FPS dan rendering 3D mati jika cocok untuk gamenya.
 | 12 | Antrean & Heartbeat: stabilisasi, cooldown, batas retry |
 | 13 | Start Monitor tanpa mengulang Launch All |
 | 14 | Input Key Delta (key yang didapat user, tanpa ditampilkan di terminal) |
-| 15 | Download dan install APK yang dipilih dari link folder GoFile |
+| 15 | Scan folder Google Drive, pilih APK, lalu download dan install |
 
 Ctrl+C menghentikan monitor. Untuk mencoba ulang clone yang ditahan, gunakan
 bot `/restart clones:<clone>` atau hentikan monitor dan pilih Menu 1. Main Menu 13
@@ -98,11 +98,13 @@ bot memakai modal privat dan command sementara. Key ditulis ke path license yang
 dikonfigurasi atau dideteksi dari instalasi Delta; jika belum ditemukan, dipakai
 `/sdcard/Delta/Internals/Cache/license`. Key tidak disimpan di config atau log. Setelah
 ditulis, semua clone dijadwalkan lewat antrean rejoin biasa; validasi key dilakukan Delta.
-Menu 15 memindai APK di link GoFile, menampilkan daftar bernomor, lalu menerima pilihan
-seperti `1-3` atau `1,3,5`. APK yang dipilih diunduh dan dipasang satu per satu; file
-unduhan dihapus setelah pemasangan sukses. Jika pemasangan gagal, file tetap ada di
-`/sdcard/Download/Rejoin`. Link dan APK harus kamu percaya. API
-GoFile dapat meminta token API; token diminta tersembunyi dan hanya dipakai sementara.
+Menu 15 memindai APK di folder Google Drive publik, menampilkan daftar bernomor, lalu
+menerima pilihan seperti `1-3` atau `1,3,5`. Folder harus dibagikan ke siapa saja yang
+memiliki link. Scan memakai Google Drive API key yang dimasukkan tersembunyi dan tidak
+disimpan Rejoin; aktifkan Drive API di Google Cloud dan batasi API key untuk Google Drive
+API. APK terpilih diunduh dan dipasang satu per satu; file unduhan dihapus setelah
+pemasangan sukses. Jika pemasangan gagal, file tetap ada di `/sdcard/Download/Rejoin`.
+Link dan APK harus kamu percaya.
 Tes koneksi memakai `/api/ping` tanpa mengambil command. Registry HWID melengkapi
 ID pesan channel setelah restart dan mengonfirmasi kegagalan penghapusan.
 

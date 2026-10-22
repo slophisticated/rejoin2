@@ -31,7 +31,7 @@ return {
     },
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
-    launchJoinTimeout = 240,
+    launchJoinTimeout = 60,
     launchSettleDelay = 20,
     -- Jeda singkat (detik) setelah clone kosong dibuka, biar jendelanya sempat muncul.
     launchEmptyDelay = 5,
@@ -63,7 +63,7 @@ return {
         secret = "",
         interval = 30,  -- detik antar sync ke bot
     },
-    noLoginCooldown = 120,
+    noLoginCooldown = 30,
     -- Auto atur jendela floating jadi grid (ditulis ke setting clone pas clone mati,
     -- sebelum dibuka). Default NYALA; matikan lewat Main Menu 9) Jendela & Mode Hemat.
     windowLayout = {

@@ -35,12 +35,22 @@ Source modular/installer juga tersedia di [README](README.md#source-modular-dan-
 - Heartbeat otomatis dipasang di `/sdcard/Delta/Autoexecute` dan
   `/sdcard/Arceus X/Autoexec`. Path kedua bisa diubah lewat
   `heartbeat.additionalAutoExecutePaths`; isi `{}` untuk menonaktifkan salinan Arceus X.
-- **Menu 15**: masukkan link folder GoFile, pilih APK dari daftar (contoh `1-3`), lalu
-  Rejoin mengunduh dan memasang pilihan satu per satu. File APK dihapus setelah
-  pemasangan sukses; jika gagal, file tetap di `/sdcard/Download/Rejoin`. Jika GoFile
-  meminta autentikasi, masukkan token API saat
-  diminta; token disembunyikan dan tidak disimpan. Instalasi dapat gagal jika signature
-  APK berbeda dari aplikasi yang sudah terpasang atau versi APK lebih lama.
+- **Menu 15**: masukkan link folder Google Drive publik dan Google Drive API key,
+  pilih APK dari daftar (contoh `1-3`), lalu Rejoin mengunduh dan memasang pilihan
+  satu per satu. File APK dihapus setelah pemasangan sukses; jika gagal, file tetap di
+  `/sdcard/Download/Rejoin`. Instalasi dapat gagal jika signature APK berbeda dari
+  aplikasi yang sudah terpasang atau versi APK lebih lama.
+
+### Menyiapkan Google Drive untuk Menu 15
+
+1. Bagikan folder Drive sebagai **Siapa saja yang memiliki link — Pelihat**.
+2. Di Google Cloud Console, buat project, aktifkan **Google Drive API**, lalu buat API key.
+3. Batasi API key ke Google Drive API dan masukkan saat Menu 15 meminta key. Key
+   dimasukkan tersembunyi dan hanya dipakai selama proses; Rejoin tidak menyimpannya.
+4. Berikan link folder, pilih APK yang ingin dipasang, lalu tunggu hasil instalasi.
+
+Folder nonpublik, API key salah/restriktif, resource key yang hilang, atau kuota API
+dapat membuat scan gagal. Bagikan hanya folder dan APK yang kamu percaya.
 - **Menu 8**: webhook status, nama device, HWID/URL bot. Bot opsional; lihat
   [panduan bot](bot/README.md). Tes koneksi hanya memakai `/api/ping`.
 - Bot bisa menjadwalkan auto-logout per clone lewat `/alarm set` dengan tanggal dan

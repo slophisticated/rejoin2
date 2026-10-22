@@ -9,12 +9,12 @@
   dan `/sdcard/Arceus X/Autoexec`; penanda sesi dan laporan heartbeat dicari di Workspace
   tiap executor. Path tambahan dapat diubah lewat `heartbeat.additionalAutoExecutePaths`.
 
-- **Download & Install APK GoFile**: Menu 15 memindai folder GoFile, menampilkan APK
-  bernomor, menerima pilihan tunggal/rentang (misalnya `1-3`), lalu mengunduh dan
-  memasang pilihan secara berurutan. Token API GoFile hanya diminta bila diperlukan,
-  diinput tersembunyi, dan tidak disimpan. File sementara berada di `/sdcard/Download/Rejoin`
-  dan dihapus setelah instalasi sukses; jika instalasi gagal, file dipertahankan. File
-  dibatasi ke ekstensi APK dan host unduhan GoFile; file non-ZIP ditolak.
+- **Download & Install APK Google Drive**: Menu 15 memindai folder Drive publik melalui
+  Google Drive API, menampilkan APK bernomor, dan menerima pilihan tunggal/rentang
+  (misalnya `1-3`). API key dimasukkan tersembunyi, tidak disimpan/log, dan dipakai hanya
+  untuk scan. File pilihan diunduh dan dipasang berurutan; unduhan dihapus setelah
+  install sukses, sedangkan file yang gagal dipasang tetap ada di `/sdcard/Download/Rejoin`.
+  Scan dibatasi 100 APK, kedalaman folder 5, dan ukuran file 2 GB; file non-ZIP ditolak.
 
 - Branch berdasarkan `apengjers/rejoin` main `d0de119`, bukan merge main rejoin2.
 - Loader dan source modular disatukan. Generator `tools/bundle_loader.js` tersedia;
