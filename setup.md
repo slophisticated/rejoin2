@@ -1,5 +1,21 @@
 ## 📝 Rejoin Installation Guide
 
+## Antrean launch / Delta minta key
+
+Heartbeat aktif: clone berikutnya hanya dibuka setelah heartbeat sesi baru target.
+RSS tinggi bukan bukti siap, dan timeout tidak lagi memindahkan antrean ke jeda tetap.
+Setelah `launchJoinTimeout` (0 berarti default 240 detik), dashboard menampilkan
+alasan antrean ditahan. Urus key/executor sendiri; heartbeat masuk → lanjut otomatis.
+Key di disk hanya petunjuk, bukan jaminan key valid. Username bentrok perlu diperbaiki.
+
+Untuk lewati **satu** clone atau batalkan sisa antrean: buka sesi Termux kedua,
+jalankan `cd ~/rejoin && lua main.lua`, pilih **Menu 14**. Monitor tetap jalan setelah
+cancel; skip berarti kamu menerima risiko loading clone sebelumnya belum selesai.
+Selama menunggu, bot/webhook tetap aktif, recovery clone lain menunggu.
+Cookie inject Menu 7: stop monitor dulu, inject target, lalu Menu 1 untuk autojoin
+target melalui antrean yang sama. Jika monitor aktif gunakan `/cookie inject` di bot
+setelah antrean sebelumnya selesai. Jangan pilih Launch All jika hanya ingin target.
+
 ## 🤖 Bot Discord (opsional)
 
 Kode bot ada di **[bot/](bot/README.md)** dan blueprint Render ada di

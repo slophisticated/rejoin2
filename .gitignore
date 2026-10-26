@@ -7,6 +7,8 @@ data/webhook_msg.txt
 data/clone_pids.txt
 data/delta_license_path.txt
 data/rejoin_request.txt
+data/launch_wait.json
+data/launch_action.json
 
 # Discord bot dependencies, credentials and local runtime state.
 node_modules/

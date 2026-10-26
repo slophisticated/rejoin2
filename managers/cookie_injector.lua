@@ -423,6 +423,7 @@ function CookieInjector.inject(instance, token)
     if #failures > 0 then
         detail = detail .. "\n[WARN] Gagal sebagian:\n- " .. table.concat(failures, "\n- ")
     end
+    Auth.markLoggedIn(pkg, token)
     return true, detail
 end
 

@@ -387,6 +387,11 @@ end
 -- What the monitor is doing right now, shown in the "System" row:
 -- nil = idle (monitoring), or { verb = "Checking" | "Launching", i, n }.
 local progress = nil
+local launchNotice = nil
+
+function Status.setLaunchNotice(text)
+    launchNotice = text
+end
 
 function Status.setProgress(i, n, verb)
     if i and n then
@@ -482,6 +487,10 @@ function Status.printSummary(instances)
     table.insert(sb, bot)
 
     -- Footer hint below the table.
+    if launchNotice then
+        table.insert(sb, launchNotice)
+        table.insert(sb, "Antrean ditahan. Sesi Termux lain: Menu 14 untuk lewati/batalkan.")
+    end
     table.insert(sb, " ")
     table.insert(sb, C.dim .. "(tekan Ctrl+C untuk berhenti)" .. C.reset)
 

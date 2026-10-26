@@ -42,6 +42,26 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ## Fitur
 
+### Antrean launch aman
+
+Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah
+`launchJoinTimeout`, antrean ditahan dengan alasan (Delta minta key, heartbeat belum
+masuk, clone tertutup/kick, atau username bentrok). Heartbeat sesi baru melanjutkan
+antrean otomatis. `launchJoinTimeout = 0` memakai 240 detik, bukan mematikan gate.
+Untuk pengecualian manual, buka **sesi Termux kedua → `lua main.lua` → Menu 14**:
+lewati **satu** clone atau batalkan sisa antrean tanpa mematikan monitor. Skip manual
+bisa menumpuk loading; engine tidak menjamin clone yang dilewati sudah siap.
+Target yang dilewati/dibatalkan tidak langsung dipaksa recovery lagi; perlindungan
+lepas saat heartbeat masuk atau kamu mengirim rejoin/Launch All baru.
+
+Login manual dan inject bot hanya mengantrekan clone target; recovery tidak menyambar
+clone yang sedang antre/loading. Inject Menu 7 dilakukan saat monitor berhenti lalu
+pilih Menu 1 untuk autojoin target, bukan membuka halaman awal terlebih dahulu.
+Kalau monitor masih jalan, gunakan inject bot atau hentikan monitor dulu.
+Clone tanpa akun tetap tidak di-force-stop. Mode jeda/RSS lama hanya dipakai bila
+heartbeat sengaja dimatikan. Selama antrean ditahan, bot dan satu pesan webhook tetap
+dilayani; pemeriksaan recovery clone lain menunggu antrean selesai/dibatalkan.
+
 - **Satu engine aja.** Buka Menu `1`/`5` pas engine boot masih jalan? Ditawarin stop engine itu terus lanjut di menu, biar ga ada 2 engine yang buka clone barengan.
 - **Launch All berurutan.** Clone dibuka satu per satu. Clone berikutnya baru dibuka setelah clone sebelumnya **benar-benar masuk game**: karakter sudah spawn dan aset selesai dimuat (lewat heartbeat Delta). Clone yang **sudah login dibuka duluan** (urut sesuai Menu 2), clone yang belum login dibuka **paling akhir** dengan jeda 5 detik.
 - **Auto rejoin.** Clone yang ke-kick, disconnect, freeze, atau force close dibuka ulang dan masuk ke game / private server lagi. Setelah launch/recovery, proses yang masih hidup tanpa heartbeat diberi waktu loading minimal 60 detik (atau `gracePeriod` kalau lebih besar), supaya penurunan RSS tidak memicu restart berulang. Kick, heartbeat yang berhenti, dan proses mati tetap ditangani.

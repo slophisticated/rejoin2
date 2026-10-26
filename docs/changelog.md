@@ -2,6 +2,17 @@
 
 ## Unreleased / Bug fixes
 
+- **Antrean heartbeat ketat**: Launch All/rejoin/recovery tidak lanjut karena RSS,
+  timeout, username dobel, atau dua heartbeat gagal. Timeout menahan antrean dengan
+  diagnosis key/executor/kick/proses mati; heartbeat baru melanjutkan otomatis.
+  Menu **14** (sesi Termux kedua) untuk lewati satu target atau batalkan sisa antrean.
+  Mode heartbeat mati tetap memakai jeda lama; nilai timeout 0 tidak mematikan gate.
+- **Login/inject tidak restart dobel**: target yang antre/loading dilindungi dari
+  recovery RSS; freeze/kick/recovery masuk antrean yang sama. Inject bot hanya target,
+  inject Menu 7 mengantrekan target untuk Menu 1 (ditolak jika monitor lain aktif).
+  Clone yang sudah mati tidak di-force-stop lagi sebelum cold autojoin. Heartbeat
+  state selain `ingame` tidak diterima sebagai bukti siap. Tes simulasi antrean ditambah.
+
 - **Webhook cuma satu pesan**: notif terpisah "🔑 Delta minta key" dihapus. Status key sekarang jadi baris `🔑 Delta minta key` di pesan status yang di-edit tiap 5 menit. Setting-nya ikut dihapus: Menu `9` → `4`, bot `/webhook options notif_key`, `webhook.events` (nomor menu lain tetep sama). Perlu deploy ulang bot.
 
 - **Fix auto-rejoin abis kick masih join link game buat akun yang udah logout**: cek login seger (Roblox ditanya ulang, bukan cache 10 menit) sekarang juga dipake di recovery abis kick/disconnect (`checkAndRecover`), restart pas freeze (`relaunch`), dan keputusan monitor sebelum recovery. Sebelumnya cuma Launch All / rejoin dari antrean yang ngecek seger, jadi akun yang ke-logout terus ke-kick dalam 10 menit masih dimasukin ke game dan nyangkut loading. Clone tanpa akun tetep dibuka ke layar login kayak biasa.

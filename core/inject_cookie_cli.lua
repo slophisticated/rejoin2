@@ -97,26 +97,25 @@ function CLI.run()
                 else
                     local confirm = prompt(string.format("Inject cookie (%d char) ke %s? Force-stop app dulu. type 'y': ", #token, tostring(inst.package or ""))) or ""
                     if confirm:lower() == "y" then
+                            local Monitor = require("managers.monitor")
+                            if Monitor.otherEngine() then
+                                finish("[DITAHAN] Monitor sedang jalan. Gunakan /cookie inject di bot, atau stop monitor dulu agar inject tidak bentrok recovery.")
+                                return
+                            end
                             local called, ok, msg = pcall(CookieInjector.inject, inst, token)
                             if not called then finish("[GAGAL] Inject error. Cek log dan coba lagi.") end
                             if ok then
                                 print("[OK] " .. tostring(msg))
-                                -- The app was force-stopped by inject; launch it right away so
-                                -- it authenticates against Roblox immediately.
-                                local APK = require("managers.apk")
-                                local Timer = require("utils.timer")
-                                print("Membuka " .. tostring(inst.package or "") .. "...")
-                                local lOk, lOut = APK.launch(inst.package)
-                                if not lOk then
-                                    print("[WARN] Gagal membuka app otomatis: " .. tostring(lOut or "(tanpa output)"))
-                                end
+                                -- Let the monitor own the cold join; never launch MAIN first.
+                                local queued = Monitor.requestRejoinFile({ inst.id })
+                                print(queued and "Autojoin clone target diantrekan. Pilih Menu 1 untuk menjalankannya."
+                                    or "[WARN] Gagal mengantrekan autojoin. Pilih Menu 5 setelah kembali.")
                                 -- IMPORTANT: DO NOT curl-verify the token while the app is
                                 -- running. curl + WebView authenticating the SAME session in
                                 -- succession is exactly the "session hijack" pattern Roblox
                                 -- detects -> instant revoke (proven at 01:43: 200 at :28,
                                 -- app launched at :30, 401 hit during the post-launch curl).
                                 -- Here we only READ the DB (rotation check), no network.
-                                Timer.sleep(8)
                                 print("")
                                 print("Periksa rotasi session (baca DB saja, TANPA panggil server —")
                                 print("menghindari 2 client pakai token sama serentak yg memicu revoke):")
@@ -139,7 +138,7 @@ function CLI.run()
                                 end
                                 print("")
                                 print("JANGAN verifikasi token (7>3) SELAMA app masih terbuka.")
-                                finish("Inject + launch selesai.")
+                                finish("Inject selesai; autojoin menunggu monitor (Menu 1).")
                                 return
                             else
                                 finish("[GAGAL] " .. tostring(msg))

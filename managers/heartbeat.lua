@@ -243,7 +243,8 @@ function Heartbeat.alive(instance)
         if hb.fresh then return false, "kicked: " .. tostring(hb.reason or "") end
         return nil
     end
-    if hb.fresh then return true end
+    if hb.fresh and hb.state == "ingame" then return true end
+    if hb.fresh then return nil end
     return false, string.format("heartbeat berhenti %ds", hb.age)
 end
 

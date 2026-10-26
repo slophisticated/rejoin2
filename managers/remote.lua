@@ -462,6 +462,9 @@ end
 -- command; it is never logged (Remote.sync hides this command's message).
 function H.cookie_inject(args, ctx)
     if ctx and ctx.launchBusy then return false, "antrean launch masih aktif; coba lagi setelah clone stabil" end
+    if require("managers.monitor").hasPendingJoin() then
+        return false, "antrean join masih aktif; tunggu clone sebelumnya selesai"
+    end
     local list, err = findClones(args.clone)
     if not list then return false, err end
     if #list ~= 1 then return false, "pilih tepat satu clone" end

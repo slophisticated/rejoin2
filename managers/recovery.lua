@@ -118,9 +118,12 @@ function Recovery.launchAndJoin(instance)
         -- first, then the deep link launches it and joins the map. If the clone is still warm
         -- the deep link just shows the game page. Launching via the launcher activity first
         -- (APK.launch: MAIN/LAUNCHER) also left the app on its home screen, so we skip that too.
-        local stopped, stopErr = APK.forceStop(pkg)
-        if not stopped then return false, "force-stop gagal: " .. tostring(stopErr) end
-        Timer.sleep(1)
+        if APK.isRunning(pkg) then
+            Logger.info("Recovery: restart target untuk autojoin: " .. tostring(pkg))
+            local stopped, stopErr = APK.forceStop(pkg)
+            if not stopped then return false, "force-stop gagal: " .. tostring(stopErr) end
+            Timer.sleep(1)
+        end
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)

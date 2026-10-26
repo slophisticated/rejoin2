@@ -119,8 +119,8 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchJoinTimeout", "Maks tunggu clone MASUK GAME sebelum clone berikutnya (detik, pakai heartbeat Delta; 0 = mati)", true)
-            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat tidak ada (detik)", true)
+            askNumber("launchJoinTimeout", "Batas tunggu sebelum antrean ditahan + diagnosis (detik; 0 = default 240, tidak lanjut otomatis)", true)
+            askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat DIMATIKAN (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
             askNumber("launchWaitInterval", "Interval cek saat menunggu (detik)", false)

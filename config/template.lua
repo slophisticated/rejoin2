@@ -55,10 +55,9 @@ return {
     -- A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchJoinTimeout:  with the Delta heartbeat: max wait (s) for the clone to be in
-    --                     game. A clone that never sends one switches the rest of that
-    --                     Launch All to launchSettleDelay.
-    -- launchSettleDelay:  without a heartbeat: wait (s) after a clone is running.
+    -- launchJoinTimeout:  seconds before showing a held-queue diagnosis, NOT permission
+    --                     to launch the next clone. Zero uses 240 when heartbeat is on.
+    -- launchSettleDelay:  with heartbeat disabled: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
     launchJoinTimeout = 240,
