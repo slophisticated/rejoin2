@@ -2,11 +2,15 @@
 
 ## Antrean launch / Delta minta key
 
-Heartbeat aktif: clone berikutnya hanya dibuka setelah heartbeat sesi baru target.
+Heartbeat aktif: clone yang masih login menunggu heartbeat sesi baru sebelum clone berikutnya dibuka.
 RSS tinggi bukan bukti siap, dan timeout tidak lagi memindahkan antrean ke jeda tetap.
 Setelah `launchJoinTimeout` (0 berarti default 240 detik), dashboard menampilkan
 alasan antrean ditahan. Urus key/executor sendiri; heartbeat masuk → lanjut otomatis.
 Key di disk hanya petunjuk, bukan jaminan key valid. Username bentrok perlu diperbaiki.
+Login dicek ulang tiap 30 detik saat menunggu heartbeat, atau lebih cepat setelah
+proses mati terdeteksi dua kali berturut-turut. Terkonfirmasi belum login → jeda
+`launchEmptyDelay` (default 5 detik), lanjut clone berikutnya tanpa force-stop.
+FC saja atau hasil cek gagal/tidak pasti tidak melepas antrean.
 
 Untuk lewati **satu** clone atau batalkan sisa antrean: buka sesi Termux kedua,
 jalankan `cd ~/rejoin && lua main.lua`, pilih **Menu 14**. Monitor tetap jalan setelah

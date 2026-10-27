@@ -369,8 +369,8 @@ local function launchInOrder(conf, only)
                 if running then Status.printSummary(instanceManager.getAll()) end
             end
 
-            -- 2) Heartbeat is mandatory when enabled. Timeout explains the hold;
-            --    only a current heartbeat or an explicit manual action releases it.
+            -- 2) Logged-in clones require heartbeat. Timeout only explains the hold;
+            --    confirmed logout or an explicit manual action can also release it.
             local settled = 0
             local useHb = hbEnabled
             local limit = useHb and joinTimeout or settle
@@ -378,6 +378,7 @@ local function launchInOrder(conf, only)
             local warnedFast = false
             -- A low RSS reading is not a crash. Two absent-process checks explain a hold.
             local goneChecks = 0
+            local lastLoginCheck = os.time()
             local token, heldReason, cancelBatch
             if useHb and loggedIn ~= false then
                 active = true -- RSS cannot bypass the heartbeat gate.
@@ -392,6 +393,20 @@ local function launchInOrder(conf, only)
                     pausedJoin[pkg] = true
                     Logger.warn("Monitor: " .. name .. ": " .. why)
                     break
+                end
+                -- Logout can happen after launch; a dead process alone is not logout.
+                if useHb and (os.time() - lastLoginCheck >= 30 or goneChecks == 2) then
+                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true)
+                    lastLoginCheck = os.time()
+                    if okLogin and stillLoggedIn == false then
+                        wasNoLogin[pkg] = true
+                        launched = false
+                        why = "belum login saat menunggu heartbeat"
+                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
+                        launchWait(emptyDelay, stopped)
+                        keepRemoteAlive()
+                        break
+                    end
                 end
                 local alive, hbWhy = Heartbeat.alive(inst)
                 if not useHb or sharedName[pkg] then alive = nil end

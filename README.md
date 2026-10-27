@@ -48,6 +48,10 @@ Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah
 `launchJoinTimeout`, antrean ditahan dengan alasan (Delta minta key, heartbeat belum
 masuk, clone tertutup/kick, atau username bentrok). Heartbeat sesi baru melanjutkan
 antrean otomatis. `launchJoinTimeout = 0` memakai 240 detik, bukan mematikan gate.
+Selama menunggu heartbeat, login dicek ulang tiap 30 detik, atau lebih cepat setelah
+proses mati terdeteksi dua kali berturut-turut. Jika terkonfirmasi belum login,
+engine memberi jeda `launchEmptyDelay` (default 5 detik) lalu lanjut clone berikutnya,
+tanpa force-stop. FC saja, hasil login tidak pasti, atau cek gagal tidak melepas antrean.
 Untuk pengecualian manual, buka **sesi Termux kedua → `lua main.lua` → Menu 14**:
 lewati **satu** clone atau batalkan sisa antrean tanpa mematikan monitor. Skip manual
 bisa menumpuk loading; engine tidak menjamin clone yang dilewati sudah siap.

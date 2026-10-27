@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Logout saat menunggu heartbeat tidak menahan clone lain**: login dicek ulang
+  tiap 30 detik, atau lebih cepat setelah proses mati dua kali berturut-turut.
+  Jika terkonfirmasi belum login, lanjut setelah `launchEmptyDelay` tanpa force-stop.
+  FC dengan akun masih login, hasil tidak pasti, dan cek gagal tetap menahan antrean.
+  Tes simulasi mencakup logout saat loading dan pemeriksaan setelah FC.
+
 - **Antrean heartbeat ketat**: Launch All/rejoin/recovery tidak lanjut karena RSS,
   timeout, username dobel, atau dua heartbeat gagal. Timeout menahan antrean dengan
   diagnosis key/executor/kick/proses mati; heartbeat baru melanjutkan otomatis.

@@ -10,7 +10,9 @@ os.remove = function(p) files[p] = nil end
 local instances = { { id = 1, package = "clone.a", name = "A" },
     { id = 2, package = "clone.b", name = "B" }, { id = 3, package = "clone.c", name = "C" } }
 local ready, starts = {}, {}
-stub("managers.auth", { isLoggedIn = function() return true end })
+local loginProbe = function() return true end
+local processUp = true
+stub("managers.auth", { isLoggedIn = function(...) return loginProbe(...) end })
 stub("managers.username", { get = function(i) return i.name end })
 stub("utils.probe_log", { line = noop })
 stub("managers.window_layout", {})
@@ -46,7 +48,7 @@ local manager = { getAll = function() return instances end, find = function(id)
     for _, i in ipairs(instances) do if tostring(i.id) == tostring(id) then return i end end
 end }
 set(Monitor.start, "instanceManager", manager)
-set(Monitor.start, "apkManager", { isRunning = function() return true end })
+set(Monitor.start, "apkManager", { isRunning = function() return processUp end })
 set(Monitor.start, "Optimizer", { applyForInstance = noop })
 set(Monitor.start, "recoveryManager", { launchAndJoin = function(i)
     events[#events + 1] = i.id; starts[i.id] = now; return true
@@ -56,9 +58,14 @@ set(order, "checkWindow", noop)
 local conf = { launchJoinTimeout = 12, launchWaitTimeout = 3, launchWaitInterval = 3 }
 local function reset()
     events, starts, ready = {}, {}, {}
+    loginProbe = function() return true end
+    processUp = true
     Control.clear()
     set(Monitor.start, "running", true)
     set(Monitor.requestRejoin, "pendingJoin", {})
+    set(Monitor.requestRejoin, "pausedJoin", {})
+    set(Monitor.requestRejoin, "rejoinQueue", {})
+    set(order, "wasNoLogin", {})
 end
 
 reset()
@@ -126,6 +133,58 @@ launch(conf)
 assert(#events == 1)
 recovery.launchAndJoin = launchTarget
 print("PASS: launch failure holds the batch")
+
+-- Logout on a live login screen releases only that target after the short pause.
+reset()
+local checkedAt
+loginProbe = function(i, fresh)
+    if i.id == 1 and fresh then checkedAt = now; return false end
+    return true
+end
+onWait = function()
+    assert(now - starts[events[#events]] <= 40, "logout did not release the heartbeat gate")
+    if #events > 1 then ready[events[#events]] = true end
+end
+launch(conf)
+assert(#events == 3 and checkedAt - starts[1] == 30, "live logout must be rechecked at 30s")
+assert(starts[2] - checkedAt == 5, "logout must retain the short login-screen pause")
+assert(up(order, "wasNoLogin")[instances[1].package], "manual login transition must remain tracked")
+assert(not up(Monitor.requestRejoin, "pausedJoin")[instances[1].package], "logout is not a manual skip")
+assert(Control.read() == nil, "logout left stale launch controls")
+print("PASS: periodic logout check releases the queue without heartbeat")
+
+reset()
+processUp = false
+loginProbe = function(i, fresh)
+    if i.id == 1 and fresh then checkedAt = now; return false end
+    return true
+end
+launch(conf)
+assert(#events == 3 and checkedAt - starts[1] == 6, "two absent-process checks must trigger early login verification")
+print("PASS: FC triggers early logout verification")
+
+-- FC, unknown login and probe errors must never become automatic skip.
+for _, result in ipairs({ "valid", "unknown", "error" }) do
+    reset()
+    processUp = false
+    local probes = 0
+    loginProbe = function(i, fresh)
+        if fresh then
+            probes = probes + 1
+            if result == "error" then error("simulated login probe failure") end
+            if result == "unknown" then return nil end
+        end
+        return true
+    end
+    onWait = function()
+        assert(#events == 1, "FC/uncertain login released another clone")
+        assert(now - starts[1] <= 45, "test failed to cancel")
+        if now - starts[1] >= 42 then Control.request("cancel") end
+    end
+    launch(conf)
+    assert(#events == 1 and probes == 2, "FC checks must be bounded and periodically repeated")
+end
+print("PASS: FC with valid/unknown/failed login check holds the queue")
 
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil
