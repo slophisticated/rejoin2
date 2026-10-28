@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Percobaan watchdog terpisah** (`trial/engine-watchdog`): supervisor terminal/boot
+  menjalankan pengawas respons monitor (batas 5 menit), menyimpan laporan crash/hang
+  disensor dan mengedit satu pesan webhook yang sudah ada. Tidak pernah POST pesan
+  error baru. Upload gagal ditahan lokal untuk retry; tidak ada restart hang otomatis.
+  Perilaku restart crash boot tetap; Ctrl+C/stop normal tidak dianggap crash.
+
 - **Logout saat menunggu heartbeat tidak menahan clone lain**: login dicek ulang
   tiap 30 detik, atau lebih cepat setelah proses mati dua kali berturut-turut.
   Jika terkonfirmasi belum login, lanjut setelah `launchEmptyDelay` tanpa force-stop.

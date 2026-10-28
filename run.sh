@@ -20,6 +20,7 @@ if [ -t 3 ]; then
     TTY_STATE=$(stty -g <&3 2>/dev/null) || TTY_STATE=
 fi
 PID=
+WATCHDOG=
 restore_tty() {
     if [ -n "$TTY_STATE" ]; then
         stty "$TTY_STATE" <&3 2>/dev/null || stty sane <&3 2>/dev/null
@@ -29,6 +30,7 @@ restore_tty() {
     if [ -t 3 ]; then stty echo icanon opost onlcr <&3 2>/dev/null; fi
 }
 stop_child() {
+    [ -z "$WATCHDOG" ] || kill "$WATCHDOG" 2>/dev/null
     if [ -n "$PID" ]; then
         kill -TERM "$PID" 2>/dev/null
         wait "$PID" 2>/dev/null
@@ -44,10 +46,19 @@ GUARD=
 while :; do
     # Explicit stdin redirection prevents POSIX sh from assigning /dev/null to
     # background Lua. fd 3 retains original terminal even without /dev/tty.
-    REJOIN_WRAPPER=1 lua $GUARD main.lua "$@" <&3 &
+    REJOIN_WRAPPER=1 sh -c 'REJOIN_ENGINE_PID=$$; export REJOIN_ENGINE_PID; exec lua "$@"' sh $GUARD main.lua "$@" <&3 &
     PID=$!
+    sh watchdog.sh "$PID" </dev/null >/dev/null 2>&1 &
+    WATCHDOG=$!
     wait "$PID"
     STATUS=$?
+    kill "$WATCHDOG" 2>/dev/null
+    wait "$WATCHDOG" 2>/dev/null
+    WATCHDOG=
+    case "$STATUS" in
+        0|75|130|143) ;;
+        *) lua utils/watchdog_report.lua crash "$PID" </dev/null >/dev/null 2>&1 ;;
+    esac
     PID=
     restore_tty
     if [ "$STATUS" -ne 75 ]; then exit "$STATUS"; fi

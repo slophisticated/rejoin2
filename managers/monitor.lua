@@ -10,6 +10,7 @@ local Webhook = require("managers.webhook")
 local DeltaKey = require("managers.delta_key")
 local Remote = require("managers.remote")
 local LaunchControl = require("managers.launch_control")
+local EngineHealth = require("managers.engine_health")
 
 local Monitor = {}
 local running = false
@@ -244,6 +245,7 @@ end
 
 -- Launch waits double as a long poll on the bot, so its commands run at once.
 local function launchWait(seconds, stopped)
+    EngineHealth.touch()
     local ok = pcall(Remote.idle, seconds, stopped, instanceManager.getAll(), launchCtx())
     if not ok then Timer.sleepInterruptible(seconds, stopped) end
 end
@@ -649,6 +651,7 @@ function Monitor.start(conf, opts)
     writePid(myPid)
 
     running = true
+    EngineHealth.touch()
     interrupted = false
     Status.reset()
     Status.resetDashboard()
@@ -685,11 +688,13 @@ function Monitor.start(conf, opts)
     local cycle = 0
     local windowEvery = math.max(1, math.floor(60 / math.max(1, tonumber(interval) or 5)))
     while running do
+        EngineHealth.touch()
         cycle = cycle + 1
         pcall(takeAuthForget)
         local instances = instanceManager.getAll()
         local statuses = {}
         for i, inst in ipairs(instances) do
+            EngineHealth.touch()
             pcall(takeAuthForget)
             Status.setProgress(i, #instances, "Checking")
             if i > 1 then Status.printSummary(instances) end

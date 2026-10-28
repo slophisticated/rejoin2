@@ -68,6 +68,13 @@ other_engine() {
     [ -n "$pid" ] && grep -q main.lua "/proc/$pid/cmdline" 2>/dev/null
 }
 restarts=0
+PID= WATCHDOG=
+stop_engine() {
+    [ -z "$WATCHDOG" ] || kill "$WATCHDOG" 2>/dev/null
+    [ -z "$PID" ] || kill -TERM "$PID" 2>/dev/null
+    exit 143
+}
+trap stop_engine TERM INT
 while :; do
     if other_engine; then
         log "engine lain udah jalan (pid $(tr -dc '0-9' < data/monitor.pid)); engine boot ga dijalanin"
@@ -76,14 +83,23 @@ while :; do
     log "starting engine: lua main.lua --headless --start-monitor --auto-launch"
     # crash_guard also keeps a crash's traceback in data/crash.log (error report).
     GUARD=; [ -f utils/crash_guard.lua ] && GUARD=utils/crash_guard.lua
-    lua $GUARD main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG"
+    sh -c 'REJOIN_ENGINE_PID=$$; export REJOIN_ENGINE_PID; exec lua "$@"' sh $GUARD main.lua --headless --start-monitor --auto-launch </dev/null >/dev/null 2>>"$BOOT_LOG" &
+    PID=$!
+    sh watchdog.sh "$PID" </dev/null >/dev/null 2>&1 &
+    WATCHDOG=$!
+    wait "$PID"
     code=$?
+    kill "$WATCHDOG" 2>/dev/null
+    wait "$WATCHDOG" 2>/dev/null
+    WATCHDOG=
     case "$code" in
         0|130|143)
             log "engine stopped (exit $code)"
             exit "$code"
             ;;
     esac
+    lua utils/watchdog_report.lua crash "$PID" </dev/null >/dev/null 2>&1
+    PID=
     restarts=$((restarts + 1))
     if [ "$restarts" -gt "$MAX_RESTARTS" ]; then
         log "ERROR: engine still crashing after $MAX_RESTARTS restarts (exit $code); giving up"

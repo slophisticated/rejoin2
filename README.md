@@ -42,6 +42,17 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ## Fitur
 
+### Percobaan watchdog engine
+
+Branch `trial/engine-watchdog` menambah pengawas di luar Lua. Crash abnormal menyimpan
+`data/watchdog_report.txt`; engine monitor yang tidak memberi tanda respons selama
+5 menit dilaporkan sebagai hang. Nunggu heartbeat clone tetap memberi tanda respons.
+Ringkasan + potongan log disensor dikirim dengan **edit pesan webhook yang sudah ada**,
+bukan pesan baru. Jika webhook/pesan belum tersedia atau jaringan gagal, laporan
+ditahan di `data/watchdog_pending.txt` dan dicoba ulang oleh pengawas saat aktif.
+Tidak ada auto-restart hang; restart crash boot tetap maksimal 5 kali seperti sebelumnya.
+Ctrl+C dan stop normal tidak dilaporkan. Pengawas tidak bisa hidup jika Termux ikut mati.
+
 ### Antrean launch aman
 
 Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah

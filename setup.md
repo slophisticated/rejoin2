@@ -1,5 +1,27 @@
 ## 📝 Rejoin Installation Guide
 
+## Percobaan watchdog (terpisah dari branch antrean)
+
+Hentikan engine lalu jalankan:
+```sh
+cd ~/rejoin
+git fetch origin trial/engine-watchdog
+git switch -c trial/engine-watchdog --track origin/trial/engine-watchdog
+sh run.sh
+```
+Monitor wajib sudah aktif dan webhook punya pesan status sebelumnya untuk tes Discord.
+Di sesi kedua, tes hang memakai `kill -STOP "$(cat ~/rejoin/data/monitor.pid)"`.
+Setelah lebih dari 5 menit, cek `data/watchdog_report.txt` dan pesan status Discord.
+Pulihkan dengan `kill -CONT "$(cat ~/rejoin/data/monitor.pid)"`; jangan biarkan engine
+tersuspend. Tes crash bisa dengan `kill -KILL "$(cat ~/rejoin/data/monitor.pid)"` saat
+engine manual berjalan. Ctrl+C normal tidak boleh menghasilkan laporan crash baru.
+Log dikirim berupa potongan disensor pada pesan yang sama, bukan file attachment penuh.
+Upload gagal ditahan lokal; retry saat watchdog aktif. Hang tidak di-restart otomatis.
+Jangan reboot/update selama tes: auto-update boot dapat mengambil main lagi. Branch ini
+tidak memuat perubahan antrean di `trial/single-loading-slot`. Kembali setelah stop:
+`git switch main`. Salinan boot terpasang baru berubah bila installer menyalinnya;
+tes di atas memakai `run.sh`, bukan salinan boot lama.
+
 ## Antrean launch / Delta minta key
 
 Heartbeat aktif: clone yang masih login menunggu heartbeat sesi baru sebelum clone berikutnya dibuka.
