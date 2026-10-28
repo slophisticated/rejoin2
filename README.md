@@ -1,5 +1,11 @@
 # Rejoin Engine
 
+Trial logout PID: logout bot menghentikan hanya proses package target (termasuk
+subproses), tanpa `am force-stop`, memverifikasi penghapusan cookie, lalu membuka
+launcher biasa ke layar login tanpa link game. Logout gagal menahan target dari
+rejoin, termasuk setelah restart engine; ulang logout untuk verifikasi/melepas hold.
+Ini belum terbukti memperbaiki gangguan floating window pada device.
+
 `/report` bot juga mengambil event proses Android terbaru untuk package clone
 (`am_kill`, `am_proc_died`, `am_proc_start`, `am_anr`, `am_crash`), termasuk waktu
 dan alasan yang tersedia. Tidak perlu export file manual dari cloud phone. Buffer

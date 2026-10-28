@@ -427,10 +427,6 @@ function CookieInjector.inject(instance, token)
     return true, detail
 end
 
--- Log a clone's Roblox account out on this device: stop the app, back up each Cookies
--- DB, then delete its `.ROBLOSECURITY` rows. The session is not revoked at Roblox, so
--- the same cookie can be injected again later. Only a logged-in clone is stopped (a
--- force-stopped empty clone makes the other clones FC). Returns (ok, message).
 -- Ask Roblox to end the session behind `token` (the official logout: POST
 -- auth.roblox.com/v2/logout, once for the CSRF token, then for real), so the cookie and
 -- any backup of it stop working everywhere. curl runs as the Termux user; the token
@@ -466,6 +462,7 @@ function CookieInjector.revokeSession(token)
     return false, "Roblox ga ngerespon logout (HTTP " .. tostring(code or "gagal") .. ")"
 end
 
+-- Stop only the target processes, revoke the session, back up and verify deletion.
 function CookieInjector.logout(instance)
     local pkg = instance and instance.package
     if not pkg then return false, "Instance tidak punya package" end
@@ -479,9 +476,11 @@ function CookieInjector.logout(instance)
 
     local rows = 0
     for _, db in ipairs(dbs) do
-        local n = tonumber((exec(string.format(
+        local count = exec(string.format(
             "%s %s \"SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%%.roblox.com%%';\"",
-            runner, quote(db))) or ""):match("^%s*(%d+)%s*$")) or 0
+            runner, quote(db)))
+        local n = count and tonumber(count:match("^%s*(%d+)%s*$"))
+        if not n then return false, "Jumlah cookie tidak bisa diverifikasi; logout dibatalkan." end
         rows = rows + n
     end
     if rows == 0 then
@@ -493,7 +492,7 @@ function CookieInjector.logout(instance)
     -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
     local sig = io.open("data/auth_forget.txt", "a")
     if sig then sig:write(pkg, "\n"); sig:close() end
-    local stopped, stopErr = APK.forceStop(pkg)
+    local stopped, stopErr = APK.stopProcesses(pkg)
     if not stopped then return false, "clone tidak bisa ditutup dengan aman; cookie tidak diubah: " .. tostring(stopErr) end
     Timer.sleep(1)
     -- End the session at Roblox first (the backup below keeps the cookie, and the app
@@ -510,16 +509,25 @@ function CookieInjector.logout(instance)
     local okRevoke, revoked, revokeMsg = pcall(CookieInjector.revokeSession, token)
     if not okRevoke then revoked, revokeMsg = false, "error internal" end
     token = nil
+    -- Revocation can take seconds; refuse DB writes if Android keeps restarting it.
+    local quiet, quietErr = APK.stopProcesses(pkg)
+    if not quiet then return false, "logout ditahan, cookie tidak diubah: " .. tostring(quietErr) end
     local stamp = os.date("%Y%m%d-%H%M%S")
     local failures = {}
     for _, db in ipairs(dbs) do
+        local idle, idleErr = APK.stopProcesses(pkg)
+        if not idle then return false, "logout ditahan sebelum tulis DB: " .. tostring(idleErr) end
         local backup = db .. ".bak-" .. stamp
         local backupOut = exec(runner .. " " .. quote(db) .. " " .. quote(".backup " .. quote(backup)))
         if not backupOut or not existsFile(backup) then
             failures[#failures + 1] = "backup gagal, DB tidak diubah"
         else
             local out = exec(runner .. " " .. quote(db) .. " \"DELETE FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%.roblox.com%'; PRAGMA wal_checkpoint(FULL);\"")
-            if not out then failures[#failures + 1] = "hapus cookie gagal" end
+            local remaining = out and exec(runner .. " " .. quote(db)
+                .. " \"SELECT COUNT(*) FROM cookies WHERE name='.ROBLOSECURITY' AND host_key LIKE '%.roblox.com%';\"")
+            if not remaining or remaining:match("^%s*(%d+)%s*$") ~= "0" then
+                failures[#failures + 1] = "hapus cookie gagal/tidak terverifikasi"
+            end
         end
     end
     if Auth.forget then Auth.forget(pkg) end

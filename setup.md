@@ -2,6 +2,23 @@
 
 ## Antrean launch / Delta minta key
 
+### Trial logout proses target
+
+Update device ke branch `trial/no-login-autojoin`, lalu gunakan `/clone logout`
+seperti biasa; tidak perlu deploy bot lagi. Target yang berisi cookie dihentikan
+melalui PID exact package/subproses, bukan `am force-stop`. Proses harus terbukti
+mati sebelum DB ditulis; jika Android terus menghidupkannya, logout ditolak tanpa
+fallback force-stop. Cookie dihapus dan dicek ulang; login harus terverifikasi false
+sebelum launcher dibuka tanpa deep link game. Clone kosong tidak dihentikan.
+
+Saat gagal, `data/logout_hold_<package>.txt` menahan auto-rejoin/Launch All target
+bahkan setelah restart engine. Periksa error `[LOGOUT]` lewat `/report`, lalu ulang
+logout target yang sama; jangan hapus hold untuk memaksa membuka akun buyer.
+Hold hanya berlaku untuk engine versi trial ini, bukan versi lama saat rollback.
+Pantau apakah target kembali ke layar login dan jendela clone lain tetap ada.
+Kirim `/report` segera sesudah tes. Tidak ada perubahan service atau recovery biasa;
+kill PID tetap eksperimental dan berisiko mengganggu App Cloner. Uji saat akun aman.
+
 Untuk investigasi jendela hilang/FC, jalankan `/report` lewat bot sesegera mungkin
 setelah kejadian. Report otomatis membaca maksimal 2000 event Android terbaru dan
 menyertakan 80 event proses terakhir yang cocok dengan package clone terdaftar.

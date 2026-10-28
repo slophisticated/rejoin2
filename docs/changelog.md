@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Trial logout tanpa package force-stop**: hentikan PID exact target/subproses,
+  cek ulang sebelum mengubah cookie, verifikasi hasil DELETE, lalu buka layar login
+  tanpa link game setelah auth false. Gagal logout memblokir rejoin target lewat
+  hold per-package yang dibaca saat engine restart; ulang logout untuk melepas hold.
+  Tidak mengubah force-stop untuk inject/recovery biasa atau service Android.
+  Tes PID/logout/antrean ditambah; belum diklaim fix gangguan floating window.
+
 - **Report event Android langsung**: `/report`, Menu Logs, dan `--report` menyertakan
   maksimal 80 event kill/proses mati/start/ANR/crash package clone dari 2000 event
   Android terakhir, dengan timestamp/alasan yang tersedia dan sensor rahasia biasa.

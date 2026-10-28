@@ -102,6 +102,7 @@ local pendingJoin = {} -- package -> queued; suppress competing recovery paths
 local pausedJoin = {} -- manual skip/cancel must not be undone by automatic recovery
 local rejoinQueue = {}
 local logoutQueue = {} -- package -> id; executed only by the slot owner
+local logoutBlocked = {} -- failed logout must never recover back into the buyer account
 
 function Monitor.requestLogout(ids)
     for _, id in ipairs(ids or {}) do
@@ -111,11 +112,38 @@ function Monitor.requestLogout(ids)
 end
 
 local function performLogout(inst)
+    local pkg = inst.package
+    logoutBlocked[pkg] = true
+    local saved = require("utils.file").write("data/logout_hold_" .. pkg .. ".txt", "Logout belum terverifikasi; ulang logout untuk melepas hold.\n")
+    if not saved then
+        logoutQueue[pkg] = nil
+        Logger.error("[LOGOUT] gagal menyimpan hold; logout dibatalkan sebelum proses/cookie diubah")
+        return false
+    end
+    pendingJoin[pkg] = nil
+    for i = #rejoinQueue, 1, -1 do
+        if tostring(rejoinQueue[i]) == tostring(inst.id) then table.remove(rejoinQueue, i) end
+    end
+    if launchSlot and launchSlot.package == pkg then launchSlot.restart = nil end
     logoutQueue[inst.package] = nil
     local called, ok, message = pcall(require("managers.cookie_injector").logout, inst)
     Logger.info(string.format("[LOGOUT] %s -> %s: %s", tostring(inst.name or inst.package),
         called and ok and "OK" or "GAGAL", tostring(called and message or "error internal")))
-    return called and (ok or tostring(message):find("memang sudah logout", 1, true))
+    local done = called and (ok or tostring(message):find("memang sudah logout", 1, true))
+    if done then
+        Auth.forget(pkg)
+        local checked, login = pcall(Auth.isLoggedIn, inst, true, true)
+        done = checked and login == false
+        if done then
+            logoutBlocked[pkg] = nil
+            pausedJoin[pkg] = nil
+            os.remove("data/logout_hold_" .. pkg .. ".txt")
+            local opened, result = pcall(require("managers.recovery").reopenNoLogin, inst)
+            if not opened or not result then Logger.warn("[LOGOUT] layar login gagal dibuka; monitor akan coba lagi") end
+        end
+    end
+    if not done then Logger.warn("[LOGOUT] target ditahan; periksa error lalu ulang logout, jangan rejoin akun buyer") end
+    return done
 end
 
 local function drainLogouts()
@@ -353,6 +381,7 @@ local function launchInOrder(conf, only)
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
+        if logoutBlocked[pkg] then batchTargets[pkg] = nil; goto next_launch end
         pendingJoin[pkg] = nil
         manualLogin[pkg] = nil
         wasNoLogin[pkg] = nil
@@ -386,6 +415,7 @@ local function launchInOrder(conf, only)
                             wasNoLogin[pkg] = true
                             launchSlot.restart = nil
                         end
+                        if logoutBlocked[pkg] then pausedJoin[pkg] = true; break end
                     end
                     local action = LaunchControl.take(loginToken)
                     if action == "skip" or action == "cancel" then
@@ -474,6 +504,7 @@ local function launchInOrder(conf, only)
                         launchSlot.restart = nil
                         break
                     end
+                    if logoutBlocked[pkg] then pausedJoin[pkg] = true; break end
                 end
                 local action = token and LaunchControl.take(token)
                 if action == "skip" or action == "cancel" then
@@ -590,6 +621,7 @@ local function launchInOrder(conf, only)
         if running then
             Status.printSummary(instanceManager.getAll())
         end
+        ::next_launch::
     end
 end
 
@@ -632,7 +664,7 @@ end
 
 function Monitor.requestRejoin(ids)
     local function queue(inst)
-        if logoutQueue[inst.package] then return end
+        if logoutQueue[inst.package] or logoutBlocked[inst.package] then return end
         if launchSlot and launchSlot.package == inst.package then
             launchSlot.restart = true
             pausedJoin[inst.package] = nil
@@ -691,11 +723,11 @@ local function runRejoinQueue(conf)
     for _, ref in ipairs(rejoinQueue) do
         if ref == "all" then
             for _, inst in ipairs(instanceManager.getAll()) do
-                if not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
+                if not logoutBlocked[inst.package] and not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
             end
         else
             local inst = instanceManager.find(ref)
-            if inst and not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
+            if inst and not logoutBlocked[inst.package] and not seen[inst] then seen[inst] = true; list[#list + 1] = inst end
         end
     end
     rejoinQueue = {}
@@ -753,6 +785,13 @@ function Monitor.start(conf, opts)
     pausedJoin = {}
     LaunchControl.clear()
     instanceManager = require("managers.instance")
+    logoutBlocked = {}
+    for _, inst in ipairs(instanceManager.getAll()) do
+        if require("utils.file").read("data/logout_hold_" .. inst.package .. ".txt") then
+            logoutBlocked[inst.package] = true
+            Logger.warn("[LOGOUT] " .. inst.package .. " ditahan dari sesi sebelumnya; ulang logout")
+        end
+    end
     recoveryManager = require("managers.recovery")
     apkManager = require("managers.apk")
     Optimizer = require("managers.optimizer")
@@ -830,6 +869,7 @@ function Monitor.start(conf, opts)
             statuses[id] = status
             local timeToRelaunch = false
             local healthy = false
+            if logoutBlocked[pkg] or logoutQueue[pkg] then goto next_instance end
             pcall(joinAfterLogin, inst, id, name, pkg, status)
             if waitingManualClose(inst) then
                 unhealthyStreak[id] = nil

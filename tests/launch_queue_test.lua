@@ -13,6 +13,8 @@ local ready, starts = {}, {}
 local loginProbe = function() return true end
 local processUp = true
 stub("managers.auth", { isLoggedIn = function(...) return loginProbe(...) end })
+package.loaded["managers.auth"].forget = noop
+stub("managers.recovery", { reopenNoLogin = function() return true end })
 stub("managers.username", { get = function(i) return i.name end })
 stub("utils.probe_log", { line = noop })
 stub("managers.window_layout", {})
@@ -71,6 +73,7 @@ local function reset()
     set(order, "wasNoLogin", {})
     set(order, "manualLogin", {})
     set(Monitor.requestLogout, "logoutQueue", {})
+    set(Monitor.requestRejoin, "logoutBlocked", {})
 end
 
 reset()
@@ -303,6 +306,11 @@ reset()
 local loggedOut = {}
 stub("managers.cookie_injector", { logout = function(i)
     loggedOut[#loggedOut + 1] = { id = i.id, at = now }
+    local oldProbe = loginProbe
+    loginProbe = function(target, ...)
+        if target.id == i.id then return false end
+        return oldProbe(target, ...)
+    end
     return true, "logout"
 end })
 local asked = false
@@ -333,6 +341,7 @@ launch(conf)
 assert(#loggedOut == 1 and loggedOut[1].id == 1 and #events == 3)
 assert(up(order, "wasNoLogin")[instances[1].package])
 -- Signing back in follows the exact same target queue as a preset rejoin.
+loginProbe = function() return true end
 ready[1] = nil
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
@@ -415,3 +424,25 @@ assert(ok and marked == instances[1].package and #requested == 1 and requested[1
 Monitor.requestRejoin({ 1 })
 assert(not Remote.handlers.cookie_inject({ clone = 2, token = string.rep("x", 30) }, {}))
 print("PASS: bot inject target only and busy queue blocked")
+
+reset()
+local performLogout = up(up(launch, "drainLogouts"), "performLogout")
+local reopened = 0
+stub("managers.recovery", { reopenNoLogin = function(i)
+    assert(i.id == 1); reopened = reopened + 1; return true
+end })
+stub("managers.cookie_injector", { logout = function() return false, "DB failure" end })
+Monitor.requestRejoin({ 1 })
+assert(not performLogout(instances[1]))
+assert(up(Monitor.requestRejoin, "logoutBlocked")[instances[1].package])
+assert(files["data/logout_hold_" .. instances[1].package .. ".txt"])
+Monitor.requestRejoin({ 1 })
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+assert(#up(Monitor.requestRejoin, "rejoinQueue") == 0 and reopened == 0)
+stub("managers.cookie_injector", { logout = function() return true, "deleted" end })
+loginProbe = function() return true end
+assert(not performLogout(instances[1]) and reopened == 0, "still logged-in target reopened")
+loginProbe = function() return false end
+assert(performLogout(instances[1]) and reopened == 1)
+assert(not files["data/logout_hold_" .. instances[1].package .. ".txt"])
+print("PASS: failed logout blocks target/rejoin persistently; verified logout reopens login once")

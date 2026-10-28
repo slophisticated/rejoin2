@@ -116,8 +116,46 @@ function APKManager.forceStop(packageName)
     return ok, out
 end
 
--- Escape regex metacharacters so a package name is matched literally in a POSIX ERE
--- (as consumed by `pgrep -f`). Produces `\.` etc. (backslash-dot), NOT `%.` (percent-dot).
+-- Logout trial: do not set Android's package stopped state or touch peer packages.
+function APKManager.stopProcesses(packageName)
+    if not validPackageName(packageName) or not packageIsUnique(packageName) then
+        return false, "package tidak valid/unik"
+    end
+    local script = [[
+pkg=]] .. packageArg(packageName) .. [[
+
+for attempt in 1 2 3; do
+    listing=$(ps -A -o PID,NAME) || exit 1
+    [ -n "$listing" ] || exit 1
+    case "$listing" in *PID*NAME*) ;; *) exit 1 ;; esac
+    while read -r pid name; do
+        case "$pid" in ''|*[!0-9]*) continue ;; esac
+        case "$name" in "$pkg"|"$pkg":*)
+            [ -d "/proc/$pid" ] || continue
+            actual=$(tr '\000' '\n' < "/proc/$pid/cmdline") || exit 1
+            actual=${actual%%
+*}
+            case "$actual" in "$pkg"|"$pkg":*)
+                [ "$attempt" != 3 ] || exit 1
+                kill -9 "$pid" || { [ ! -d "/proc/$pid" ] || exit 1; }
+                ;; *) exit 1 ;; esac
+            ;;
+        esac
+    done <<EOF
+$listing
+EOF
+    [ "$attempt" = 3 ] && { echo REJOIN_STOPPED; exit 0; }
+    sleep 1
+done
+exit 1
+]]
+    Logger.info("APKManager: logout stop processes only: " .. packageName)
+    local ok, out = Shell.exec("sh -c " .. packageArg(script))
+    if not ok or out ~= "REJOIN_STOPPED" then return false, "proses target belum terverifikasi mati (tanpa fallback force-stop)" end
+    return true
+end
+
+-- Escape regex metacharacters for pgrep -f (backslash-dot, not Lua percent-dot).
 local function escapeRegex(s)
     return s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "\\%1")
 end
