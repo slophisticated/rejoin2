@@ -171,10 +171,9 @@ end
 local noLoginLast = {} -- pkg -> os.time() of the last reopen
 local noWindowChecks = {} -- require consecutive absent windows before queuing
 local wasNoLogin = {}  -- pkg -> true while the clone sits without an account
+local manualLogin = {} -- newly signed in: leave home alone until the owner closes it
 
--- A clone seen without an account that is logged in now (the owner signed in by hand)
--- is still on the Roblox home screen: queue a rejoin so it opens its game link. Goes
--- through the rejoin queue (one at a time); skipped when it already reached a game.
+-- Signing in is not a request to restart the app or open a game.
 local function joinAfterLogin(inst, id, name, pkg, status)
     if not pkg then return end
     if status == "nologin" then wasNoLogin[pkg] = true return end
@@ -183,8 +182,25 @@ local function joinAfterLogin(inst, id, name, pkg, status)
     Username.forget(pkg)
     local okH, alive = pcall(Heartbeat.alive, inst)
     if okH and alive == true then return end
-    Logger.info(string.format("[NOLOGIN] %s sekarang sudah login; dibuka ke game", name))
-    Monitor.requestRejoin({ id })
+    manualLogin[pkg] = true
+    Logger.info(string.format("[NOLOGIN] %s sekarang sudah login; menunggu ditutup manual atau perintah rejoin", name))
+end
+
+local function waitingManualClose(inst)
+    local pkg = inst.package
+    if not manualLogin[pkg] then return false end
+    if Auth.isLoggedIn(inst) == false or Heartbeat.alive(inst) == true then
+        manualLogin[pkg] = nil
+        return false
+    end
+    local okP, up = pcall(apkManager.isRunning, pkg)
+    if okP and up == false then
+        manualLogin[pkg] = nil
+        Monitor.requestRejoin({ inst.id })
+        Logger.info("[NOLOGIN] " .. tostring(inst.name or pkg) .. " ditutup setelah login; join game diantrekan")
+    end
+    -- Unknown process state is not permission to restart a manually signed-in app.
+    return true
 end
 
 local function reopenNoLoginIfClosed(inst, id, name, pkg)
@@ -342,6 +358,7 @@ local function launchInOrder(conf, only)
         local name = tostring(inst.name or id)
         local pkg = inst.package
         pendingJoin[pkg] = nil
+        manualLogin[pkg] = nil
         wasNoLogin[pkg] = nil
         launchSlot = { package = pkg }
 
@@ -409,8 +426,8 @@ local function launchInOrder(conf, only)
                         local okL, li = pcall(Auth.isLoggedIn, inst, true, true)
                         if okL and li == true then
                             Username.forget(pkg)
-                            loggedIn = true
-                            launchSlot.restart = true
+                            wasNoLogin[pkg] = true
+                            joinAfterLogin(inst, id, name, pkg, "starting")
                             break
                         end
                     end
@@ -873,6 +890,10 @@ function Monitor.start(conf, opts)
             local timeToRelaunch = false
             local healthy = false
             pcall(joinAfterLogin, inst, id, name, pkg, status)
+            if waitingManualClose(inst) then
+                unhealthyStreak[id] = nil
+                goto next_instance
+            end
             if pausedJoin[pkg] and Heartbeat.alive(inst) == true then pausedJoin[pkg] = nil end
             if pendingJoin[pkg] or pausedJoin[pkg] or (status ~= "nologin" and isLoading(inst)) then
                 unhealthyStreak[id] = nil

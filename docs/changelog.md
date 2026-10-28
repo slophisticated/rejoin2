@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Hapus autojoin setelah login manual** (trial): akun baru dibiarkan di home dan
+  dilindungi dari recovery heartbeat/RSS selama proses masih hidup. Proses ditutup
+  manual → join target diantrekan; rejoin eksplisit/Launch All tetap berfungsi.
+  Login saat slot layar login ditahan juga tidak memicu restart. Penanda hanya
+  berlaku pada sesi engine ini. Tidak mengubah service Android atau menjamin FC
+  peer akibat logout sudah selesai; eksperimen disable service belum terbukti fix.
+
 - **Antrean macet setelah launch dilaporkan gagal** (trial): terima konfirmasi
   heartbeat ingame segar sesi ini setelah awal percobaan jika proses target terbukti
   hidup, meski perintah buka link sebelumnya gagal/timeout. Tanpa bukti tetap hold;

@@ -2,6 +2,14 @@
 
 ## Antrean launch / Delta minta key
 
+Trial terbaru: login manual tidak lagi memicu autojoin/cold restart. Biarkan target
+di home; setelah siap tutup proses target manual agar monitor mengantrekan join.
+Rejoin bot/preset dan Launch All tetap eksplisit membuka game. Selama menunggu manual,
+heartbeat basi/RSS rendah tidak memicu force-stop; status proses tidak pasti juga
+ditahan. Penanda ini tidak bertahan jika engine di-restart. Jangan pakai Launch All
+kalau ingin mempertahankan home tersebut. Tombol X floating bisa hanya menyembunyikan
+jendela sehingga tidak terdeteksi sebagai proses mati.
+
 Perintah buka link bisa melaporkan gagal meskipun app akhirnya masuk game. Trial
 melepas hold tersebut hanya jika heartbeat ingame segar sesi ini bertimestamp setelah
 percobaan dimulai dan proses target masih hidup. Heartbeat lama/proses tidak pasti
@@ -27,7 +35,7 @@ Logout bot pada branch percobaan memakai slot yang sama: logout target lain ditu
 sampai target loading selesai; logout target aktif diproses oleh pemilik slot dan
 mengakhiri penantian join lama. Bot membalas "logout diantrekan"; cek `[LOGOUT]` di
 `data/rejoin.log` untuk hasil akhir. Setelah login ulang, hanya target itu diantrekan
-untuk autojoin. Logout tetap menutup target yang masih login untuk menghapus cookie
+untuk menunggu ditutup manual, bukan autojoin. Logout tetap menutup target yang masih login untuk menghapus cookie
 dengan aman; clone tanpa akun tidak di-force-stop. Tidak menjamin Android/App Cloner
 tidak menutup proses lain; perlu tes device. Logout dari menu proses terpisah belum
 ikut antrean bot ini.

@@ -75,6 +75,7 @@ local function reset()
     set(Monitor.requestRejoin, "pausedJoin", {})
     set(Monitor.requestRejoin, "rejoinQueue", {})
     set(order, "wasNoLogin", {})
+    set(order, "manualLogin", {})
     set(Monitor.requestLogout, "logoutQueue", {})
 end
 
@@ -118,9 +119,21 @@ reset()
 local joinAfterLogin = up(Monitor.start, "joinAfterLogin")
 set(joinAfterLogin, "wasNoLogin", { [instances[1].package] = true })
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
-assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
-print("PASS: newly logged-in target protected and other clones not queued")
+local waitingManualClose = up(Monitor.start, "waitingManualClose")
+assert(waitingManualClose(instances[1]), "manual login was not protected at home")
+local manualAPK = up(order, "apkManager")
+local manualProbe = manualAPK.isRunning
+manualAPK.isRunning = function() error("probe unavailable") end
+assert(waitingManualClose(instances[1]), "failed probe released manual login protection")
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+manualAPK.isRunning = manualProbe
+processUp = false
+assert(waitingManualClose(instances[1]))
+assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package], "manual close did not queue target")
+processUp = true
+print("PASS: manual login stays at home; closing the process queues only its target")
 
 Control.publish(instances[1], "hold")
 local old = Control.read().token
@@ -357,9 +370,14 @@ end
 launch(conf)
 assert(#loggedOut == 1 and loggedOut[1].id == 1 and #events == 3)
 assert(up(order, "wasNoLogin")[instances[1].package])
--- Signing back in follows the exact same target queue as a preset rejoin.
+-- Signing back in waits for a manual close rather than forcing another restart.
 ready[1] = nil
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+assert(waitingManualClose(instances[1]))
+processUp = false
+waitingManualClose(instances[1])
+processUp = true
 assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
 assert(forgotten == instances[1].package, "manual login retained its old username cache")

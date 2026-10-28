@@ -44,6 +44,12 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ### Antrean launch aman
 
+Trial terbaru **tidak autojoin setelah login manual**. Clone dibiarkan di home,
+terlindung dari recovery berbasis heartbeat/RSS sampai proses ditutup manual, masuk
+game sendiri, logout, atau menerima perintah rejoin/Launch All. Proses ditutup →
+join diantrekan satu-satu. Tombol X yang hanya menyembunyikan jendela belum tentu
+mematikan proses. Penanda menunggu manual berlaku selama sesi engine ini.
+
 Jika perintah launch melaporkan gagal tetapi game ternyata masuk, trial menerima
 heartbeat ingame segar sesi ini yang ditulis setelah percobaan mulai, disertai proses
 target yang terverifikasi hidup. Kegagalan perintah saja tidak mengunci antrean selamanya;
