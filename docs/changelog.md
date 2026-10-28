@@ -2,6 +2,14 @@
 
 ## Unreleased / Bug fixes
 
+- **Respons autojoin dan bukti waktu tunggu** (trial): refresh username saat login;
+  identitas Auth terverifikasi mengalahkan cache kosong/akun lama. Heartbeat siap
+  diperiksa sebelum verifikasi login berkala, status/webhook dibatasi tiap 15 detik.
+  Log mencatat wall time, timestamp/umur heartbeat terbaru, dan pekerjaan tunggu lambat.
+  Proses peer hilang saat loading dicatat serta diantrekan, tidak dibuka paralel.
+  Tes cache identitas, prioritas heartbeat, dan antrean peer ditambah. Prosedur cold
+  restart tetap; belum mengklaim penyebab FC Android/App Cloner sudah diperbaiki.
+
 - **Logout bot mengikuti slot loading**: handler hanya mengantrekan permintaan.
   Target lain menunggu batas aman antartarget; logout target aktif mengakhiri wait
   lamanya. Hasil akhir `[LOGOUT]` di log (balasan bot bukan konfirmasi selesai).

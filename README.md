@@ -44,6 +44,14 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ### Antrean launch aman
 
+Percobaan `trial/single-loading-slot`: identitas akun di-refresh setelah login manual;
+nama hasil verifikasi Auth langsung menggantikan cache lama/kosong. Heartbeat diperiksa
+sebelum cek login berkala. Dashboard/webhook saat loading dibatasi sekitar 15 detik;
+poll bot tetap berjalan. Log heartbeat memuat waktu nyata, timestamp file, dan umurnya.
+Proses clone lain dipantau tiap 15 detik saat menunggu game: jika hilang, dicatat
+`[LAUNCH-PEER]` dan recovery diantrekan tanpa launch paralel. Ini belum membuktikan
+atau memperbaiki penyebab Android/App Cloner menutup clone lain saat autojoin.
+
 Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah
 `launchJoinTimeout`, antrean ditahan dengan alasan (Delta minta key, heartbeat belum
 masuk, clone tertutup/kick, atau username bentrok). Heartbeat sesi baru melanjutkan

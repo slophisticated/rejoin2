@@ -13,7 +13,9 @@ local ready, starts = {}, {}
 local loginProbe = function() return true end
 local processUp = true
 stub("managers.auth", { isLoggedIn = function(...) return loginProbe(...) end })
-stub("managers.username", { get = function(i) return i.name end })
+local forgotten
+stub("managers.username", { get = function(i) return i.name end,
+    forget = function(pkg) forgotten = pkg end })
 stub("utils.probe_log", { line = noop })
 stub("managers.window_layout", {})
 stub("managers.webhook", {})
@@ -22,6 +24,7 @@ stub("managers.status", { setProgress = noop, beginStarting = noop, endStarting 
     printSummary = noop, setLaunchNotice = noop })
 stub("utils.timer", {})
 stub("managers.heartbeat", { isEnabled = function() return true end,
+    read = function() return { time = now, age = 0 } end,
     alive = function(i) return ready[i.id] end, launchedAt = function(i) return starts[i.id] end,
     isUp = function() return true end })
 local onWait
@@ -319,10 +322,42 @@ ready[1] = nil
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
 assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
+assert(forgotten == instances[1].package, "manual login retained its old username cache")
 onWait = function() if now - starts[1] >= 15 then ready[1] = true end end
 launch(conf, { instances[1] })
 assert(#events == 4 and events[4] == 1, "login autojoin touched another target")
 print("PASS: active logout releases old wait and subsequent login rejoins only its target")
+
+reset()
+local freshChecks = 0
+loginProbe = function(_, fresh)
+    if fresh then freshChecks = freshChecks + 1; now = now + 60 end
+    return true
+end
+onWait = function() if now - starts[1] >= 30 then ready[1] = true end end
+launch(conf, { instances[1] })
+assert(freshChecks == 0 and now - starts[1] == 30,
+    "ready heartbeat waited behind the fresh login/network probe")
+print("PASS: ready heartbeat releases the slot before a blocking fresh login check")
+
+reset()
+local apk = up(order, "apkManager")
+local originalRunning = apk.isRunning
+local peerDead = false
+apk.isRunning = function(pkg)
+    if pkg == instances[2].package then return not peerDead end
+    return true
+end
+onWait = function()
+    peerDead = true
+    assert(#events == 1, "dead peer launched in parallel")
+    if now - starts[1] >= 21 then ready[1] = true end
+end
+launch(conf, { instances[1] })
+assert(#events == 1)
+assert(up(Monitor.requestRejoin, "pendingJoin")[instances[2].package], "dead peer was not queued")
+apk.isRunning = originalRunning
+print("PASS: peer process loss is queued during loading without a parallel launch")
 
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil

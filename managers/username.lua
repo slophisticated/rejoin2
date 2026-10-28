@@ -57,12 +57,23 @@ function Username.reset()
     end
 end
 
+-- A manual login can replace both a missing name and a cached previous account.
+function Username.forget(pkg)
+    cache[pkg] = nil
+end
+
 -- Resolve the Roblox username for a single instance. Returns a string or nil.
 function Username.get(instance)
     if not instance then return nil end
     local pkg = instance.package
     if not pkg then return nil end
 
+    -- Auth already verified this identity; do not hide it behind an older cache.
+    local fromAuth = Auth.remoteName(pkg)
+    if fromAuth and not (instance.usernamePath and instance.usernamePath ~= "") then
+        cache[pkg] = { username = fromAuth, at = os.time() }
+        return fromAuth
+    end
     local cached = cache[pkg]
     if cached then
         if os.time() - cached.at < (cached.username and TTL_OK or TTL_FAIL) then

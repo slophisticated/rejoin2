@@ -179,6 +179,7 @@ local function joinAfterLogin(inst, id, name, pkg, status)
     if status == "nologin" then wasNoLogin[pkg] = true return end
     if not wasNoLogin[pkg] or status == "unknown" or Auth.isLoggedIn(inst) ~= true then return end
     wasNoLogin[pkg] = nil
+    Username.forget(pkg)
     local okH, alive = pcall(Heartbeat.alive, inst)
     if okH and alive == true then return end
     Logger.info(string.format("[NOLOGIN] %s sekarang sudah login; dibuka ke game", name))
@@ -350,6 +351,14 @@ local function launchInOrder(conf, only)
 
         do
             local started = os.time()
+            local peers, lastPeerCheck = {}, os.time()
+            -- Snapshot before the target restart to catch peers lost during launch too.
+            for _, other in ipairs(instanceManager.getAll()) do
+                if other.package ~= pkg then
+                    local okP, up = pcall(apkManager.isRunning, other.package)
+                    if okP and up == true then peers[other.package] = other end
+                end
+            end
             local why = "selesai"
             local p_ok, l_ok, l_err = pcall(function() return recoveryManager.launchAndJoin(inst) end)
             local launched = p_ok and l_ok
@@ -395,6 +404,7 @@ local function launchInOrder(conf, only)
                         lastProbe = os.time()
                         local okL, li = pcall(Auth.isLoggedIn, inst, true, true)
                         if okL and li == true then
+                            Username.forget(pkg)
                             loggedIn = true
                             launchSlot.restart = true
                             break
@@ -445,6 +455,7 @@ local function launchInOrder(conf, only)
             local lastLoginCheck = os.time()
             local retries, retryAt = 0, nil
             local token, heldReason
+            local lastMaintenance = os.time()
             if useHb and loggedIn ~= false then
                 active = true -- RSS cannot bypass the heartbeat gate.
                 token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")
@@ -483,7 +494,26 @@ local function launchInOrder(conf, only)
                     Logger.info("Monitor: " .. name .. " dibuka ulang di slot loading yang sama")
                     LaunchControl.publish(inst, "Menunggu heartbeat sesi baru", token)
                 end
-                -- Logout can happen after launch; a dead process alone is not logout.
+                local alive, hbWhy = Heartbeat.alive(inst)
+                if not useHb or sharedName[pkg] then alive = nil end
+                local since = os.time() - started
+                if alive == true and since < MIN_JOIN then
+                    if not warnedFast then
+                        warnedFast = true
+                        Logger.warn(string.format("Monitor: %s heartbeat muncul %ds abis launch (kecepetan); ditunggu lagi", name, since))
+                    end
+                elseif alive == true and launched then
+                    local hb = Heartbeat.read(inst)
+                    Logger.info(string.format("Monitor: %s in game (heartbeat, wall=%ds, file=%s, age=%ss); next clone",
+                        name, since, tostring(hb and hb.time), tostring(hb and hb.age)))
+                    sawHeartbeat = true
+                    pausedJoin[pkg] = nil
+                    why = "masuk game (heartbeat)"
+                    break
+                elseif alive == false and tostring(hbWhy):find("^kicked") then
+                    heldReason = "Kick saat join: " .. tostring(hbWhy)
+                end
+                -- Heartbeat readiness wins over a potentially blocking fresh login probe.
                 if useHb and (os.time() - lastLoginCheck >= 30 or goneChecks == 2) then
                     local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
                     lastLoginCheck = os.time()
@@ -506,25 +536,7 @@ local function launchInOrder(conf, only)
                         Logger.warn(string.format("Monitor: %s proses mati; retry %d/2 dalam 10s (slot tetap ditahan)", name, retries))
                     end
                 end
-                local alive, hbWhy = Heartbeat.alive(inst)
-                if not useHb or sharedName[pkg] then alive = nil end
-                local since = os.time() - started
-                if alive == true and since < MIN_JOIN then
-                    -- Too fast to be this launch: another clone's file / a leftover. Wait on.
-                    if not warnedFast then
-                        warnedFast = true
-                        Logger.warn(string.format("Monitor: %s heartbeat muncul %ds abis launch (kecepetan); ditunggu lagi", name, since))
-                    end
-                elseif alive == true and launched then
-                    Logger.info(string.format("Monitor: %s in game (heartbeat, %ds); next clone", name, waited + settled))
-                    sawHeartbeat = true
-                    pausedJoin[pkg] = nil
-                    why = "masuk game (heartbeat)"
-                    break
-                elseif alive == false and tostring(hbWhy):find("^kicked") then
-                    heldReason = "Kick saat join: " .. tostring(hbWhy)
-                end
-                if useHb and (settled >= limit or heldReason) then
+                if useHb and (since >= limit or heldReason) then
                     local reason = sharedName[pkg] and "Username bentrok; heartbeat tidak bisa dibedakan"
                         or heldReason or (DeltaKey.present() == false and "Delta minta key; antrean ditahan"
                         or "Heartbeat belum masuk; cek executor/loading")
@@ -535,17 +547,40 @@ local function launchInOrder(conf, only)
                     end
                     Status.setLaunchNotice(name .. ": " .. reason)
                 end
-                local step = useHb and poll or math.min(poll, limit - settled)
-                launchWait(step, stopped)
-                settled = settled + step
-                keepRemoteAlive()
-                if running then Status.printSummary(instanceManager.getAll()) end
+                if os.time() - lastPeerCheck >= 15 then
+                    lastPeerCheck = os.time()
+                    for otherPkg, other in pairs(peers) do
+                        local okP, up = pcall(apkManager.isRunning, otherPkg)
+                        if okP and up == false then
+                            Logger.warn(string.format("[LAUNCH-PEER] %s proses hilang saat %s loading (wall=%ds); recovery diantrekan",
+                                tostring(other.name or otherPkg), name, os.time() - started))
+                            Monitor.requestRejoin({ other.id })
+                            peers[otherPkg] = nil
+                        end
+                    end
+                end
                 local okR, isUp = pcall(function() return apkManager.isRunning(pkg) end)
                 if okR and isUp then retryAt = nil end
                 if okR and isUp == false then goneChecks = goneChecks + 1 else goneChecks = 0 end
                 if goneChecks >= 2 then
                     heldReason = "Clone tertutup saat loading; antrean ditahan"
                     if not useHb then why = heldReason; break end
+                end
+                if os.time() - lastMaintenance >= 15 then
+                    local at = os.time()
+                    keepRemoteAlive()
+                    if running then Status.printSummary(instanceManager.getAll()) end
+                    lastMaintenance = os.time()
+                    if lastMaintenance - at >= poll then
+                        Logger.info(string.format("[LAUNCH-WAIT] %s bot/webhook/dashboard=%ds", name, lastMaintenance - at))
+                    end
+                end
+                local step = useHb and poll or math.min(poll, limit - settled)
+                local at = os.time()
+                launchWait(step, stopped)
+                settled = settled + step
+                if os.time() - at > step + 2 then
+                    Logger.info(string.format("[LAUNCH-WAIT] %s poll=%ds (jeda=%ds)", name, os.time() - at, step))
                 end
             end
             LaunchControl.clear()

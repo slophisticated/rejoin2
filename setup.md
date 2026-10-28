@@ -2,6 +2,14 @@
 
 ## Antrean launch / Delta minta key
 
+Autojoin percobaan terbaru me-refresh cache username setelah login dan mengutamakan
+heartbeat sebelum cek login berkala. Log `in game (heartbeat, wall=..., file=...,
+age=...)` membedakan waktu tunggu nyata dari umur tulisan heartbeat terbaru (bukan
+waktu heartbeat pertama). `[LAUNCH-WAIT]` mencatat poll/pekerjaan status yang lambat;
+`[LAUNCH-PEER]` mencatat proses clone lain hilang saat target loading, lalu mengantrekan
+recovery tanpa membuka paralel. Pemeriksaan proses tiap 15 detik bukan waktu pasti FC.
+Cold restart target tidak berubah; penyebab clone lain ikut tertutup belum terbukti.
+
 Logout bot pada branch percobaan memakai slot yang sama: logout target lain ditunda
 sampai target loading selesai; logout target aktif diproses oleh pemilik slot dan
 mengakhiri penantian join lama. Bot membalas "logout diantrekan"; cek `[LOGOUT]` di
@@ -35,10 +43,13 @@ aktif menggantikan percobaan lama dengan link terbaru tanpa menambah slot loadin
 Untuk mencoba branch ini pada instalasi dev, hentikan engine dulu lalu jalankan:
 ```sh
 cd ~/rejoin
-git fetch origin trial/single-loading-slot
-git switch -c trial/single-loading-slot --track origin/trial/single-loading-slot
+git fetch origin refs/heads/trial/single-loading-slot:refs/remotes/origin/trial/single-loading-slot
+git switch --no-track -c trial/single-loading-slot origin/trial/single-loading-slot
 sh run.sh
 ```
+Kalau sudah berada di branch percobaan, pakai perintah fetch di atas lalu
+`git merge --ff-only origin/trial/single-loading-slot`, bukan membuat branch lagi.
+Jika merge ditolak karena perubahan lokal, jangan reset atau menimpa config/log.
 Jangan reboot selama percobaan: auto-update boot tetap mengikuti kebijakan installer
 yang ada. Kembali ke versi normal setelah engine dihentikan: `git switch main`.
 
