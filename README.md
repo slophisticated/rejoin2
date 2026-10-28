@@ -1,5 +1,10 @@
 # Rejoin Engine
 
+`/report` bot juga mengambil event proses Android terbaru untuk package clone
+(`am_kill`, `am_proc_died`, `am_proc_start`, `am_anr`, `am_crash`), termasuk waktu
+dan alasan yang tersedia. Tidak perlu export file manual dari cloud phone. Buffer
+Android terbatas; report kosong bukan bukti clone tidak mati.
+
 Diagnostik trial: `/clone test-close device:...` meminta konfirmasi lalu hanya
 force-stop Clone4 (`com.apengjers.v6`), tanpa logout/hapus cookie/ubah service.
 Target wajib unik, hidup, dan terverifikasi login; antrean loading/rejoin wajib

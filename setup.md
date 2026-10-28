@@ -2,6 +2,15 @@
 
 ## Antrean launch / Delta minta key
 
+Untuk investigasi jendela hilang/FC, jalankan `/report` lewat bot sesegera mungkin
+setelah kejadian. Report otomatis membaca maksimal 2000 event Android terbaru dan
+menyertakan 80 event proses terakhir yang cocok dengan package clone terdaftar.
+Tidak ada force-stop, penghapusan log, atau perubahan service saat mengambilnya.
+Jika izin root/logcat gagal, bagian report menyatakan gagal; jika tidak ada event
+cocok, report menyatakan kosong. Ring buffer bisa tergeser, jadi kosong tidak
+membuktikan proses tetap hidup. Update kode device cukup; bot tidak perlu redeploy
+untuk tambahan isi report ini. Kirim attachment `/report` seperti biasa.
+
 ### Tes penutupan Clone4 dari Discord
 
 Deploy/restart bot dari branch `trial/no-login-autojoin` (bukan `main`); startup

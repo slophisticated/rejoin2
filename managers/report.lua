@@ -106,6 +106,33 @@ local function section(out, title, list)
     for _, l in ipairs(list) do out[#out + 1] = l end
 end
 
+local function androidEvents(clones)
+    local Shell = require("utils.shell")
+    local ok, text = Shell.exec("logcat -b events -d -v threadtime -t 2000")
+    if not ok then return { "Gagal membaca event Android (izin root/logcat atau timeout); bukan bukti tidak ada proses mati." } end
+    local tags = { am_kill = true, am_proc_died = true, am_proc_start = true,
+        am_anr = true, am_crash = true }
+    local picked = {}
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("%s(am_[%w_]+)%s*:")
+        if tags[tag] then
+            for _, inst in ipairs(clones) do
+                local pkg = inst.package
+                if type(pkg) == "string" and pkg ~= ""
+                    and line:find("[,%s]" .. plain(pkg) .. "%f[^%w_.]") then
+                    picked[#picked + 1] = line:sub(1, 500)
+                    break
+                end
+            end
+        end
+    end
+    local result = { "Diambil saat report dibuat; maksimal 80 event clone dari 2000 event Android terakhir.",
+        "Ring buffer bisa tergeser; kosong bukan bukti proses tetap hidup. Waktu event mengikuti device." }
+    if #picked == 0 then result[#result + 1] = "Tidak ada event proses clone yang cocok pada buffer yang terbaca." end
+    for _, line in ipairs(tail(picked, 80)) do result[#result + 1] = line end
+    return result
+end
+
 function Report.build()
     local conf = Config.get() or {}
     local remote = type(conf.remote) == "table" and conf.remote or {}
@@ -162,6 +189,7 @@ function Report.build()
             at and (os.time() - at .. "s lalu") or "-")
     end
     section(out, "Clone: login + heartbeat", hbLines)
+    section(out, "Event proses Android terbaru (live logcat events)", androidEvents(clones))
 
     local main = lines(logPath)
     section(out, "ERROR / WARN terakhir (" .. logPath .. ", yang sama digabung)",

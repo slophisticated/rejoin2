@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Report event Android langsung**: `/report`, Menu Logs, dan `--report` menyertakan
+  maksimal 80 event kill/proses mati/start/ANR/crash package clone dari 2000 event
+  Android terakhir, dengan timestamp/alasan yang tersedia dan sensor rahasia biasa.
+  Gagal baca dibedakan dari buffer tanpa event cocok; tidak mengubah app/service
+  atau menghapus log. Tidak perlu export file cloud phone atau redeploy bot.
+
 - **Diagnostik bot trial**: `/clone test-close` dengan konfirmasi hanya force-stop
   Clone4 (`com.apengjers.v6`), tanpa logout/cookie/service. Ditolak jika antrean
   loading/rejoin aktif atau target tidak unik, tidak hidup, atau belum terverifikasi
