@@ -11,6 +11,19 @@ Login dicek ulang tiap 30 detik saat menunggu heartbeat, atau lebih cepat setela
 proses mati terdeteksi dua kali berturut-turut. Terkonfirmasi belum login → jeda
 `launchEmptyDelay` (default 5 detik), lanjut clone berikutnya tanpa force-stop.
 FC saja atau hasil cek gagal/tidak pasti tidak melepas antrean.
+Di branch percobaan `trial/single-loading-slot`, FC dengan login valid mendapat
+maksimal dua retry, masing-masing menunggu 10 detik. Slot loading tetap milik
+target itu: timeout/retry habis tidak membuka target lain. Rejoin bot untuk target
+aktif menggantikan percobaan lama dengan link terbaru tanpa menambah slot loading.
+Untuk mencoba branch ini pada instalasi dev, hentikan engine dulu lalu jalankan:
+```sh
+cd ~/rejoin
+git fetch origin trial/single-loading-slot
+git switch -c trial/single-loading-slot --track origin/trial/single-loading-slot
+sh run.sh
+```
+Jangan reboot selama percobaan: auto-update boot tetap mengikuti kebijakan installer
+yang ada. Kembali ke versi normal setelah engine dihentikan: `git switch main`.
 
 Untuk lewati **satu** clone atau batalkan sisa antrean: buka sesi Termux kedua,
 jalankan `cd ~/rejoin && lua main.lua`, pilih **Menu 14**. Monitor tetap jalan setelah

@@ -52,6 +52,12 @@ Selama menunggu heartbeat, login dicek ulang tiap 30 detik, atau lebih cepat set
 proses mati terdeteksi dua kali berturut-turut. Jika terkonfirmasi belum login,
 engine memberi jeda `launchEmptyDelay` (default 5 detik) lalu lanjut clone berikutnya,
 tanpa force-stop. FC saja, hasil login tidak pasti, atau cek gagal tidak melepas antrean.
+Branch percobaan `trial/single-loading-slot`: FC yang terkonfirmasi masih login
+dicoba ulang maksimal dua kali dengan jeda 10 detik, tetap di target yang sama.
+Rejoin bot untuk target yang sedang ditunggu menggantikan percobaan lama memakai
+link terbaru; target berikutnya yang sudah ada di batch tidak diantrekan dobel.
+Timeout tetap tidak membuka clone berikutnya. Retry habis → gunakan Menu 14 atau
+kirim rejoin baru; perintah bot tetap dilayani selama penantian.
 Untuk pengecualian manual, buka **sesi Termux kedua → `lua main.lua` → Menu 14**:
 lewati **satu** clone atau batalkan sisa antrean tanpa mematikan monitor. Skip manual
 bisa menumpuk loading; engine tidak menjamin clone yang dilewati sudah siap.

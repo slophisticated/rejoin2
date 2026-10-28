@@ -164,7 +164,7 @@ assert(#events == 3 and checkedAt - starts[1] == 6, "two absent-process checks m
 print("PASS: FC triggers early logout verification")
 
 -- FC, unknown login and probe errors must never become automatic skip.
-for _, result in ipairs({ "valid", "unknown", "error" }) do
+for _, result in ipairs({ "unknown", "error" }) do
     reset()
     processUp = false
     local probes = 0
@@ -184,7 +184,61 @@ for _, result in ipairs({ "valid", "unknown", "error" }) do
     launch(conf)
     assert(#events == 1 and probes == 2, "FC checks must be bounded and periodically repeated")
 end
-print("PASS: FC with valid/unknown/failed login check holds the queue")
+print("PASS: FC with unknown/failed login check holds the queue")
+
+reset()
+processUp = false
+onWait = function()
+    for _, id in ipairs(events) do assert(id == 1, "FC retry opened another target") end
+    if #events == 3 and now - starts[1] >= 50 then Control.request("cancel") end
+    assert(#events <= 3 and now - starts[1] < 90, "FC retry is unbounded")
+end
+launch(conf)
+assert(#events == 3, "FC must retry the same target at most twice")
+print("PASS: FC retries are bounded and retain the loading slot")
+
+reset()
+local requested = false
+local originalLaunch = recovery.launchAndJoin
+local launchedLinks = {}
+recovery.launchAndJoin = function(i)
+    launchedLinks[#launchedLinks + 1] = i.privateServer or "old-link"
+    return originalLaunch(i)
+end
+onWait = function()
+    if not requested then
+        requested = true
+        instances[1].privateServer = "new-link"
+        Monitor.requestRejoin({ 1, 2, 3 })
+    end
+    if #events == 2 then
+        assert(events[1] == 1 and events[2] == 1, "new link must replace the active target first")
+        assert(instances[1].privateServer == "new-link")
+    end
+    local id = events[#events]
+    if #events >= 2 and now - starts[id] >= 15 then ready[id] = true end
+    assert(#events <= 4, "new request duplicated future batch targets")
+end
+launch(conf)
+assert(#events == 4 and events[3] == 2 and events[4] == 3)
+assert(launchedLinks[1] == "old-link" and launchedLinks[2] == "new-link", "replacement did not launch the new link")
+assert(#up(Monitor.requestRejoin, "rejoinQueue") == 0, "future batch targets queued twice")
+recovery.launchAndJoin = originalLaunch
+instances[1].privateServer = nil
+print("PASS: bot rejoin replaces active attempt and coalesces future targets")
+
+reset()
+loginProbe = function(i, fresh)
+    if i.id == 1 and fresh then return false end
+    return true
+end
+onWait = function()
+    assert(#events == 1, "cancel during logout pause opened another clone")
+    if now - starts[1] >= 35 then assert(Control.request("cancel")) end
+end
+launch(conf)
+assert(#events == 1, "logout pause lost cancel")
+print("PASS: cancel during logout pause prevents the next launch")
 
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil

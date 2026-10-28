@@ -258,7 +258,8 @@ end
 
 -- `fresh` skips the caches (used right before a clone is sent to its game link: an
 -- account logged out a minute ago must not be joined and hang on the loading screen).
-function Auth.isLoggedIn(instance, fresh)
+-- `requireFresh` disallows the old local answer when a new disk probe fails.
+function Auth.isLoggedIn(instance, fresh, requireFresh)
     local pkg = instance and instance.package
     if not pkg then return nil end
     local base = baseDir(instance)
@@ -297,7 +298,7 @@ function Auth.isLoggedIn(instance, fresh)
     -- A probe that fails once (e.g. a slow grep hitting the shell timeout) must not
     -- flip a known logged-out clone back to "unknown", which callers treat as
     -- logged in and recover. Keep the last definite answer until a new one arrives.
-    if result == nil and cached and cached.result ~= nil then
+    if result == nil and not requireFresh and cached and cached.result ~= nil then
         result = cached.result
     end
 

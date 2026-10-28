@@ -2,6 +2,14 @@
 
 ## Unreleased / Bug fixes
 
+- **Percobaan satu slot loading** (`trial/single-loading-slot`): FC dengan login
+  valid dicoba ulang maksimal dua kali dengan jeda 10 detik, tanpa membuka target
+  lain. Permintaan rejoin bot untuk target aktif menggantikan percobaan lama dengan
+  link terbaru; target batch berikutnya tidak diantrekan dobel. Timeout tetap menahan
+  slot. Cek logout ketat tidak memakai cache lokal jika pembacaan terbaru gagal;
+  cancel saat jeda logout tidak hilang. Tes simulasi retry, penggantian target,
+  pembatasan antrean dan cancel ditambah. Main tidak berubah.
+
 - **Logout saat menunggu heartbeat tidak menahan clone lain**: login dicek ulang
   tiap 30 detik, atau lebih cepat setelah proses mati dua kali berturut-turut.
   Jika terkonfirmasi belum login, lanjut setelah `launchEmptyDelay` tanpa force-stop.

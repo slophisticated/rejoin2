@@ -232,6 +232,8 @@ end
 -- A Launch All / sequential rejoin can wait minutes per clone; keep syncing with the
 -- bot meanwhile so the device is not shown offline (Remote.tick has its own interval).
 local launching = false -- true while runSequentialLaunch runs (bot cookie inject waits)
+local launchSlot = nil -- sole loading target; new bot requests replace its attempt
+local batchTargets = {} -- future targets already covered by this batch
 
 local function launchCtx()
     return { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end, launchBusy = launching }
@@ -310,14 +312,19 @@ local function launchInOrder(conf, only)
     -- A real join (spawn + assets idle 5s) never takes less than this.
     local MIN_JOIN = 10
 
+    batchTargets = {}
+    for _, inst in ipairs(instances) do batchTargets[inst.package] = true end
+
     for i, inst in ipairs(instances) do
         if not running then break end
+        inst = instanceManager.find(inst.id) or inst
         Status.setProgress(i, #instances, "Launching")
         local id = inst.id or i
         local name = tostring(inst.name or id)
         local pkg = inst.package
         pendingJoin[pkg] = nil
         wasNoLogin[pkg] = nil
+        launchSlot = { package = pkg }
 
         Status.beginStarting(id)
         Status.printSummary(instanceManager.getAll())
@@ -379,6 +386,7 @@ local function launchInOrder(conf, only)
             -- A low RSS reading is not a crash. Two absent-process checks explain a hold.
             local goneChecks = 0
             local lastLoginCheck = os.time()
+            local retries, retryAt = 0, nil
             local token, heldReason, cancelBatch
             if useHb and loggedIn ~= false then
                 active = true -- RSS cannot bypass the heartbeat gate.
@@ -394,9 +402,24 @@ local function launchInOrder(conf, only)
                     Logger.warn("Monitor: " .. name .. ": " .. why)
                     break
                 end
+                if useHb and (launchSlot.restart or (retryAt and os.time() >= retryAt)) then
+                    launchSlot.restart = nil
+                    retryAt = nil
+                    local latest = instanceManager.find(id) or inst
+                    inst = latest
+                    started = os.time()
+                    local okLaunch, result = pcall(recoveryManager.launchAndJoin, inst)
+                    launched = okLaunch and result
+                    settled, goneChecks = 0, 0
+                    lastLoginCheck = os.time()
+                    heldReason = not launched and "Launch gagal; antrean ditahan" or nil
+                    why = "percobaan ulang target"
+                    Logger.info("Monitor: " .. name .. " dibuka ulang di slot loading yang sama")
+                    LaunchControl.publish(inst, "Menunggu heartbeat sesi baru", token)
+                end
                 -- Logout can happen after launch; a dead process alone is not logout.
                 if useHb and (os.time() - lastLoginCheck >= 30 or goneChecks == 2) then
-                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true)
+                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
                     lastLoginCheck = os.time()
                     if okLogin and stillLoggedIn == false then
                         wasNoLogin[pkg] = true
@@ -405,7 +428,16 @@ local function launchInOrder(conf, only)
                         Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
                         launchWait(emptyDelay, stopped)
                         keepRemoteAlive()
+                        local lateAction = token and LaunchControl.take(token)
+                        if lateAction == "cancel" then
+                            cancelBatch = true
+                            why = "sisa antrean dibatalkan"
+                        end
                         break
+                    elseif okLogin and stillLoggedIn == true and goneChecks >= 2 and not retryAt and retries < 2 then
+                        retries = retries + 1
+                        retryAt = os.time() + 10
+                        Logger.warn(string.format("Monitor: %s proses mati; retry %d/2 dalam 10s (slot tetap ditahan)", name, retries))
                     end
                 end
                 local alive, hbWhy = Heartbeat.alive(inst)
@@ -443,6 +475,7 @@ local function launchInOrder(conf, only)
                 keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
                 local okR, isUp = pcall(function() return apkManager.isRunning(pkg) end)
+                if okR and isUp then retryAt = nil end
                 if okR and isUp == false then goneChecks = goneChecks + 1 else goneChecks = 0 end
                 if goneChecks >= 2 then
                     heldReason = "Clone tertutup saat loading; antrean ditahan"
@@ -450,6 +483,8 @@ local function launchInOrder(conf, only)
                 end
             end
             LaunchControl.clear()
+            launchSlot = nil
+            batchTargets[pkg] = nil
             Status.setLaunchNotice(nil)
             if not useHb and launched and active and not sawHeartbeat then
                 why = "jeda tetap (heartbeat dimatikan)"
@@ -482,6 +517,8 @@ local function runSequentialLaunch(conf, only)
     launching = true
     local ok, err = pcall(launchInOrder, conf, only)
     launching = false
+    launchSlot = nil
+    batchTargets = {}
     LaunchControl.clear()
     Status.setLaunchNotice(nil)
     if not ok then error(err, 0) end
@@ -512,20 +549,24 @@ function Monitor.otherEngine()
 end
 
 function Monitor.requestRejoin(ids)
+    local function queue(inst)
+        if launchSlot and launchSlot.package == inst.package then
+            launchSlot.restart = true
+            pausedJoin[inst.package] = nil
+            return
+        end
+        if batchTargets[inst.package] or pendingJoin[inst.package] then return end
+        pendingJoin[inst.package] = true
+        pausedJoin[inst.package] = nil
+        rejoinQueue[#rejoinQueue + 1] = inst.id
+    end
     for _, id in ipairs(ids or {}) do
         local inst = instanceManager and instanceManager.find(id)
         if id == "all" then
-            for _, item in ipairs(instanceManager.getAll()) do
-                pendingJoin[item.package] = true
-                pausedJoin[item.package] = nil
-            end
+            for _, item in ipairs(instanceManager.getAll()) do queue(item) end
         elseif inst then
-            if pendingJoin[inst.package] then goto next_request end
-            pendingJoin[inst.package] = true
-            pausedJoin[inst.package] = nil
+            queue(inst)
         end
-        rejoinQueue[#rejoinQueue + 1] = id
-        ::next_request::
     end
 end
 
