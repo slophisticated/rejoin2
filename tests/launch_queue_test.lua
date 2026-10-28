@@ -48,7 +48,9 @@ local manager = { getAll = function() return instances end, find = function(id)
     for _, i in ipairs(instances) do if tostring(i.id) == tostring(id) then return i end end
 end }
 set(Monitor.start, "instanceManager", manager)
-set(Monitor.start, "apkManager", { isRunning = function() return processUp end })
+local windowVisible = true
+set(Monitor.start, "apkManager", { isRunning = function() return processUp end,
+    hasWindow = function() return windowVisible end })
 set(Monitor.start, "Optimizer", { applyForInstance = noop })
 set(Monitor.start, "recoveryManager", { launchAndJoin = function(i)
     events[#events + 1] = i.id; starts[i.id] = now; return true
@@ -60,6 +62,7 @@ local function reset()
     events, starts, ready = {}, {}, {}
     loginProbe = function() return true end
     processUp = true
+    windowVisible = true
     Control.clear()
     set(Monitor.start, "running", true)
     set(Monitor.requestRejoin, "pendingJoin", {})
@@ -253,11 +256,29 @@ assert(#events == 0, "nologin recovery bypassed the loading slot")
 assert(#up(Monitor.requestRejoin, "rejoinQueue") == 2)
 loginProbe = function() return false end
 onWait = function()
-    assert(now - starts[events[#events]] == 5, "login screens must receive their own short pause")
+    assert(now - starts[events[#events]] <= 5, "login screen pause exceeded")
 end
 launch(conf, { instances[1], instances[2] })
 assert(#events == 2 and starts[2] - starts[1] == 5)
 print("PASS: closed login screens queue sequentially; minimized processes stay untouched")
+
+reset()
+windowVisible = false
+loginProbe = function() return false end
+onWait = function()
+    assert(#events == 1, "missing login window released the next target")
+    if now - starts[1] >= 20 then Control.request("cancel") end
+end
+launch(conf)
+assert(#events == 1, "missing login window must hold the slot")
+reset()
+windowVisible = false
+set(reopen, "noLoginLast", {})
+set(reopen, "noWindowChecks", {})
+assert(not reopen(instances[1], 1, "A", instances[1].package))
+assert(reopen(instances[1], 1, "A", instances[1].package))
+assert(#events == 0 and #up(Monitor.requestRejoin, "rejoinQueue") == 1)
+print("PASS: absent login windows hold the slot and require two checks to queue")
 
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil

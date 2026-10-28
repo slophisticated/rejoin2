@@ -224,7 +224,8 @@ function APKManager.hasWindow(packageName)
     if not out:find("Window{", 1, true) then return nil end
     local esc = pkg:gsub("%p", "%%%0")
     for line in out:gmatch("[^\r\n]+") do
-        if line:find("Window{", 1, true) and line:match(" u%d+ " .. esc .. "[/}%s]") then
+        if line:find("Window{", 1, true) and line:match(" u%d+ " .. esc .. "[/}%s]")
+            and not line:match("^%s*m[%w_]*=") then
             return true
         end
     end

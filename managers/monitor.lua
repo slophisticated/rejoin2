@@ -146,6 +146,7 @@ end
 -- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
 -- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
 local noLoginLast = {} -- pkg -> os.time() of the last reopen
+local noWindowChecks = {} -- require consecutive absent windows before queuing
 local wasNoLogin = {}  -- pkg -> true while the clone sits without an account
 
 -- A clone seen without an account that is logged in now (the owner signed in by hand)
@@ -166,8 +167,14 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
     if monitorConf.relaunchNoLogin == false or not pkg then return false end
     local okR, alive = pcall(function() return apkManager.isRunning(pkg) end)
     if not okR then return false end
-    -- App Cloner bubbles can have no regular window while their process is healthy.
-    if alive then return false end
+    if alive then
+        local okW, has = pcall(apkManager.hasWindow, pkg)
+        if not okW or has ~= false then noWindowChecks[pkg] = nil; return false end
+        noWindowChecks[pkg] = (noWindowChecks[pkg] or 0) + 1
+        if noWindowChecks[pkg] < 2 then return false end
+    else
+        noWindowChecks[pkg] = nil
+    end
     local cooldown = tonumber(monitorConf.noLoginCooldown) or 120
     local now = os.time()
     if noLoginLast[pkg] and now - noLoginLast[pkg] < cooldown then return false end
@@ -175,7 +182,7 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
     noLoginLast[pkg] = now
 
     wasNoLogin[pkg] = true
-    Logger.info(string.format("[NOLOGIN] %s proses mati; buka layar login diantrekan", name))
+    Logger.info(string.format("[NOLOGIN] %s proses/jendela tidak ada; buka layar login diantrekan", name))
     Monitor.requestRejoin({ id })
     return true
 end
@@ -327,15 +334,48 @@ local function launchInOrder(conf, only)
                 why = "launch gagal"
             end
             local loggedIn = Auth.isLoggedIn(inst)
+            local cancelBatch
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
-            if launched and loggedIn == false then
+            if loggedIn == false then
                 wasNoLogin[pkg] = true
-                -- Login screen never reaches minRss, so don't wait for it to be "active".
-                -- Still give its window a short head start: launching the next clone at
-                -- the same instant can stop this one's floating window from appearing.
-                Logger.info(string.format("Monitor: %s not logged in; short pause %ds", name, emptyDelay))
-                launchWait(emptyDelay, stopped)
-                keepRemoteAlive()
+                local reason = "Menunggu jendela/ikon floating layar login"
+                local loginToken = LaunchControl.publish(inst, reason)
+                local visibleAt, lastProbe = nil, os.time()
+                while running do
+                    local action = LaunchControl.take(loginToken)
+                    if action == "skip" or action == "cancel" then
+                        cancelBatch = action == "cancel"
+                        pausedJoin[pkg] = true
+                        break
+                    end
+                    if launchSlot.restart then
+                        launchSlot.restart = nil
+                        pcall(recoveryManager.launchAndJoin, instanceManager.find(id) or inst)
+                        visibleAt = nil
+                    end
+                    local okW, visible = pcall(apkManager.hasWindow, pkg)
+                    if okW and visible == true then
+                        visibleAt = visibleAt or os.time()
+                        if os.time() - visibleAt >= emptyDelay then break end
+                    else
+                        visibleAt = nil
+                    end
+                    -- Manual login while held must return to the game heartbeat gate.
+                    if os.time() - lastProbe >= 30 then
+                        lastProbe = os.time()
+                        local okL, li = pcall(Auth.isLoggedIn, inst, true, true)
+                        if okL and li == true then
+                            loggedIn = true
+                            launchSlot.restart = true
+                            break
+                        end
+                    end
+                    Status.setLaunchNotice(name .. ": " .. reason)
+                    launchWait(math.min(poll, 1), stopped)
+                    keepRemoteAlive()
+                end
+                LaunchControl.clear()
+                Status.setLaunchNotice(nil)
                 launched = false
                 why = "belum login"
             end
@@ -374,7 +414,7 @@ local function launchInOrder(conf, only)
             local goneChecks = 0
             local lastLoginCheck = os.time()
             local retries, retryAt = 0, nil
-            local token, heldReason, cancelBatch
+            local token, heldReason
             if useHb and loggedIn ~= false then
                 active = true -- RSS cannot bypass the heartbeat gate.
                 token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")

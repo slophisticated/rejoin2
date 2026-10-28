@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Layar login tidak dilewati karena proses stub**: dua cek tanpa jendela/overlay
+  mengantrekan pembukaan tanpa force-stop. Slot layar login menunggu jendela muncul
+  lalu `launchEmptyDelay`; bila gagal muncul, ditahan dengan kontrol Menu 14.
+  Header Window dumpsys dipakai; referensi focus lama bukan bukti jendela ada.
+  Tes parser overlay/activity dan layar login hilang ditambah.
+
 - **Tutup jalur launch di luar slot**: reopen clone tanpa akun sekarang mengantre
   dengan jeda `launchEmptyDelay`, tidak membuka beberapa layar login langsung dari
   loop monitor. Proses hidup tanpa jendela dibiarkan (ikon floating bukan bukti FC).

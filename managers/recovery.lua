@@ -102,7 +102,8 @@ function Recovery.launchAndJoin(instance)
     if Auth.isLoggedIn(instance, true) == false then
         local name = tostring(instance.name or pkg)
         local okR, up = pcall(APK.isRunning, pkg)
-        if okR and up then
+        local okW, hasWindow = pcall(APK.hasWindow, pkg)
+        if okR and up and okW and hasWindow == true then
             Logger.info("[NOLOGIN] " .. name .. " belum login; ga dibuka ke game (dibiarin di layar login)")
             return true
         end

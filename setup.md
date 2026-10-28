@@ -2,6 +2,11 @@
 
 ## Antrean launch / Delta minta key
 
+Percobaan terbaru: layar login juga menahan slot sampai jendela/overlay App Cloner
+terdeteksi dan jeda `launchEmptyDelay` selesai. Proses hidup tanpa jendela tidak lagi
+dilewati: setelah dua pemeriksaan, buka ulang diantrekan tanpa force-stop. Jika gagal
+muncul, gunakan Menu 14; engine tidak menembakkan launch berulang otomatis.
+
 Heartbeat aktif: clone yang masih login menunggu heartbeat sesi baru sebelum clone berikutnya dibuka.
 RSS tinggi bukan bukti siap, dan timeout tidak lagi memindahkan antrean ke jeda tetap.
 Setelah `launchJoinTimeout` (0 berarti default 240 detik), dashboard menampilkan
