@@ -12,7 +12,10 @@ proses mati terdeteksi dua kali berturut-turut. Terkonfirmasi belum login → je
 `launchEmptyDelay` (default 5 detik), lanjut clone berikutnya tanpa force-stop.
 FC saja atau hasil cek gagal/tidak pasti tidak melepas antrean.
 Di branch percobaan `trial/single-loading-slot`, FC dengan login valid mendapat
-maksimal dua retry, masing-masing menunggu 10 detik. Slot loading tetap milik
+maksimal dua retry. Buka ulang layar login juga lewat antrean, bukan launch langsung
+dari loop monitor. Ikon floating/proses hidup tanpa jendela tidak dibuka ulang otomatis;
+proses mati mengalahkan heartbeat lama pada pemeriksaan kesehatan. Tiap retry
+menunggu 10 detik. Slot loading tetap milik
 target itu: timeout/retry habis tidak membuka target lain. Rejoin bot untuk target
 aktif menggantikan percobaan lama dengan link terbaru tanpa menambah slot loading.
 Untuk mencoba branch ini pada instalasi dev, hentikan engine dulu lalu jalankan:

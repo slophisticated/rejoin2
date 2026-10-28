@@ -142,7 +142,7 @@ local function isLoading(inst)
 end
 
 -- A clone without a logged-in account is left alone while it sits on the login
--- screen, but if it CLOSED (process gone, or a stub left with no window) it is opened
+-- screen, but if it CLOSED (process gone) it is queued for opening
 -- again: gently (no force-stop) and at most once per noLoginCooldown seconds, so it can
 -- never turn into the old force-stop loop. relaunchNoLogin = false turns this off.
 local noLoginLast = {} -- pkg -> os.time() of the last reopen
@@ -166,31 +166,17 @@ local function reopenNoLoginIfClosed(inst, id, name, pkg)
     if monitorConf.relaunchNoLogin == false or not pkg then return false end
     local okR, alive = pcall(function() return apkManager.isRunning(pkg) end)
     if not okR then return false end
-    local why
-    if not alive then
-        why = "proses mati"
-    else
-        local okW, has = pcall(function() return apkManager.hasWindow(pkg) end)
-        if okW and has == false then why = "tanpa jendela" end
-    end
-    if not why then return false end
+    -- App Cloner bubbles can have no regular window while their process is healthy.
+    if alive then return false end
     local cooldown = tonumber(monitorConf.noLoginCooldown) or 120
     local now = os.time()
     if noLoginLast[pkg] and now - noLoginLast[pkg] < cooldown then return false end
     if isRecovering(id) then return false end
     noLoginLast[pkg] = now
 
-    Logger.info(string.format("[NOLOGIN] %s tertutup (%s); dibuka lagi", name, why))
-    setRecovering(id, true)
-    Status.beginRecovery(id)
-    local okL, launched = pcall(function() return recoveryManager.reopenNoLogin(inst) end)
-    Status.endRecovery(id)
-    setRecovering(id, false)
-    if okL and launched then
-        pcall(function() return Optimizer.applyForInstance(inst) end)
-    else
-        Logger.warn(string.format("[NOLOGIN] %s gagal dibuka lagi: %s", name, tostring(launched)))
-    end
+    wasNoLogin[pkg] = true
+    Logger.info(string.format("[NOLOGIN] %s proses mati; buka layar login diantrekan", name))
+    Monitor.requestRejoin({ id })
     return true
 end
 
@@ -343,6 +329,7 @@ local function launchInOrder(conf, only)
             local loggedIn = Auth.isLoggedIn(inst)
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
             if launched and loggedIn == false then
+                wasNoLogin[pkg] = true
                 -- Login screen never reaches minRss, so don't wait for it to be "active".
                 -- Still give its window a short head start: launching the next clone at
                 -- the same instant can stop this one's floating window from appearing.
@@ -791,6 +778,8 @@ function Monitor.start(conf, opts)
                 -- a stopped heartbeat is unhealthy even with plenty of RSS.
                 local ok, res = pcall(function() return Heartbeat.isUp(inst, apkManager) end)
                 healthy = ok and res
+                local okProcess, processUp = pcall(apkManager.isRunning, pkg)
+                if okProcess and processUp == false then healthy = false end
                 if not healthy and isLoading(inst) then
                     healthy = true
                     Logger.debug(string.format("Monitor: %s masih loading; tunggu sebelum cek RSS lagi", name))

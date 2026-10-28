@@ -53,6 +53,10 @@ proses mati terdeteksi dua kali berturut-turut. Jika terkonfirmasi belum login,
 engine memberi jeda `launchEmptyDelay` (default 5 detik) lalu lanjut clone berikutnya,
 tanpa force-stop. FC saja, hasil login tidak pasti, atau cek gagal tidak melepas antrean.
 Branch percobaan `trial/single-loading-slot`: FC yang terkonfirmasi masih login
+dan pembukaan layar login memakai antrean yang sama. Clone tanpa akun yang
+prosesnya masih hidup tidak dibuka ulang hanya karena jendelanya tidak terdeteksi
+(bisa berupa ikon floating). Proses mati tidak dianggap sehat dari heartbeat lama.
+FC dengan akun masih login
 dicoba ulang maksimal dua kali dengan jeda 10 detik, tetap di target yang sama.
 Rejoin bot untuk target yang sedang ditunggu menggantikan percobaan lama memakai
 link terbaru; target berikutnya yang sudah ada di batch tidak diantrekan dobel.

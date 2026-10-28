@@ -240,6 +240,25 @@ launch(conf)
 assert(#events == 1, "logout pause lost cancel")
 print("PASS: cancel during logout pause prevents the next launch")
 
+reset()
+local reopen = up(Monitor.start, "reopenNoLoginIfClosed")
+set(reopen, "noLoginLast", {})
+set(reopen, "monitorConf", {})
+-- A minimized clone must not trigger another launcher intent.
+assert(reopen(instances[1], 1, "A", instances[1].package) == false)
+processUp = false
+assert(reopen(instances[1], 1, "A", instances[1].package))
+assert(reopen(instances[2], 2, "B", instances[2].package))
+assert(#events == 0, "nologin recovery bypassed the loading slot")
+assert(#up(Monitor.requestRejoin, "rejoinQueue") == 2)
+loginProbe = function() return false end
+onWait = function()
+    assert(now - starts[events[#events]] == 5, "login screens must receive their own short pause")
+end
+launch(conf, { instances[1], instances[2] })
+assert(#events == 2 and starts[2] - starts[1] == 5)
+print("PASS: closed login screens queue sequentially; minimized processes stay untouched")
+
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil
 stub("core.config", { get = function() return { heartbeat = { enabled = true } } end })

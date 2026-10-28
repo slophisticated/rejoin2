@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Tutup jalur launch di luar slot**: reopen clone tanpa akun sekarang mengantre
+  dengan jeda `launchEmptyDelay`, tidak membuka beberapa layar login langsung dari
+  loop monitor. Proses hidup tanpa jendela dibiarkan (ikon floating bukan bukti FC).
+  Proses mati tidak sehat walaupun heartbeat terakhir masih segar. Autojoin cold
+  tetap memerlukan restart target login; dampak App Cloner ke clone lain masih perlu
+  diuji di device, tidak dijamin oleh perubahan antrean ini.
+
 - **Percobaan satu slot loading** (`trial/single-loading-slot`): FC dengan login
   valid dicoba ulang maksimal dua kali dengan jeda 10 detik, tanpa membuka target
   lain. Permintaan rejoin bot untuk target aktif menggantikan percobaan lama dengan
