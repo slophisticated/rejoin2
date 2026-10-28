@@ -6,13 +6,14 @@ import { join } from 'node:path';
 import { Store } from '../src/store.js';
 import { ack, harness, png, snapshot } from '../test-support/fixtures.js';
 
-test('FIFO, resend exactly once after 60s, no repeat restart/launch_all', () => {
+test('FIFO, resend exactly once after 60s, no repeat restart/launch_all/test_close', () => {
   const h = harness();
   const a = h.store.enqueue('RF-07', 'config_set', { key: 'remote.interval', value: 30 });
   const b = h.store.enqueue('RF-07', 'restart', { clones: [1] });
   const c = h.store.enqueue('RF-07', 'launch_all');
+  const d = h.store.enqueue('RF-07', 'test_close');
   // Queued commands skip the 4s sync limit (the device syncs right after a long poll).
-  assert.deepEqual(h.store.sync(snapshot()).map(c => c.id), [a.id, b.id, c.id]);
+  assert.deepEqual(h.store.sync(snapshot()).map(c => c.id), [a.id, b.id, c.id, d.id]);
   assert.equal(h.store.sync(snapshot()), null);
   h.advance(4000);
   assert.deepEqual(h.store.sync(snapshot()), []);

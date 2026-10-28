@@ -54,6 +54,16 @@ test('clone logout refuses all and needs confirmation', () => {
   assert.equal(routes['clone logout'].confirm, true);
 });
 
+test('test-close is confirmed and limited to the fixed Clone4 package', () => {
+  const h = harness();
+  assert.equal(routes['clone test-close'].confirm, true);
+  assert.throws(() => planDevice('clone test-close', {}, h.device()), /Clone4/);
+  h.device().snapshot.instances.push({ id: 4, name: 'Clone4', package: 'com.apengjers.v6' });
+  assert.deepEqual(planDevice('clone test-close', {}, h.device()), [{ type: 'test_close', args: {} }]);
+  h.device().snapshot.instances.push({ id: 5, package: 'com.apengjers.v6' });
+  assert.throws(() => planDevice('clone test-close', {}, h.device()), /Clone4/);
+});
+
 test('all shortcut options map to individual dynamic-schema config_set commands', () => {
   const h = harness();
   const cases = [
@@ -218,6 +228,22 @@ test('confirmation is required, single-use, bound to owner and expires', async (
   const next = [...h.handler.sessions.keys()][0]; h.advance(60_000); h.handler.tick();
   const expired = interaction('', {}, { isButton: () => true, customId: `confirm:${next}` });
   await h.handler.handle(expired); assert.equal(h.store.commands.size, 1);
+  h.replies.close();
+});
+
+test('test-close queues nothing before confirmation and cannot target all devices', async () => {
+  const h = handlerHarness();
+  h.device().snapshot.instances.push({ id: 4, name: 'Clone4', package: 'com.apengjers.v6' });
+  assert.throws(() => selectDevices(h.store, 'clone test-close', 'all'), /all/);
+  await h.handler.handle(interaction('clone test-close', { device: 'RF-07' }));
+  assert.equal(h.store.commands.size, 0);
+  const id = [...h.handler.sessions.keys()][0];
+  const button = interaction('', {}, { isButton: () => true, customId: `confirm:${id}` });
+  await h.handler.handle(button);
+  assert.equal(h.store.commands.size, 1);
+  assert.equal([...h.store.commands.values()][0].type, 'test_close');
+  await h.handler.handle(button);
+  assert.equal(h.store.commands.size, 1);
   h.replies.close();
 });
 

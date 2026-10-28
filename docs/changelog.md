@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Diagnostik bot trial**: `/clone test-close` dengan konfirmasi hanya force-stop
+  Clone4 (`com.apengjers.v6`), tanpa logout/cookie/service. Ditolak jika antrean
+  loading/rejoin aktif atau target tidak unik, tidak hidup, atau belum terverifikasi
+  login. Recovery monitor tetap aktif. Perlu deploy bot dan registrasi ulang slash
+  command; tes planner dan handler ditambah. Bukan fix FC.
+
 - **Trial minimal dari 4e289b4** (`trial/no-login-autojoin`): matikan autojoin saat
   login manual; lindungi home sampai proses ditutup atau rejoin eksplisit. Launch All
   tetap membuka game untuk akun login. Tidak membawa patch trial setelah 4e289b4

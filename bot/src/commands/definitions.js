@@ -28,6 +28,8 @@ export const routes = {
   'preset set': route('Tambah atau ubah preset game.', [s('key', true), name, s('link', true), rejoin], { all: true }),
   'preset remove': route('Hapus preset selain default.', [key], { all: true }),
   'clone list': route('Lihat daftar clone.'),
+  'clone test-close': route('Tes force-stop Clone4 saja, tanpa logout atau menghapus cookie.', [], {
+    confirm: true, confirmLabel: 'Tutup Clone4', confirmText: 'force-stop Clone4 (com.apengjers.v6) untuk tes; monitor boleh membuka lagi, clone lain bisa terganggu' }),
   'clone add': route('Tambah clone ke daftar device.', [name, s('package', true), s('preset', false, true), s('link')]),
   'clone edit': route('Ubah clone; preset default berarti ikut default.', [clone, s('name'), s('package'), s('preset', false, true), s('link')]),
   'clone remove': route('Hapus clone dari daftar dengan konfirmasi.', [clone], { confirm: true }),

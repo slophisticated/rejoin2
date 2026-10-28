@@ -369,6 +369,41 @@ local marked
 package.loaded["managers.auth"].markLoggedIn = function(pkg) marked = pkg end
 set(Monitor.requestRejoin, "pendingJoin", {})
 local Remote = require("managers.remote")
+reset()
+local testStops, stopOK, runningProbe = {}, true, function() return true end
+stub("managers.apk", { isRunning = function() return runningProbe() end,
+    forceStop = function(pkg) testStops[#testStops + 1] = pkg; return stopOK, "failed" end })
+local testClose = Remote.handlers.test_close
+assert(not testClose({}, nil))
+assert(not testClose({}, { launchBusy = false }), "missing target accepted")
+instances[#instances + 1] = { id = 4, name = "Clone4", package = "com.apengjers.v6" }
+assert(not testClose({}, { launchBusy = true }))
+Monitor.requestRejoin({ 1 })
+assert(not testClose({}, { launchBusy = false }), "pending rejoin accepted")
+set(Monitor.requestRejoin, "pendingJoin", {})
+set(Monitor.requestRejoin, "rejoinQueue", {})
+assert(not testClose({ clone = 1 }, { launchBusy = false }))
+assert(not testClose({ clones = "all" }, { launchBusy = false }))
+instances[#instances + 1] = { id = 5, package = "com.apengjers.v6" }
+assert(not testClose({}, { launchBusy = false }), "duplicate target accepted")
+instances[#instances] = nil
+for _, state in ipairs({ false, "unknown" }) do
+    loginProbe = function() if state == false then return false end end
+    assert(not testClose({}, { launchBusy = false }), "unverified login accepted")
+end
+loginProbe = function() return true end
+runningProbe = function() return false end
+assert(not testClose({}, { launchBusy = false }))
+runningProbe = function() error("probe failure") end
+assert(not testClose({}, { launchBusy = false }))
+assert(#testStops == 0, "rejected test stopped an app")
+runningProbe = function() return true end
+assert(testClose({}, { launchBusy = false }))
+stopOK = false
+assert(not testClose({}, { launchBusy = false }), "failed stop reported success")
+assert(#testStops == 2 and testStops[1] == "com.apengjers.v6" and testStops[2] == testStops[1])
+instances[#instances] = nil
+print("PASS: diagnostic only stops the fixed logged-in Clone4; rejects busy/unsafe targets and stop failures")
 local queuedLogout
 assert(Remote.handlers.logout({ clone = 1 }, { requestLogout = function(ids) queuedLogout = ids end }))
 assert(#queuedLogout == 1 and queuedLogout[1] == 1, "bot logout bypassed the slot callback")

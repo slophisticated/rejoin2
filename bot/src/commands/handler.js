@@ -68,7 +68,7 @@ export class Handler {
         const id = randomUUID();
         this.sessions.set(id, { kind: 'confirm', owner: i.user.id, expires: this.now() + 60_000, path, values,
           targets: devices.map(d => d.key) });
-        return await i.editReply({ content: `Yakin mau ${routes[path].confirmText || (path === 'clone remove' ? 'hapus clone dari daftar (app tetap terpasang)' : 'hapus script dari Scripts (copy Autoexecute tetap ada)')}?\nTarget: ${devices.map(d => escape(d.name)).join(', ')}`, components: [new ActionRowBuilder().addComponents(button(`confirm:${id}`, 'Hapus', ButtonStyle.Danger), button(`cancel:${id}`, 'Batal'))], allowedMentions: mentions });
+        return await i.editReply({ content: `Yakin mau ${routes[path].confirmText || (path === 'clone remove' ? 'hapus clone dari daftar (app tetap terpasang)' : 'hapus script dari Scripts (copy Autoexecute tetap ada)')}?\nTarget: ${devices.map(d => escape(d.name)).join(', ')}`, components: [new ActionRowBuilder().addComponents(button(`confirm:${id}`, routes[path].confirmLabel || 'Hapus', ButtonStyle.Danger), button(`cancel:${id}`, 'Batal'))], allowedMentions: mentions });
       }
       await this.queue(i, path, values, devices);
     } catch (e) {

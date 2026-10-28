@@ -69,6 +69,11 @@ export function planDevice(path, v, device) {
       return cmd(edit ? 'instance_edit' : 'instance_add', args);
     }
     case 'clone remove': return cmd('instance_remove', { clone: findClone(device, v.clone).id });
+    case 'clone test-close': {
+      const targets = device.snapshot.instances.filter(i => i.package === 'com.apengjers.v6');
+      if (targets.length !== 1) throw new Error('Tes hanya untuk satu package Clone4 com.apengjers.v6 yang terdaftar.');
+      return cmd('test_close', {});
+    }
     case 'clone logout': {
       const refs = cloneRefs(device, v.clones, false);
       return cmd('logout', { clones: refs });

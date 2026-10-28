@@ -1,5 +1,11 @@
 # Rejoin Engine
 
+Diagnostik trial: `/clone test-close device:...` meminta konfirmasi lalu hanya
+force-stop Clone4 (`com.apengjers.v6`), tanpa logout/hapus cookie/ubah service.
+Target wajib unik, hidup, dan terverifikasi login; antrean loading/rejoin wajib
+kosong. Monitor tetap boleh membuka target lagi. Bot hosting perlu branch ini
+dan registrasi ulang slash command; lihat `setup.md`. Ini tes, bukan fix FC.
+
 Branch `trial/no-login-autojoin` berbasis **4e289b4**, tanpa patch trial sesudahnya.
 Login manual tidak memicu autojoin: home dibiarkan sampai proses ditutup manual atau
 ada perintah rejoin. **Menu 5 Launch All tetap langsung membuka game** untuk akun

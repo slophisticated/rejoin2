@@ -168,7 +168,7 @@ export class Store extends EventEmitter {
     for (const c of this.commands.values()) {
       if (c.device !== key || c.state === 'awaiting_upload') continue;
       if (c.state === 'queued' || (!c.sensitive && c.state === 'sent' && !c.resent && now - c.sentAt > 60_000
-        && !['restart', 'launch_all'].includes(c.type))) {
+        && !['restart', 'launch_all', 'test_close'].includes(c.type))) {
         if (c.state === 'sent') c.resent = true;
         c.state = 'sent';
         c.sentAt = now;

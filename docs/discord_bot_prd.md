@@ -1,5 +1,16 @@
 # PRD — Rejoin Control Bot (Discord)
 
+**Tambahan diagnostik branch `trial/no-login-autojoin`:** slash command
+`/clone test-close device:...` (satu device, tidak mendukung all) memakai konfirmasi
+**Tutup Clone4**, lalu mengirim `{type:"test_close",args:{}}`. Target tetap package
+`com.apengjers.v6`, wajib tepat satu pada snapshot dan konfigurasi device. Handler
+memerlukan konteks monitor, antrean loading/rejoin kosong, proses hidup, serta login
+terverifikasi. Selector clone ditolak. Hanya memanggil force-stop target; tidak
+menghapus cookie, mencabut sesi, atau mengubah service. Recovery monitor tetap
+berjalan. Ini tes pembeda terhadap logout bot, bukan fix FC; tetap berisiko
+mengganggu jendela clone lain. Deploy bot branch ini dan registrasi ulang slash
+command diperlukan selain update device.
+
 Dokumen ini buat agent / developer yang akan **membangun bot Discord** untuk mengontrol
 Rejoin. Sisi Rejoin (device) **sudah jadi** (`managers/remote.lua`). Bot harus
 mengikuti kontrak di dokumen ini persis. Baca juga `AGENTS.md` untuk konteks project.

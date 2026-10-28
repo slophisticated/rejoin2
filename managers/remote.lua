@@ -440,9 +440,32 @@ function H.restart(args, ctx)
     return true, "rejoin: " .. table.concat(names, ", ")
 end
 
--- Log the Roblox account of the chosen clones out (cookie removed, app closed). A
--- logged-out clone is never rejoined; it only gets reopened at the login screen when
--- relaunchNoLogin is on.
+-- Diagnostic only: isolate package shutdown from cookie/session changes.
+function H.test_close(args, ctx)
+    if not ctx or ctx.launchBusy or require("managers.monitor").hasPendingJoin() then
+        return false, "tes ditolak: tunggu antrean loading/rejoin selesai"
+    end
+    local list, err = findClones("all")
+    if not list then return false, err end
+    local target, matches = nil, 0
+    for _, inst in ipairs(list) do
+        if inst.package == "com.apengjers.v6" then target = inst; matches = matches + 1 end
+    end
+    if matches ~= 1 then return false, "tes hanya untuk satu package Clone4 com.apengjers.v6 yang terdaftar" end
+    if args.clone ~= nil or args.clones ~= nil then return false, "target tes tetap Clone4; jangan isi target lain" end
+    if require("managers.auth").isLoggedIn(target) ~= true then
+        return false, "tes ditolak: Clone4 harus terverifikasi masih login"
+    end
+    local APK = require("managers.apk")
+    local okP, up = pcall(APK.isRunning, target.package)
+    if not okP or up ~= true then return false, "Clone4 tidak terverifikasi hidup; tes tidak dijalankan" end
+    Logger.info("[TEST-CLOSE] force-stop Clone4 saja; tanpa logout/cookie/service; monitor tetap aktif")
+    local ok, message = APK.forceStop(target.package)
+    if not ok then return false, "force-stop Clone4 gagal: " .. tostring(message) end
+    return true, "Clone4 ditutup tanpa logout/hapus cookie; monitor boleh membuka lagi. Amati jendela clone lain."
+end
+
+-- Logged-out clones only reopen at the login screen when relaunchNoLogin is on.
 function H.logout(args, ctx)
     local refs = args.clones or args.clone
     if refs == nil or refs == "all" then return false, "pilih clone yang mau di-logout (all tidak boleh)" end

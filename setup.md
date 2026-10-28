@@ -2,6 +2,22 @@
 
 ## Antrean launch / Delta minta key
 
+### Tes penutupan Clone4 dari Discord
+
+Deploy/restart bot dari branch `trial/no-login-autojoin` (bukan `main`); startup
+bot otomatis mendaftarkan slash command. Untuk registrasi manual gunakan
+`npm run register` dari folder `bot` dengan env hosting yang sama. Update kode
+device ke branch ini juga; update Lua saja tidak menambahkan command Discord.
+
+Biarkan monitor aktif, tunggu antrean launch/rejoin selesai dan Clone4 masih login.
+Dari Discord **di device lain**, jalankan `/clone test-close device:<device tes>`
+dan tekan **Tutup Clone4**. Target tetap `com.apengjers.v6`; tidak ada opsi all atau
+clone lain. Command hanya force-stop, tanpa mencabut sesi, mengubah cookie, atau
+mengubah service Android. Clone kosong/tidak terverifikasi login tidak ditutup.
+Monitor boleh membuka Clone4 lagi. Amati apakah jendela clone lain hilang tepat
+saat Clone4 menutup, bukan saat pindah aplikasi. Tes saat akun buyer aman karena
+clone lain masih berisiko terganggu. Ini diagnostik, bukan perbaikan penyebab FC.
+
 Branch `trial/no-login-autojoin` memakai baseline 4e289b4 dengan autojoin setelah
 login manual dimatikan. Menu 5 Launch All, rejoin preset/bot dan recovery tetap ada.
 Setelah login manual di monitor, tutup proses target untuk mengantrekan join; tombol
