@@ -44,6 +44,11 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ### Antrean launch aman
 
+Jika perintah launch melaporkan gagal tetapi game ternyata masuk, trial menerima
+heartbeat ingame segar sesi ini yang ditulis setelah percobaan mulai, disertai proses
+target yang terverifikasi hidup. Kegagalan perintah saja tidak mengunci antrean selamanya;
+tanpa bukti tersebut antrean tetap ditahan, bukan dilepas oleh timeout/RSS.
+
 Percobaan `trial/single-loading-slot`: identitas akun di-refresh setelah login manual;
 nama hasil verifikasi Auth langsung menggantikan cache lama/kosong. Heartbeat diperiksa
 sebelum cek login berkala. Dashboard/webhook saat loading dibatasi sekitar 15 detik;

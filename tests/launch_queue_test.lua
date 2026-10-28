@@ -144,6 +144,43 @@ assert(#events == 1)
 recovery.launchAndJoin = launchTarget
 print("PASS: launch failure holds the batch")
 
+local heartbeat = up(order, "Heartbeat")
+local readHeartbeat = heartbeat.read
+for _, scenario in ipairs({ "fresh", "old", "dead", "probe-error" }) do
+    reset()
+    recovery.launchAndJoin = function(i)
+        events[#events + 1] = i.id; starts[i.id] = now
+        return i.id ~= 1, "am timed out after start"
+    end
+    heartbeat.read = function(i)
+        return { time = scenario == "old" and starts[i.id] - 1 or now,
+            current = true, fresh = true, state = "ingame", age = 0 }
+    end
+    local apk = up(order, "apkManager")
+    local isRunning = apk.isRunning
+    apk.isRunning = function(pkg)
+        if pkg == instances[1].package and ready[1] then
+            if scenario == "probe-error" then error("probe failed") end
+            if scenario == "dead" then return false end
+        end
+        return true
+    end
+    onWait = function()
+        local id = events[#events]
+        if now - starts[id] >= 15 then ready[id] = true end
+        if scenario ~= "fresh" and now - starts[1] >= 21 then
+            assert(#events == 1, "failed launch accepted an old heartbeat or absent/unverified process")
+            Control.request("cancel")
+        end
+    end
+    launch(conf)
+    assert(#events == (scenario == "fresh" and 3 or 1))
+    apk.isRunning = isRunning
+end
+heartbeat.read = readHeartbeat
+recovery.launchAndJoin = launchTarget
+print("PASS: failed launch accepts fresh in-game heartbeat only with a verified live process")
+
 -- Logout on a live login screen releases only that target after the short pause.
 reset()
 local checkedAt

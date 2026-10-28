@@ -2,6 +2,12 @@
 
 ## Antrean launch / Delta minta key
 
+Perintah buka link bisa melaporkan gagal meskipun app akhirnya masuk game. Trial
+melepas hold tersebut hanya jika heartbeat ingame segar sesi ini bertimestamp setelah
+percobaan dimulai dan proses target masih hidup. Heartbeat lama/proses tidak pasti
+tetap menahan antrean. Perubahan ini tidak mengaktifkan ulang service App Cloner;
+status komponen hasil percobaan `pm disable` tetap tersimpan di Android.
+
 Autojoin percobaan terbaru me-refresh cache username setelah login dan mengutamakan
 heartbeat sebelum cek login berkala. Log `in game (heartbeat, wall=..., file=...,
 age=...)` membedakan waktu tunggu nyata dari umur tulisan heartbeat terbaru (bukan

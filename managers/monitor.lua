@@ -506,14 +506,27 @@ local function launchInOrder(conf, only)
                         warnedFast = true
                         Logger.warn(string.format("Monitor: %s heartbeat muncul %ds abis launch (kecepetan); ditunggu lagi", name, since))
                     end
-                elseif alive == true and launched then
+                elseif alive == true then
                     local hb = Heartbeat.read(inst)
-                    Logger.info(string.format("Monitor: %s in game (heartbeat, wall=%ds, file=%s, age=%ss); next clone",
-                        name, since, tostring(hb and hb.time), tostring(hb and hb.age)))
-                    sawHeartbeat = true
-                    pausedJoin[pkg] = nil
-                    why = "masuk game (heartbeat)"
-                    break
+                    -- am may time out after starting the app; fresh in-game evidence wins.
+                    local confirmed = launched
+                    if not confirmed and hb and hb.current and hb.fresh and hb.state == "ingame"
+                        and tonumber(hb.time) and hb.time >= started then
+                        local okP, up = pcall(apkManager.isRunning, pkg)
+                        confirmed = okP and up == true
+                    end
+                    if confirmed then
+                        if not launched then
+                            Logger.info("Monitor: " .. name .. " launch sempat dilaporkan gagal; proses hidup + heartbeat baru mengonfirmasi masuk game")
+                        end
+                        launched = true
+                        Logger.info(string.format("Monitor: %s in game (heartbeat, wall=%ds, file=%s, age=%ss); next clone",
+                            name, since, tostring(hb and hb.time), tostring(hb and hb.age)))
+                        sawHeartbeat = true
+                        pausedJoin[pkg] = nil
+                        why = "masuk game (heartbeat)"
+                        break
+                    end
                 elseif alive == false and tostring(hbWhy):find("^kicked") then
                     heldReason = "Kick saat join: " .. tostring(hbWhy)
                 end

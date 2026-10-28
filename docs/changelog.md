@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Antrean macet setelah launch dilaporkan gagal** (trial): terima konfirmasi
+  heartbeat ingame segar sesi ini setelah awal percobaan jika proses target terbukti
+  hidup, meski perintah buka link sebelumnya gagal/timeout. Tanpa bukti tetap hold;
+  tidak memakai RSS/timeout untuk melepas slot. Tes heartbeat baru, lama, proses
+  mati, dan probe gagal ditambah. Tidak mengubah status service App Cloner.
+
 - **Bukti Android saat peer hilang** (trial): snapshot PID sebelum launch dan sampel
   tag logcat kill/death/crash/ANR/lmkd serta memori saat proses peer hilang. Maksimal
   satu pengambilan per target launch, history 24 KB, disensor sebelum disimpan ke
