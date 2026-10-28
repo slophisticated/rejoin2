@@ -10,6 +10,7 @@ local Webhook = require("managers.webhook")
 local DeltaKey = require("managers.delta_key")
 local Remote = require("managers.remote")
 local LaunchControl = require("managers.launch_control")
+local LaunchDiagnostics = require("managers.launch_diagnostics")
 
 local Monitor = {}
 local running = false
@@ -352,6 +353,9 @@ local function launchInOrder(conf, only)
         do
             local started = os.time()
             local peers, lastPeerCheck = {}, os.time()
+            local okSnapshot, androidSnapshot = pcall(LaunchDiagnostics.snapshot, instanceManager.getAll())
+            if not okSnapshot then androidSnapshot = "PID snapshot gagal" end
+            local capturedAndroid = false
             -- Snapshot before the target restart to catch peers lost during launch too.
             for _, other in ipairs(instanceManager.getAll()) do
                 if other.package ~= pkg then
@@ -555,6 +559,12 @@ local function launchInOrder(conf, only)
                             Logger.warn(string.format("[LAUNCH-PEER] %s proses hilang saat %s loading (wall=%ds); recovery diantrekan",
                                 tostring(other.name or otherPkg), name, os.time() - started))
                             Monitor.requestRejoin({ other.id })
+                            if not capturedAndroid then
+                                capturedAndroid = true
+                                local okD, saved = pcall(LaunchDiagnostics.capture, inst, instanceManager.getAll(), androidSnapshot, started)
+                                Logger.info("[LAUNCH-ANDROID] " .. (okD and saved and "bukti disimpan di data/launch_android.log"
+                                    or "pengambilan bukti gagal; penyebab FC belum diketahui"))
+                            end
                             peers[otherPkg] = nil
                         end
                     end

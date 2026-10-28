@@ -20,6 +20,9 @@ stub("utils.probe_log", { line = noop })
 stub("managers.window_layout", {})
 stub("managers.webhook", {})
 stub("managers.delta_key", { present = function() return false end })
+local androidCaptures = 0
+stub("managers.launch_diagnostics", { snapshot = function() return "snapshot" end,
+    capture = function() androidCaptures = androidCaptures + 1; return true end })
 stub("managers.status", { setProgress = noop, beginStarting = noop, endStarting = noop,
     printSummary = noop, setLaunchNotice = noop })
 stub("utils.timer", {})
@@ -344,6 +347,7 @@ reset()
 local apk = up(order, "apkManager")
 local originalRunning = apk.isRunning
 local peerDead = false
+local capturesBefore = androidCaptures
 apk.isRunning = function(pkg)
     if pkg == instances[2].package then return not peerDead end
     return true
@@ -355,6 +359,7 @@ onWait = function()
 end
 launch(conf, { instances[1] })
 assert(#events == 1)
+assert(androidCaptures == capturesBefore + 1, "peer loss did not capture Android evidence once")
 assert(up(Monitor.requestRejoin, "pendingJoin")[instances[2].package], "dead peer was not queued")
 apk.isRunning = originalRunning
 print("PASS: peer process loss is queued during loading without a parallel launch")

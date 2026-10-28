@@ -80,6 +80,7 @@ local function plain(s) return (tostring(s):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "
 function Report.redact(text, secrets)
     text = text:gsub("https?://[%w%.%-]*discord[%w%.%-]*/api/webhooks/[^%s\"'<>]+", "[webhook]")
     text = text:gsub("_|WARNING:%-DO%-NOT%-SHARE%-THIS[^%s\"';]*", "[cookie]")
+    text = text:gsub("WARNING:%-DO%-NOT%-SHARE![^%s\"';]*", "[cookie]")
     text = text:gsub("%.ROBLOSECURITY=[^%s;\"']+", ".ROBLOSECURITY=[cookie]")
     text = text:gsub("[Bb]earer%s+[^%s\"']+", "Bearer [secret]")
     for label, value in pairs(secrets or {}) do
@@ -167,6 +168,7 @@ function Report.build()
     section(out, "ERROR / WARN terakhir (" .. logPath .. ", yang sama digabung)",
         Report.collapse(tail(main, 2000, isProblem), 40))
     section(out, "Crash Lua (data/crash.log)", tail(lines("data/crash.log"), 40))
+    section(out, "Android saat proses peer hilang (data/launch_android.log)", tail(lines("data/launch_android.log"), 120))
     section(out, "Boot + update (data/boot.log)", tail(lines("data/boot.log"), 40))
     section(out, "Aktivitas terakhir (" .. logPath .. ")", tail(main, 80))
     section(out, "Launch (" .. launchLog .. ")", tail(lines(launchLog), 25))

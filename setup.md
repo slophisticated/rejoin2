@@ -9,6 +9,13 @@ waktu heartbeat pertama). `[LAUNCH-WAIT]` mencatat poll/pekerjaan status yang la
 `[LAUNCH-PEER]` mencatat proses clone lain hilang saat target loading, lalu mengantrekan
 recovery tanpa membuka paralel. Pemeriksaan proses tiap 15 detik bukan waktu pasti FC.
 Cold restart target tidak berubah; penyebab clone lain ikut tertutup belum terbukti.
+Trial juga mengambil sampel Android sekali saat peer hilang: cari `[LAUNCH-ANDROID]`
+di log, lalu ambil `/report` setelah kejadian. Bagian **Android saat proses peer hilang**
+memuat PID sebelum launch, baris package clone/lmkd dari tag terpilih, dan memori saat
+deteksi. Buffer logcat bisa sudah tertimpa atau tidak diizinkan; kosong bukan bukti
+tidak ada kill/crash. Baris sebelum waktu launch dapat ikut sampel dan harus dicocokkan
+timestamp-nya. File lokal dibatasi 24 KB dan disensor sebelum ditulis; pengambilan
+bukti memakai timeout Shell dan bisa menambah jeda saat insiden, bukan setiap poll.
 
 Logout bot pada branch percobaan memakai slot yang sama: logout target lain ditunda
 sampai target loading selesai; logout target aktif diproses oleh pemilik slot dan

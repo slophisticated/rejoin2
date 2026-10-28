@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Bukti Android saat peer hilang** (trial): snapshot PID sebelum launch dan sampel
+  tag logcat kill/death/crash/ANR/lmkd serta memori saat proses peer hilang. Maksimal
+  satu pengambilan per target launch, history 24 KB, disensor sebelum disimpan ke
+  `data/launch_android.log` dan otomatis disertakan dalam report. Tidak membersihkan
+  logcat atau mengubah prosedur launch. Tes filtering, batas ukuran, redaksi, gagal
+  baca logcat, integrasi antrean dan report ditambah. Belum merupakan fix penyebab FC.
+
 - **Respons autojoin dan bukti waktu tunggu** (trial): refresh username saat login;
   identitas Auth terverifikasi mengalahkan cache kosong/akun lama. Heartbeat siap
   diperiksa sebelum verifikasi login berkala, status/webhook dibatasi tiap 15 detik.

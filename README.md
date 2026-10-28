@@ -51,6 +51,10 @@ poll bot tetap berjalan. Log heartbeat memuat waktu nyata, timestamp file, dan u
 Proses clone lain dipantau tiap 15 detik saat menunggu game: jika hilang, dicatat
 `[LAUNCH-PEER]` dan recovery diantrekan tanpa launch paralel. Ini belum membuktikan
 atau memperbaiki penyebab Android/App Cloner menutup clone lain saat autojoin.
+Saat peer hilang, trial menyimpan sampel logcat process-management/crash dan memori
+ke `data/launch_android.log` (maksimal 24 KB), disertai pemetaan PID sebelum launch.
+Bukti otomatis ikut `/report`; cookie/secret disensor sebelum disimpan. Pengambilan
+maksimal sekali per target launch dan tidak membersihkan logcat Android.
 
 Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah
 `launchJoinTimeout`, antrean ditahan dengan alasan (Delta minta key, heartbeat belum
