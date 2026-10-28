@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Logout bot mengikuti slot loading**: handler hanya mengantrekan permintaan.
+  Target lain menunggu batas aman antartarget; logout target aktif mengakhiri wait
+  lamanya. Hasil akhir `[LOGOUT]` di log (balasan bot bukan konfirmasi selesai).
+  Tes penundaan logout, logout target aktif, dan login ulang autojoin target ditambah.
+  Tidak mengubah prosedur force-stop target login maupun logout Menu 7 terpisah.
+
 - **Layar login tidak dilewati karena proses stub**: dua cek tanpa jendela/overlay
   mengantrekan pembukaan tanpa force-stop. Slot layar login menunggu jendela muncul
   lalu `launchEmptyDelay`; bila gagal muncul, ditahan dengan kontrol Menu 14.

@@ -443,11 +443,18 @@ end
 -- Log the Roblox account of the chosen clones out (cookie removed, app closed). A
 -- logged-out clone is never rejoined; it only gets reopened at the login screen when
 -- relaunchNoLogin is on.
-function H.logout(args)
+function H.logout(args, ctx)
     local refs = args.clones or args.clone
     if refs == nil or refs == "all" then return false, "pilih clone yang mau di-logout (all tidak boleh)" end
     local list, err = findClones(refs)
     if not list then return false, err end
+    if ctx and ctx.requestLogout then
+        local ids = {}
+        for _, inst in ipairs(list) do ids[#ids + 1] = inst.id end
+        ctx.requestLogout(ids)
+        return true, "logout diantrekan; menunggu slot loading aman (hasil akhir di log device)"
+    end
+    if ctx and ctx.launchBusy then return false, "antrean launch aktif; logout belum dijalankan" end
     local CookieInjector = require("managers.cookie_injector")
     local done, lines = 0, {}
     for _, inst in ipairs(list) do

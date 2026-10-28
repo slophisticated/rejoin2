@@ -2,6 +2,15 @@
 
 ## Antrean launch / Delta minta key
 
+Logout bot pada branch percobaan memakai slot yang sama: logout target lain ditunda
+sampai target loading selesai; logout target aktif diproses oleh pemilik slot dan
+mengakhiri penantian join lama. Bot membalas "logout diantrekan"; cek `[LOGOUT]` di
+`data/rejoin.log` untuk hasil akhir. Setelah login ulang, hanya target itu diantrekan
+untuk autojoin. Logout tetap menutup target yang masih login untuk menghapus cookie
+dengan aman; clone tanpa akun tidak di-force-stop. Tidak menjamin Android/App Cloner
+tidak menutup proses lain; perlu tes device. Logout dari menu proses terpisah belum
+ikut antrean bot ini.
+
 Percobaan terbaru: layar login juga menahan slot sampai jendela/overlay App Cloner
 terdeteksi dan jeda `launchEmptyDelay` selesai. Proses hidup tanpa jendela tidak lagi
 dilewati: setelah dua pemeriksaan, buka ulang diantrekan tanpa force-stop. Jika gagal

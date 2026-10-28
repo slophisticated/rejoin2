@@ -101,6 +101,28 @@ local unhealthyStreak = {}
 local pendingJoin = {} -- package -> queued; suppress competing recovery paths
 local pausedJoin = {} -- manual skip/cancel must not be undone by automatic recovery
 local rejoinQueue = {}
+local logoutQueue = {} -- package -> id; executed only by the slot owner
+
+function Monitor.requestLogout(ids)
+    for _, id in ipairs(ids or {}) do
+        local inst = instanceManager and instanceManager.find(id)
+        if inst then logoutQueue[inst.package] = inst.id end
+    end
+end
+
+local function performLogout(inst)
+    logoutQueue[inst.package] = nil
+    local called, ok, message = pcall(require("managers.cookie_injector").logout, inst)
+    Logger.info(string.format("[LOGOUT] %s -> %s: %s", tostring(inst.name or inst.package),
+        called and ok and "OK" or "GAGAL", tostring(called and message or "error internal")))
+    return called and (ok or tostring(message):find("memang sudah logout", 1, true))
+end
+
+local function drainLogouts()
+    for _, inst in ipairs(instanceManager.getAll()) do
+        if logoutQueue[inst.package] then performLogout(inst) end
+    end
+end
 
 local function isRecovering(id)
     return recovering[id] == true
@@ -229,7 +251,8 @@ local launchSlot = nil -- sole loading target; new bot requests replace its atte
 local batchTargets = {} -- future targets already covered by this batch
 
 local function launchCtx()
-    return { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end, launchBusy = launching }
+    return { requestRejoin = function(ids) return Monitor.requestRejoin(ids) end,
+        requestLogout = Monitor.requestLogout, launchBusy = launching }
 end
 
 local function keepRemoteAlive()
@@ -310,6 +333,7 @@ local function launchInOrder(conf, only)
 
     for i, inst in ipairs(instances) do
         if not running then break end
+        drainLogouts()
         inst = instanceManager.find(inst.id) or inst
         Status.setProgress(i, #instances, "Launching")
         local id = inst.id or i
@@ -342,6 +366,12 @@ local function launchInOrder(conf, only)
                 local loginToken = LaunchControl.publish(inst, reason)
                 local visibleAt, lastProbe = nil, os.time()
                 while running do
+                    if logoutQueue[pkg] then
+                        if performLogout(inst) then
+                            wasNoLogin[pkg] = true
+                            launchSlot.restart = nil
+                        end
+                    end
                     local action = LaunchControl.take(loginToken)
                     if action == "skip" or action == "cancel" then
                         cancelBatch = action == "cancel"
@@ -421,6 +451,15 @@ local function launchInOrder(conf, only)
                 if not launched then heldReason = "Launch gagal; antrean ditahan" end
             end
             while active and running and (useHb or settled < limit) do
+                if logoutQueue[pkg] then
+                    if performLogout(inst) then
+                        wasNoLogin[pkg] = true
+                        launched = false
+                        why = "logout bot; penantian join diakhiri"
+                        launchSlot.restart = nil
+                        break
+                    end
+                end
                 local action = token and LaunchControl.take(token)
                 if action == "skip" or action == "cancel" then
                     why = action == "skip" and "dilewati manual" or "sisa antrean dibatalkan"
@@ -546,6 +585,7 @@ local function runSequentialLaunch(conf, only)
     launching = false
     launchSlot = nil
     batchTargets = {}
+    if ok then drainLogouts() end
     LaunchControl.clear()
     Status.setLaunchNotice(nil)
     if not ok then error(err, 0) end
@@ -577,6 +617,7 @@ end
 
 function Monitor.requestRejoin(ids)
     local function queue(inst)
+        if logoutQueue[inst.package] then return end
         if launchSlot and launchSlot.package == inst.package then
             launchSlot.restart = true
             pausedJoin[inst.package] = nil
@@ -880,7 +921,9 @@ function Monitor.start(conf, opts)
         Status.printSummary(instances)
         pcall(syncMenuSettings)
         Webhook.tick(instances)
-        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin, launchBusy = false })
+        pcall(Remote.tick, instances, { requestRejoin = Monitor.requestRejoin,
+            requestLogout = Monitor.requestLogout, launchBusy = false })
+        drainLogouts()
         pcall(require("managers.logout_alarm").tick, instances, false)
         if running then pcall(runRejoinQueue, conf) end
 
@@ -899,7 +942,7 @@ function Monitor.start(conf, opts)
         -- runs within a second or two instead of on the next remote.interval.
         local stopFn = function() return not running end
         local okI = pcall(Remote.idle, interval, stopFn, instances,
-            { requestRejoin = Monitor.requestRejoin, launchBusy = false })
+            { requestRejoin = Monitor.requestRejoin, requestLogout = Monitor.requestLogout, launchBusy = false })
         if not okI then Timer.sleepInterruptible(interval, stopFn) end
     end
 

@@ -69,6 +69,7 @@ local function reset()
     set(Monitor.requestRejoin, "pausedJoin", {})
     set(Monitor.requestRejoin, "rejoinQueue", {})
     set(order, "wasNoLogin", {})
+    set(Monitor.requestLogout, "logoutQueue", {})
 end
 
 reset()
@@ -280,6 +281,49 @@ assert(reopen(instances[1], 1, "A", instances[1].package))
 assert(#events == 0 and #up(Monitor.requestRejoin, "rejoinQueue") == 1)
 print("PASS: absent login windows hold the slot and require two checks to queue")
 
+reset()
+local loggedOut = {}
+stub("managers.cookie_injector", { logout = function(i)
+    loggedOut[#loggedOut + 1] = { id = i.id, at = now }
+    return true, "logout"
+end })
+local asked = false
+onWait = function()
+    if not asked then
+        Monitor.requestLogout({ 2 })
+        asked = true
+    end
+    if #events == 1 then
+        assert(#loggedOut == 0, "logout of B interrupted A loading")
+    end
+    local id = events[#events]
+    if now - starts[id] >= 15 then ready[id] = true end
+end
+launch(conf)
+assert(#loggedOut == 1 and loggedOut[1].id == 2)
+assert(loggedOut[1].at >= starts[1] + 15 and loggedOut[1].at <= starts[2])
+print("PASS: other-target logout waits for the active heartbeat slot")
+
+reset()
+loggedOut, asked = {}, false
+onWait = function()
+    if not asked then Monitor.requestLogout({ 1 }); asked = true end
+    if #events > 1 and now - starts[events[#events]] >= 15 then ready[events[#events]] = true end
+    assert(now - starts[events[#events]] < 40, "active logout did not end its old wait")
+end
+launch(conf)
+assert(#loggedOut == 1 and loggedOut[1].id == 1 and #events == 3)
+assert(up(order, "wasNoLogin")[instances[1].package])
+-- Signing back in follows the exact same target queue as a preset rejoin.
+ready[1] = nil
+joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
+assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
+onWait = function() if now - starts[1] >= 15 then ready[1] = true end end
+launch(conf, { instances[1] })
+assert(#events == 4 and events[4] == 1, "login autojoin touched another target")
+print("PASS: active logout releases old wait and subsequent login rejoins only its target")
+
 -- Unknown states and previous-session files are not proof of a fresh in-game join.
 package.loaded["managers.heartbeat"] = nil
 stub("core.config", { get = function() return { heartbeat = { enabled = true } } end })
@@ -303,6 +347,10 @@ local marked
 package.loaded["managers.auth"].markLoggedIn = function(pkg) marked = pkg end
 set(Monitor.requestRejoin, "pendingJoin", {})
 local Remote = require("managers.remote")
+local queuedLogout
+assert(Remote.handlers.logout({ clone = 1 }, { requestLogout = function(ids) queuedLogout = ids end }))
+assert(#queuedLogout == 1 and queuedLogout[1] == 1, "bot logout bypassed the slot callback")
+print("PASS: bot logout acknowledges queueing rather than executing immediately")
 local requested
 local ok = Remote.handlers.cookie_inject({ clone = 1, token = string.rep("x", 30) },
     { requestRejoin = function(ids) requested = ids end })

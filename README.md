@@ -65,6 +65,10 @@ Rejoin bot untuk target yang sedang ditunggu menggantikan percobaan lama memakai
 link terbaru; target berikutnya yang sudah ada di batch tidak diantrekan dobel.
 Timeout tetap tidak membuka clone berikutnya. Retry habis → gunakan Menu 14 atau
 kirim rejoin baru; perintah bot tetap dilayani selama penantian.
+Logout bot juga diantrekan: target lain menunggu slot loading selesai; logout target
+aktif mengakhiri penantian join target itu secara terkendali. Balasan bot berarti
+**diantrekan**, bukan sudah selesai; hasil eksekusi dicatat sebagai `[LOGOUT]` di log.
+Autojoin setelah login tetap melalui jalur target yang sama dengan ganti preset.
 Untuk pengecualian manual, buka **sesi Termux kedua → `lua main.lua` → Menu 14**:
 lewati **satu** clone atau batalkan sisa antrean tanpa mematikan monitor. Skip manual
 bisa menumpuk loading; engine tidak menjamin clone yang dilewati sudah siap.

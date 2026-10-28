@@ -300,7 +300,7 @@ sebaiknya validasi ringan di depan (supaya error langsung, tanpa nunggu sync).
 | `logout_alarm_remove` | `{clone}` | Hapus alarm logout clone |
 | `delta_key_input` | `{key}` | Tulis key Delta yang **didapat user sendiri** ke file license Delta (yang terdeteksi, atau `<Delta>/Internals/Cache/license`; `.license` buatan Delta ga pernah disentuh), lalu rejoin semua clone lewat antrean. Ga ada ambil/bypass key. Transient kayak `cookie_inject`: ga dipersist, ga di-log, ga diretry, args dihapus setelah ACK / timeout |
 | `cookie_inject` | `{clone, token}` | Verifikasi lalu inject cookie ke tepat satu clone; ditolak saat Launch All jalan. Command transient: token tidak dipersist ke state bot, tidak dicatat ke log, tidak diretry, dihapus setelah ACK atau timeout 90 detik |
-| `logout` | `{clones:[id/nama]}` | Logout akun Roblox: app di-force-stop (cuma kalau masih login), baris `.ROBLOSECURITY` dihapus dari Cookies DB (backup `.bak-*`), cache login dilupakan. Session tidak di-revoke di Roblox (cookie bisa di-inject lagi). `all` ditolak |
+| `logout` | `{clones:[id/nama]}` | Pada branch percobaan, permintaan masuk antrean slot: target lain menunggu loading selesai; target aktif mengakhiri wait lamanya. ACK berarti diantrekan, hasil akhir `[LOGOUT]` di log device. Target yang masih login ditutup, sesi Roblox dicoba di-revoke, cookie lokal dihapus dengan backup dan cache dilupakan. `all` ditolak |
 | `config_set` | `{key, value}` | Ubah 1 setting dari daftar §6 (key lain ditolak) |
 | `device_rename` | `{name}` | = `config_set webhook.deviceName` |
 | `webhook_use_message` | `{link}` | Ganti device: lanjutkan pesan status lama (link pesan Discord atau ID) |
