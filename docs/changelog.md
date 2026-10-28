@@ -2,6 +2,11 @@
 
 ## Unreleased / Bug fixes
 
+- **Trial minimal dari 4e289b4** (`trial/no-login-autojoin`): matikan autojoin saat
+  login manual; lindungi home sampai proses ditutup atau rejoin eksplisit. Launch All
+  tetap membuka game untuk akun login. Tidak membawa patch trial setelah 4e289b4
+  atau perubahan service Android. Perlindungan home hanya selama sesi engine.
+
 - **Logout bot mengikuti slot loading**: handler hanya mengantrekan permintaan.
   Target lain menunggu batas aman antartarget; logout target aktif mengakhiri wait
   lamanya. Hasil akhir `[LOGOUT]` di log (balasan bot bukan konfirmasi selesai).

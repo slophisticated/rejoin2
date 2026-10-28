@@ -1,5 +1,10 @@
 # Rejoin Engine
 
+Branch `trial/no-login-autojoin` berbasis **4e289b4**, tanpa patch trial sesudahnya.
+Login manual tidak memicu autojoin: home dibiarkan sampai proses ditutup manual atau
+ada perintah rejoin. **Menu 5 Launch All tetap langsung membuka game** untuk akun
+yang sudah login. Perlindungan home berlaku selama sesi engine, bukan lintas restart.
+
 Rejoin menjalankan dan menjaga banyak clone Roblox (App Cloner + Delta) di cloud phone Android yang sudah di-root. Ditulis dalam **Lua** dan jalan di **Termux**. Clone dibuka satu per satu, dipantau terus, dan langsung di-rejoin kalau ke-kick, freeze, atau force close. Data utama disimpan di device; kontrol Discord opsional memakai bot terpisah (Render atau Railway).
 
 > Panduan langkah demi langkah yang siap dibagikan: **[setup.md](setup.md)**

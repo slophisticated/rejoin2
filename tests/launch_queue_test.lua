@@ -69,6 +69,7 @@ local function reset()
     set(Monitor.requestRejoin, "pausedJoin", {})
     set(Monitor.requestRejoin, "rejoinQueue", {})
     set(order, "wasNoLogin", {})
+    set(order, "manualLogin", {})
     set(Monitor.requestLogout, "logoutQueue", {})
 end
 
@@ -112,9 +113,26 @@ reset()
 local joinAfterLogin = up(Monitor.start, "joinAfterLogin")
 set(joinAfterLogin, "wasNoLogin", { [instances[1].package] = true })
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+local waitingManualClose = up(Monitor.start, "waitingManualClose")
+assert(waitingManualClose(instances[1]))
+processUp = false
+waitingManualClose(instances[1])
+processUp = true
 assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
 print("PASS: newly logged-in target protected and other clones not queued")
+
+reset()
+set(order, "manualLogin", { [instances[1].package] = true })
+onWait = function()
+    local id = events[#events]
+    if now - starts[id] >= 15 then ready[id] = true end
+end
+launch(conf)
+assert(#events == 3, "Launch All was blocked by manual-login protection")
+assert(not up(order, "manualLogin")[instances[1].package])
+print("PASS: explicit Launch All ignores and clears manual-login protection")
 
 Control.publish(instances[1], "hold")
 local old = Control.read().token
@@ -317,6 +335,10 @@ assert(up(order, "wasNoLogin")[instances[1].package])
 -- Signing back in follows the exact same target queue as a preset rejoin.
 ready[1] = nil
 joinAfterLogin(instances[1], 1, "A", instances[1].package, "starting")
+assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
+processUp = false
+waitingManualClose(instances[1])
+processUp = true
 assert(up(Monitor.requestRejoin, "pendingJoin")[instances[1].package])
 assert(not up(Monitor.requestRejoin, "pendingJoin")[instances[2].package])
 onWait = function() if now - starts[1] >= 15 then ready[1] = true end end

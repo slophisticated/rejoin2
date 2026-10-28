@@ -2,6 +2,12 @@
 
 ## Antrean launch / Delta minta key
 
+Branch `trial/no-login-autojoin` memakai baseline 4e289b4 dengan autojoin setelah
+login manual dimatikan. Menu 5 Launch All, rejoin preset/bot dan recovery tetap ada.
+Setelah login manual di monitor, tutup proses target untuk mengantrekan join; tombol
+X yang hanya menyembunyikan jendela belum tentu cukup. Home terlindung dari recovery
+heartbeat/RSS selama sesi engine itu. Branch ini tidak mengubah service Android.
+
 Logout bot pada branch percobaan memakai slot yang sama: logout target lain ditunda
 sampai target loading selesai; logout target aktif diproses oleh pemilik slot dan
 mengakhiri penantian join lama. Bot membalas "logout diantrekan"; cek `[LOGOUT]` di
