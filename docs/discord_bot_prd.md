@@ -357,6 +357,8 @@ Daftar resmi dikirim device di `settings` (pakai itu). Saat ini:
 | `minRss` | int | 0–4000 | RSS minimal clone hidup (MB) |
 | `relaunchNoLogin` | bool | | buka lagi clone belum login yang FC |
 | `noLoginCooldown` | int | 30–3600 | jeda buka lagi clone belum login |
+| `launchMinFreeMb` | int | 0–4000 | RAM bebas minimal sebelum buka link game (MB) |
+| `launchFreeWait` | int | 0–300 | maks tunggu RAM bebas sebelum buka link (dtk) |
 | `windowLayout.enabled` | bool | | auto atur jendela grid |
 | `windowLayout.columns` | int | 0–10 | kolom (0 = otomatis) |
 | `windowLayout.gap` | int | 0–200 | jarak jendela (px) |

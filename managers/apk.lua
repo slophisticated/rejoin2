@@ -116,7 +116,41 @@ function APKManager.forceStop(packageName)
     return ok, out
 end
 
--- Logout trial: do not set Android's package stopped state or touch peer packages.
+-- Live PIDs of a package's OWN processes (main process and `pkg:` services), read straight
+-- from /proc. `ps -A -o PID,NAME` truncates NAME to 15 characters, so every App Cloner
+-- clone (com.apengjers.v3 ... v6) reads the same there; /proc/<pid>/cmdline keeps the
+-- full name and can never match a sibling clone.
+-- Returns an array of numeric strings (empty when the package is not running).
+function APKManager.pids(packageName)
+    if not validPackageName(packageName) then return {} end
+    local script = [[
+pkg=]] .. packageArg(packageName) .. [[
+
+for d in /proc/[0-9]*; do
+    c=$(tr '\000' '\n' < "$d/cmdline" 2>/dev/null | sed -n 1p)
+    case "$c" in "$pkg"|"$pkg":*) echo "${d#/proc/}";; esac
+done
+]]
+    local ok, out = Shell.exec("sh -c " .. packageArg(script))
+    local list = {}
+    if not ok or not out then return list end
+    for line in out:gmatch("[^\r\n]+") do
+        local pid = line:match("^(%d+)$")
+        if pid then list[#list + 1] = pid end
+    end
+    return list
+end
+
+-- Stop the target's processes without `am force-stop`, so Android never sets the package
+-- back to the stopped state and no peer package is touched. Already-closed packages need
+-- no work (stopProcesses verifies with /proc before it reports success).
+function APKManager.stopIfRunning(packageName)
+    local ok, running = pcall(APKManager.isRunning, packageName)
+    if ok and running == false then return true, "sudah tidak jalan" end
+    return APKManager.stopProcesses(packageName)
+end
+
+-- Stop only the target's processes (PID kill), never a peer package.
 function APKManager.stopProcesses(packageName)
     if not validPackageName(packageName) or not packageIsUnique(packageName) then
         return false, "package tidak valid/unik"
@@ -340,6 +374,40 @@ function APKManager.countRunning(packages)
         end
     end
     return n
+end
+
+-- Free RAM in MB from /proc/meminfo, or nil when unreadable.
+function APKManager.freeMemoryMb()
+    local ok, out = Shell.exec("cat /proc/meminfo")
+    if not ok or not out or out == "(dry-run)" then return nil end
+    local avail = tonumber(out:match("MemAvailable:%s*(%d+)"))
+    if not avail then return nil end
+    return math.floor(avail / 1024)
+end
+
+-- A restarted Roblox clone briefly spikes CPU and memory while it loads; when the box is
+-- already tight the system answers with ANR kills of the OTHER clones. Wait for room
+-- before the game link is opened instead of piling another load on top.
+-- Only truly free RAM counts: the swap is huge on the cloud phone and would let a tight
+-- device pass every time. Returns true when the wait ended with enough room.
+function APKManager.waitForMemory(minMb, timeout, isStopped)
+    minMb = tonumber(minMb) or 0
+    timeout = tonumber(timeout) or 0
+    if minMb <= 0 then return true end
+    local free = APKManager.freeMemoryMb()
+    if not free then return true end -- unreadable: never block a launch on it
+    if free >= minMb then return true end
+    local Timer = require("utils.timer")
+    local waited = 0
+    while waited < timeout do
+        if isStopped and isStopped() then return false end
+        local step = math.min(5, timeout - waited)
+        Timer.sleep(step)
+        waited = waited + step
+        free = APKManager.freeMemoryMb()
+        if not free or free >= minMb then return true end
+    end
+    return free == nil or free >= minMb
 end
 
 return APKManager

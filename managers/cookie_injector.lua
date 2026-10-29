@@ -294,8 +294,9 @@ function CookieInjector.inject(instance, token)
     local base = Auth.getBaseDir(instance)
     if not base then return false, "Tidak bisa tentukan base dir instance" end
 
-    -- 1) Stop the app so the cookie DB is not held open / rewritten by WebView.
-    local stopped, stopErr = APK.forceStop(pkg)
+    -- 1) Stop the app so the cookie DB is not held open / rewritten by WebView. PID kill
+    --    keeps Android's package state and every peer clone untouched.
+    local stopped, stopErr = APK.stopProcesses(pkg)
     if not stopped then return false, "clone tidak bisa ditutup dengan aman: " .. tostring(stopErr) end
     Timer.sleep(1)
 

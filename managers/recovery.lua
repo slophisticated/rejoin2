@@ -7,6 +7,7 @@ local Status = require("managers.status")
 local Auth = require("managers.auth")
 local WindowLayout = require("managers.window_layout")
 local Heartbeat = require("managers.heartbeat")
+local ProbeLog = require("utils.probe_log")
 
 local Recovery = {}
 
@@ -113,6 +114,41 @@ function Recovery.launchAndJoin(instance)
 
     local hasLink = gameLink(instance) ~= nil
 
+    -- Restart the target with a PID kill instead of `am force-stop`. Force-stop puts the
+    -- whole package into Android's stopped state and (measured on device) ends up
+    -- ANR-killing a peer clone. The peer PIDs are logged so each stop has evidence.
+    local function peerPids(ownPkg)
+        local okI, Instances = pcall(require, "managers.instance")
+        if not okI or type(Instances.getAll) ~= "function" then return "-" end
+        local out = {}
+        for _, other in ipairs(Instances.getAll() or {}) do
+            local otherPkg = other.package
+            if otherPkg and otherPkg ~= ownPkg then
+                local okP, list = pcall(APK.pids, otherPkg)
+                if okP and list and #list > 0 then
+                    out[#out + 1] = otherPkg .. "=" .. table.concat(list, ",")
+                end
+            end
+        end
+        return #out > 0 and table.concat(out, " ") or "-"
+    end
+
+    local function stopTarget()
+        local okB, before = pcall(APK.pids, pkg)
+        local okA, after
+        local stopped, stopErr = APK.stopProcesses(pkg)
+        okA, after = pcall(APK.pids, pkg)
+        local beforeText = (okB and before and #before > 0) and table.concat(before, ",") or "-"
+        local afterText = (okA and after and #after > 0) and table.concat(after, ",") or "-"
+        Logger.info(string.format("Recovery: stop target %s pid=%s -> %s",
+            tostring(pkg), beforeText, afterText))
+        ProbeLog.pids(tostring(instance.name or pkg), pkg, beforeText, afterText, stopped, peerPids(pkg))
+        if okA and after and #after > 0 then
+            return false, "masih ada pid " .. afterText .. " setelah kill"
+        end
+        return stopped, stopErr
+    end
+
     if hasLink then
         -- On-device testing proved that OPTION-A join (`am start -a VIEW -d 'roblox://placeId=<id>'
         -- -p <clone>`) only auto-joins from a COLD (fresh) clone: the app must be force-stopped
@@ -121,9 +157,14 @@ function Recovery.launchAndJoin(instance)
         -- (APK.launch: MAIN/LAUNCHER) also left the app on its home screen, so we skip that too.
         if APK.isRunning(pkg) then
             Logger.info("Recovery: restart target untuk autojoin: " .. tostring(pkg))
-            local stopped, stopErr = APK.forceStop(pkg)
-            if not stopped then return false, "force-stop gagal: " .. tostring(stopErr) end
-            Timer.sleep(1)
+            local stopped, stopErr = stopTarget()
+            if not stopped then return false, "stop target gagal: " .. tostring(stopErr) end
+        end
+        -- Let the killed clone's CPU spike die down and make sure there is room before
+        -- another Roblox instance starts loading.
+        local minMb = tonumber((Config.get() or {}).launchMinFreeMb) or 0
+        if minMb > 0 and not APK.waitForMemory(minMb, tonumber((Config.get() or {}).launchFreeWait) or 0) then
+            Logger.warn("Recovery: RAM belum lega, link game tetap dibuka")
         end
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
@@ -231,15 +272,14 @@ function Recovery.relaunch(instance)
         return false
     end
 
-    Logger.debug("Recovery.relaunch: force-stopping and relaunching " .. tostring(instance.name or pkg))
+    Logger.debug("Recovery.relaunch: restarting " .. tostring(instance.name or pkg))
 
-    local ok_fs = APK.forceStop(pkg)
-    if not ok_fs then
-        Logger.warn("Recovery.relaunch: forceStop failed for " .. tostring(pkg))
+    local stopped, stopErr = APK.stopProcesses(pkg)
+    if not stopped then
+        Logger.warn("Recovery.relaunch: stop target failed for " .. tostring(pkg) .. ": " .. tostring(stopErr))
         return false
     end
 
-    Timer.sleep(1)
     WindowLayout.applyForInstance(instance)
     Heartbeat.markLaunched(instance)
 
@@ -299,15 +339,13 @@ function Recovery.checkAndRecover(instance)
     for attempt = 1, retries do
         Logger.info(string.format("Recovery: attempt %d/%d for %s", attempt, retries, tostring(instance.name or pkg)))
 
-        -- Force stop first
-        local ok_fs = APK.forceStop(pkg)
+        -- Stop the target only (PID kill, no force-stop of the package).
+        local ok_fs, fsErr = APK.stopProcesses(pkg)
         if not ok_fs then
-            Logger.warn("Recovery: forceStop failed for " .. tostring(pkg))
+            Logger.warn("Recovery: stop target failed for " .. tostring(pkg) .. ": " .. tostring(fsErr))
             return false
         end
 
-        -- small pause to let system settle
-        Timer.sleep(1)
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
 

@@ -23,6 +23,28 @@ assert(not APK.stopProcesses("com.apengjers.v6") and command == nil)
 assert(not APK.stopProcesses("bad;kill") and command == nil)
 instances[2] = nil
 
+-- PIDs come from /proc/<pid>/cmdline (ps truncates the name to 15 chars), so a sibling
+-- clone can never be caught. Only numeric lines are kept.
+shellOK, shellOut = true, "123\n456\nnot-a-pid\n"
+local pids = APK.pids("com.apengjers.v6")
+assert(#pids == 2 and pids[1] == "123" and pids[2] == "456", "pid parsing wrong")
+assert(command:find("/proc/[0-9]*", 1, true) and command:find("/cmdline", 1, true))
+assert(command:find('"$pkg"|"$pkg":*', 1, true), "match must be exact package or its service")
+shellOK, shellOut = false, nil
+assert(#APK.pids("com.apengjers.v6") == 0 and APK.pids("bad;kill") and #APK.pids("bad;kill") == 0)
+
+-- An already-closed package needs no stop command at all.
+shellOK, shellOut = true, "REJOIN_STOPPED"
+local up, extraStops = false, 0
+APK.isRunning = function() return up end
+local realStop = APK.stopProcesses
+APK.stopProcesses = function(pkg) extraStops = extraStops + 1; return realStop(pkg) end
+command = nil
+assert(APK.stopIfRunning("com.apengjers.v6") and extraStops == 0 and command == nil)
+up = true
+assert(APK.stopIfRunning("com.apengjers.v6") and extraStops == 1 and command:find("kill -9", 1, true))
+APK.stopProcesses = realStop
+
 -- Exercise logout without reading real cookies or touching real files.
 local stops, deletes, verifies, stopOK, remaining = 0, 0, 0, true, "0"
 package.loaded["managers.apk"] = { stopProcesses = function()

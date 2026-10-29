@@ -150,6 +150,8 @@ local SCHEMA = {
     { key = "minRss", type = "int", min = 0, max = 4000, label = "RSS minimal clone hidup (MB)" },
     { key = "relaunchNoLogin", type = "bool", label = "Buka lagi clone belum login yang FC" },
     { key = "noLoginCooldown", type = "int", min = 30, max = 3600, label = "Jeda buka lagi clone belum login (dtk)" },
+    { key = "launchMinFreeMb", type = "int", min = 0, max = 4000, label = "RAM bebas minimal sebelum buka link game (MB)" },
+    { key = "launchFreeWait", type = "int", min = 0, max = 300, label = "Maks tunggu RAM bebas sebelum buka (dtk)" },
     { key = "windowLayout.enabled", type = "bool", label = "Auto atur jendela (grid)" },
     { key = "windowLayout.columns", type = "int", min = 0, max = 10, label = "Kolom grid (0 = otomatis)" },
     { key = "windowLayout.gap", type = "int", min = 0, max = 200, label = "Jarak antar jendela (px)" },
@@ -195,7 +197,7 @@ end
 local DEFAULTS = {
     launchJoinTimeout = 240, launchSettleDelay = 20, launchEmptyDelay = 5, launchWaitTimeout = 60,
     launchWaitInterval = 3, monitorInterval = 5, freezeTimeout = 300, minRss = 300,
-    relaunchNoLogin = true, noLoginCooldown = 120,
+    relaunchNoLogin = true, noLoginCooldown = 120, launchMinFreeMb = 250, launchFreeWait = 45,
     ["windowLayout.enabled"] = false, ["windowLayout.columns"] = 0, ["windowLayout.gap"] = 0,
     ["windowLayout.overlap"] = 80, ["heartbeat.enabled"] = true, ["heartbeat.saver.enabled"] = false,
     ["heartbeat.saver.fpsCap"] = 15, ["heartbeat.saver.disable3d"] = true, ["webhook.url"] = "",

@@ -2,6 +2,16 @@
 
 ## Unreleased / Bug fixes
 
+- **Restart hanya stop target + tunggu RAM bebas (opsi B)**: semua jalur restart
+  (`launchAndJoin`, `relaunch`, `checkAndRecover`, inject cookie, tulis jendela)
+  memakai kill PID exact target dari `/proc/<pid>/cmdline` (nama `ps` kepotong 15
+  karakter jadi semua clone App Cloner kebaca sama), tanpa fallback `am force-stop`.
+  Sebelum link game dibuka, engine menunggu `MemAvailable` minimal `launchMinFreeMb`
+  (default 250 MB) sampai `launchFreeWait` (default 45 dtk, bisa diubah dari bot
+  `/config set`). Tiap stop dicatat ke `ProbeLog.pids` dengan pid sebelum/sesudah,
+  load, RAM bebas, dan pid peer sebagai bukti. Tes `stop_target_test` ditambah;
+  7 gagal di `regressions` adalah baseline lawas (harness antrean basi), bukan regresi.
+
 - **Trial logout tanpa package force-stop**: hentikan PID exact target/subproses,
   cek ulang sebelum mengubah cookie, verifikasi hasil DELETE, lalu buka layar login
   tanpa link game setelah auth false. Gagal logout memblokir rejoin target lewat

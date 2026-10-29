@@ -69,6 +69,11 @@ return {
     -- (force close: process gone or no window left) it is opened again, gently (no
     -- force-stop) and at most once per noLoginCooldown seconds.
     relaunchNoLogin = true,
+    -- Before a restarted clone opens its game link, wait until MemAvailable is at least
+    -- launchMinFreeMb (MB) for at most launchFreeWait seconds. A fresh Roblox load spikes
+    -- CPU/RAM; on a tight box the system answers with ANR kills of the OTHER clones.
+    launchMinFreeMb = 250,
+    launchFreeWait = 45,
     -- Status reports to a Discord webhook (one message kept up to date + event
     -- messages). Empty url = off. Set it in Main Menu 9) Discord Webhook.
     webhook = {

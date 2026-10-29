@@ -128,8 +128,10 @@ salinannya; kegagalan menghapus pesan channel ditampilkan supaya bisa dicoba ula
 
 Setelah launch/recovery, clone yang masih hidup tanpa heartbeat diberi waktu loading
 minimal 60 detik (`gracePeriod` lebih besar juga dipakai). Kick/proses mati tetap
-ditangani. Mengubah preset clone ke `d` (ikut default) di Menu `2` → `3` langsung
-tersimpan tanpa perlu mengubah nama atau package.
+ditangani. Restart cuma kill PID exact target dari `/proc/<pid>/cmdline` tanpa
+`am force-stop`; link game nunggu RAM bebas `launchMinFreeMb` (default 250 MB,
+maks `launchFreeWait` 45 dtk). Mengubah preset clone ke `d` (ikut default) di Menu
+`2` → `3` langsung tersimpan tanpa perlu mengubah nama atau package.
 
 ## ⚡ Step 1: Root, Termux & Termux:Boot
 1. **Root** harus aktif (**Magisk** / **KernelSU**). Buka **Superuser** → pastikan **Termux** diizinkan.

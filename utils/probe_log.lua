@@ -47,6 +47,20 @@ local function trim(s)
     return (s or ""):gsub("%s+$", "")
 end
 
+-- One line per stop: target PIDs before -> after, plus the evidence that tells a wrong
+-- kill apart from a load spike (Android load average, free RAM, peer PIDs).
+function ProbeLog.pids(name, pkg, before, after, stopped, peers)
+    local okL, load = pcall(function() return Shell.exec("cat /proc/loadavg") end)
+    local okM, mem = pcall(function() return Shell.exec("grep MemAvailable /proc/meminfo") end)
+    local function first(s) return tostring(s or "-"):gsub("%s+$", "") end
+    ProbeLog.line(string.format(
+        "[%s] STOP %s | pkg=%s | pid_sebelum=%s | pid_sesudah=%s | verified=%s | load=%s | mem=%s | peer=%s",
+        os.date("%H:%M:%S"), tostring(name), tostring(pkg),
+        tostring(before or "-"), tostring(after or "-"), tostring(stopped == true),
+        okL and first(load) or "?", okM and first(mem) or "?",
+        tostring(peers or "-")))
+end
+
 -- Record one line per configured instance: who, current status, process evidence and
 -- the ACTIVE decision (RSS vs threshold). This is the evidence we need the next time a
 -- close-1 bug is reproduced.

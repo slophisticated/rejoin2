@@ -130,8 +130,8 @@ local function fmt(b)
 end
 WindowLayout.formatBounds = fmt
 
--- `am force-stop` returns before every process of the package is gone, and a dying
--- app can still flush its old window bounds. Wait until it is really stopped.
+-- PID kill returns after the signal; the process may still be tearing down and a dying
+-- app can still flush its old window bounds. Wait until it is really gone.
 local function waitStopped(pkg)
     local okA, APK = pcall(require, "managers.apk")
     if not okA then return true end
@@ -139,7 +139,7 @@ local function waitStopped(pkg)
     for attempt = 1, 4 do
         local okR, running = pcall(APK.isRunning, pkg)
         if okR and not running then return true end
-        if attempt == 3 then pcall(APK.forceStop, pkg) end
+        if attempt == 3 then pcall(APK.stopProcesses, pkg) end
         if okT then Timer.sleep(1) end
     end
     local okR, running = pcall(APK.isRunning, pkg)
