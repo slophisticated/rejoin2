@@ -985,6 +985,20 @@ function Monitor.start(conf, opts)
 
             if healthy then
                 Logger.debug(string.format("Monitor: instance healthy: %s", name))
+                -- A live clone whose floating window got swept still runs headless:
+                -- bring it back to front without killing or reloading it.
+                if pkg then
+                    local okR, up = pcall(apkManager.isRunning, pkg)
+                    if okR and up then
+                        local okW, has = pcall(apkManager.hasWindow, pkg)
+                        if okW and has == false then
+                            local okF, resF = pcall(apkManager.focus, pkg)
+                            if okF and resF then
+                                Logger.info("Monitor: " .. name .. " jendela ketutup; dibuka lagi tanpa restart")
+                            end
+                        end
+                    end
+                end
             else
                 unhealthyStreak[id] = nil -- after acting, a fresh low reading gets its grace again
                 Logger.warn(string.format("Monitor: instance not healthy: %s", name))

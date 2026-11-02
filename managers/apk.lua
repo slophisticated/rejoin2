@@ -104,6 +104,30 @@ function APKManager.launch(packageName)
     return false, out
 end
 
+-- Bring a RUNNING clone's window back to front without killing or reloading it.
+-- For a minimized floating window (process alive, no visible window) this reorders
+-- its task to front instead of launching a fresh activity on top. Dead packages
+-- fall back to a normal launch. Returns (true) when the window is already visible
+-- or was brought back, (false, reason) otherwise.
+function APKManager.focus(packageName)
+    if not validPackageName(packageName) then return false, "nama package tidak valid" end
+    local okR, up = pcall(APKManager.isRunning, packageName)
+    if not okR or not up then return APKManager.launch(packageName) end
+    local okW, has = pcall(APKManager.hasWindow, packageName)
+    if okW and has == true then return true end
+    -- REORDER_TO_FRONT (0x200000) reuses the existing task instead of recreating it.
+    local cmd = string.format("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p %s -f 0x200000",
+        packageArg(packageName))
+    Logger.info("APKManager: focus exec: " .. cmd)
+    local ok, out = Shell.exec(cmd)
+    if ok and out and not out:find("Error", 1, true) and not out:find("Failure", 1, true) then
+        Logger.info("APKManager: focus accepted for " .. tostring(packageName))
+        return true
+    end
+    Logger.warn("APKManager: focus failed for " .. tostring(packageName) .. ": " .. tostring(out))
+    return false, out
+end
+
 function APKManager.forceStop(packageName)
     if not validPackageName(packageName) then return false, "nama package tidak valid" end
     if not packageIsUnique(packageName) then

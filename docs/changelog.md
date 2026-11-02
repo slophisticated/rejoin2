@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Autofocus minimize (`trial/autofocus-minimized`)**: `APK.focus` bawa jendela clone
+  yang hidup tapi ketutup balik ke depan (`REORDER_TO_FRONT`), tanpa kill / load ulang;
+  yang mati fallback `launch` biasa, yang keliatan ga disentuh. Monitor tiap siklus
+  nge-focus otomatis clone sehat yang `hasWindow` false. Launch All tetep cold start
+  (by design kill semua di awal); kalau cuma ke-minimize, biarin monitor yang bukain.
+  Tes `autofocus_test` ditambah.
+
 - **Semua restart jeda 3 detik + gate RAM (anti-LMK)**: logcat device membuktikan peer
   dibunuh sistem (`libprocessgroup` + `handleLowMemoryWarning(high)`), bukan kill nyasar:
   loading Roblox abis kill yang bikin RAM jebol. `settleAndWaitMemory` dipakai semua
