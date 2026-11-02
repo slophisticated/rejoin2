@@ -493,9 +493,15 @@ function CookieInjector.logout(instance)
     -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
     local sig = io.open("data/auth_forget.txt", "a")
     if sig then sig:write(pkg, "\n"); sig:close() end
-    local stopped, stopErr = APK.stopProcesses(pkg)
+    -- One stop only (old code killed up to 4x with sleeps; each kill spikes load and
+    -- risks sweeping peers on a tight box). The DB writes below re-check death first.
+    local function ensureQuiet()
+        local pids = APK.pids(pkg)
+        if #pids == 0 then return true end
+        return APK.stopProcesses(pkg)
+    end
+    local stopped, stopErr = ensureQuiet()
     if not stopped then return false, "clone tidak bisa ditutup dengan aman; cookie tidak diubah: " .. tostring(stopErr) end
-    Timer.sleep(1)
     -- End the session at Roblox first (the backup below keeps the cookie, and the app
     -- may hold its login elsewhere): once revoked, no copy of the token works.
     local token
@@ -510,13 +516,14 @@ function CookieInjector.logout(instance)
     local okRevoke, revoked, revokeMsg = pcall(CookieInjector.revokeSession, token)
     if not okRevoke then revoked, revokeMsg = false, "error internal" end
     token = nil
-    -- Revocation can take seconds; refuse DB writes if Android keeps restarting it.
-    local quiet, quietErr = APK.stopProcesses(pkg)
+    -- Revocation can take seconds; re-check death before DB writes instead of killing
+    -- again (kill only when the app actually came back).
+    local quiet, quietErr = ensureQuiet()
     if not quiet then return false, "logout ditahan, cookie tidak diubah: " .. tostring(quietErr) end
     local stamp = os.date("%Y%m%d-%H%M%S")
     local failures = {}
     for _, db in ipairs(dbs) do
-        local idle, idleErr = APK.stopProcesses(pkg)
+        local idle, idleErr = ensureQuiet()
         if not idle then return false, "logout ditahan sebelum tulis DB: " .. tostring(idleErr) end
         local backup = db .. ".bak-" .. stamp
         local backupOut = exec(runner .. " " .. quote(db) .. " " .. quote(".backup " .. quote(backup)))

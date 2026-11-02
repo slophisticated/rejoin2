@@ -373,6 +373,45 @@ local function launchInOrder(conf, only)
     batchTargets = {}
     for _, inst in ipairs(instances) do batchTargets[inst.package] = true end
 
+    -- Cold batch start: every live target is stopped before the first game link opens.
+    -- Peaks never pile up (minimized clones are stopped, not launched on top).
+    -- Dead clones need no work; logout-held clones are skipped. One pass, one RAM wait.
+    do
+        local stopped, names, failed = 0, {}, {}
+        for _, inst in ipairs(instances) do
+            local pkg = inst and inst.package
+            if pkg and not logoutBlocked[pkg] then
+                local okR, up = pcall(apkManager.isRunning, pkg)
+                if okR and up then
+                    local okK, resK = pcall(apkManager.stopProcesses, pkg)
+                    okK = okK and resK
+                    pcall(ProbeLog.pids, tostring(inst.name or pkg), pkg, "?", "-", okK, "-")
+                    if okK then
+                        stopped = stopped + 1
+                        names[#names + 1] = tostring(inst.name or pkg)
+                    else
+                        failed[#failed + 1] = tostring(inst.name or pkg)
+                    end
+                end
+            end
+        end
+        if stopped > 0 or #failed > 0 then
+            Logger.info(string.format("Monitor: batch cold start: %d clone di-stop duluan (%s)%s",
+                stopped, table.concat(names, ", "),
+                #failed > 0 and ("; gagal: " .. table.concat(failed, ", ")) or ""))
+            local okC, cfg = pcall(require, "core.config")
+            cfg = (okC and type(cfg.get) == "function") and cfg.get() or {}
+            local minMb = tonumber((conf and conf.launchMinFreeMb) or (cfg and cfg.launchMinFreeMb)) or 0
+            local freeWait = tonumber((conf and conf.launchFreeWait) or (cfg and cfg.launchFreeWait)) or 0
+            if minMb > 0 then
+                local okW, resW = pcall(apkManager.waitForMemory, minMb, freeWait)
+                if not (okW and resW) then
+                    Logger.warn("Monitor: RAM belum lega setelah cold start, launch tetap jalan satu-satu")
+                end
+            end
+        end
+    end
+
     for i, inst in ipairs(instances) do
         if not running then break end
         drainLogouts()

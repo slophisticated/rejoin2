@@ -1,5 +1,6 @@
 -- Run from the repository root: lua tests/launch_queue_test.lua
 local now, files, events, logs = 1000, {}, {}, {}
+local onWait
 os.time = function() return now end
 local function stub(name, value) package.loaded[name] = value end
 local noop = function() end
@@ -22,11 +23,12 @@ stub("managers.webhook", {})
 stub("managers.delta_key", { present = function() return false end })
 stub("managers.status", { setProgress = noop, beginStarting = noop, endStarting = noop,
     printSummary = noop, setLaunchNotice = noop })
-stub("utils.timer", {})
+stub("utils.timer", { sleep = noop, sleepInterruptible = function(n)
+    if onWait then onWait() end
+end })
 stub("managers.heartbeat", { isEnabled = function() return true end,
     alive = function(i) return ready[i.id] end, launchedAt = function(i) return starts[i.id] end,
     isUp = function() return true end })
-local onWait
 stub("managers.remote", { tick = noop, idle = function(seconds)
     now = now + seconds
     onWait()
@@ -51,8 +53,13 @@ local manager = { getAll = function() return instances end, find = function(id)
 end }
 set(Monitor.start, "instanceManager", manager)
 local windowVisible = true
-set(Monitor.start, "apkManager", { isRunning = function() return processUp end,
-    hasWindow = function() return windowVisible end })
+local function defaultApk()
+    set(Monitor.start, "apkManager", { isRunning = function() return processUp end,
+        hasWindow = function() return windowVisible end,
+        stopProcesses = function() return true end,
+        waitForMemory = function() return true end })
+end
+defaultApk()
 set(Monitor.start, "Optimizer", { applyForInstance = noop })
 set(Monitor.start, "recoveryManager", { launchAndJoin = function(i)
     events[#events + 1] = i.id; starts[i.id] = now; return true
@@ -104,6 +111,28 @@ onWait = function()
 end
 launch(conf)
 assert(#events == 3, "fresh heartbeat should release each successor")
+
+-- Cold batch start: every live target is stopped before the first game link opens.
+reset()
+local coldUp, cold = { ["clone.a"] = true, ["clone.b"] = true, ["clone.c"] = true }, 0
+local savedRecovery = up(Monitor.start, "recoveryManager")
+set(Monitor.start, "recoveryManager", { launchAndJoin = function(i)
+    events[#events + 1] = i.id; starts[i.id] = now; return true
+end, reopenNoLogin = function() return true end })
+set(Monitor.start, "apkManager", { isRunning = function(pkg) return coldUp[pkg] == true end,
+    hasWindow = function() return windowVisible end,
+    stopProcesses = function(pkg) coldUp[pkg] = false; cold = cold + 1; return true end,
+    waitForMemory = function() return true end })
+onWait = function()
+    local id = events[#events]
+    if now - starts[id] >= 15 then ready[id] = true end
+end
+launch(conf)
+assert(cold == 3, "semua target harus di-cold-kill di awal: " .. tostring(cold))
+assert(#events == 3, "cold start harus tetep launch semua")
+defaultApk()
+set(Monitor.start, "recoveryManager", savedRecovery)
+print("PASS: batch cold start kill semua di awal")
 
 reset()
 Monitor.requestRejoin({ 1, 1 })

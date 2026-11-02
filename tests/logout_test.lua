@@ -47,9 +47,14 @@ APK.stopProcesses = realStop
 
 -- Exercise logout without reading real cookies or touching real files.
 local stops, deletes, verifies, stopOK, remaining = 0, 0, 0, true, "0"
-package.loaded["managers.apk"] = { stopProcesses = function()
-    stops = stops + 1; return stopOK, "stop failed"
-end, forceStop = function() error("logout used force-stop") end }
+package.loaded["managers.apk"] = {
+    pids = function() return stops == 0 and { "4242" } or {} end,
+    stopProcesses = function()
+        stops = stops + 1; return stopOK, "stop failed"
+    end,
+    waitForMemory = function() return true end,
+    freeMemoryMb = function() return 900 end,
+    forceStop = function() error("logout used force-stop") end }
 package.loaded["managers.auth"] = { getBaseDir = function() return "/data/target" end, forget = noop }
 package.loaded["utils.timer"] = { sleep = noop }
 package.loaded["utils.shell"].exec = function(cmd)
@@ -71,7 +76,12 @@ Cookies.revokeSession = function() return true, "session invalid" end
 stopOK = false
 assert(not Cookies.logout(instances[1]) and deletes == 0)
 stopOK = true
-assert(Cookies.logout(instances[1]) and deletes == 1 and stops == 4 and verifies >= 3)
+assert(Cookies.logout(instances[1]) and deletes == 1 and stops == 1 and verifies >= 3,
+    "logout harus 1x stop, bukan kill beruntun: stops=" .. tostring(stops))
+-- Second run: already dead, no kill at all.
+stops, deletes, verifies = 0, 0, 0
+package.loaded["managers.apk"].pids = function() return {} end
+assert(Cookies.logout(instances[1]) and stops == 0, "clone mati ga perlu di-kill lagi")
 deletes, remaining = 0, "1"
 assert(not Cookies.logout(instances[1]), "remaining cookie reported as logout success")
 io.open = oldOpen

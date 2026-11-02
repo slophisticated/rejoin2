@@ -2,6 +2,14 @@
 
 ## Unreleased / Bug fixes
 
+- **Logout 1x kill + Launch All cold start**: `CookieInjector.logout` cuma kill sekali
+  di awal (revoke session Roblox tetap duluan), tulis DB berikutnya cek mati dulu tanpa
+  kill berulang; cookie kehapus dan terverifikasi sebelum clone dibuka lagi ke layar
+  login. `launchInOrder` kill semua target hidup di awal batch (1 putaran, 1x tunggu
+  RAM `launchMinFreeMb`/`launchFreeWait`), baru launch satu-satu; clone mati dilewati.
+  Tiap stop dicatat `ProbeLog.pids` dengan pid sebelum/sesudah. Tes logout (1x stop,
+  mati = 0 kill) dan antrean (3 target = 3 kill awal) ditambah.
+
 - **Restart hanya stop target + tunggu RAM bebas (opsi B)**: semua jalur restart
   (`launchAndJoin`, `relaunch`, `checkAndRecover`, inject cookie, tulis jendela)
   memakai kill PID exact target dari `/proc/<pid>/cmdline` (nama `ps` kepotong 15
