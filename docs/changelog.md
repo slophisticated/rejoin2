@@ -2,6 +2,14 @@
 
 ## Unreleased / Bug fixes
 
+- **Semua restart jeda 3 detik + gate RAM (anti-LMK)**: logcat device membuktikan peer
+  dibunuh sistem (`libprocessgroup` + `handleLowMemoryWarning(high)`), bukan kill nyasar:
+  loading Roblox abis kill yang bikin RAM jebol. `settleAndWaitMemory` dipakai semua
+  jalur (`launchAndJoin`, `relaunch`, `checkAndRecover`, `reopenNoLogin`): tidur 3 detik
+  abis kill biar spike reda, baru tunggu `MemAvailable` minimal `launchMinFreeMb`.
+  Logout tetap 1x kill + revoke duluan; Launch All tetap cold start di awal + 1x gate.
+  Tes `stop_target_test` ngecover jeda + gate semua jalur.
+
 - **Logout 1x kill + Launch All cold start**: `CookieInjector.logout` cuma kill sekali
   di awal (revoke session Roblox tetap duluan), tulis DB berikutnya cek mati dulu tanpa
   kill berulang; cookie kehapus dan terverifikasi sebelum clone dibuka lagi ke layar

@@ -35,9 +35,12 @@ package.loaded["managers.instance"] = {
     gameLink = function() return "https://www.roblox.com/games/1" end,
     presetOf = function() return "A", "default", "https://www.roblox.com/games/1" end,
 }
-for _, m in ipairs({ "utils.timer", "core.config", "managers.status", "managers.window_layout" }) do
+for _, m in ipairs({ "managers.status", "managers.window_layout" }) do
     package.loaded[m] = setmetatable({}, { __index = function() return noop end })
 end
+local sleeps = {}
+package.loaded["utils.timer"] = { sleep = function(n) sleeps[#sleeps + 1] = n end,
+    sleepInterruptible = function(n) sleeps[#sleeps + 1] = n end }
 package.loaded["managers.heartbeat"] = { isUp = function() return true end,
     alive = function() return true end, markLaunched = noop, launchedAt = function() return nil end,
     isEnabled = function() return true end }
@@ -46,19 +49,28 @@ package.loaded["core.config"] = { get = function() return { launchMinFreeMb = 25
 local Recovery = require("managers.recovery")
 local inst = { id = 1, name = "Clone1", package = "com.t.one", preset = "A" }
 
--- Autojoin a running target: PID stop, RAM wait, then the game link. No force-stop.
-calls = {}
+-- Autojoin a running target: PID stop, breathing room, RAM wait, then the game link.
+-- No force-stop.
+calls, sleeps = {}, {}
 assert(Recovery.launchAndJoin(inst))
 assert(calls[1] == "stop:com.t.one", "target tidak di-stop dulu: " .. table.concat(calls, ","))
+assert(sleeps[1] == 3, "tidak ada jeda napas abis kill: " .. table.concat(sleeps, ","))
 assert(calls[3] == "memory:250/45", "RAM tidak dicek sebelum join: " .. table.concat(calls, ","))
 assert(calls[4] == "openURL", "link game tidak dibuka: " .. table.concat(calls, ","))
 assert(not table.concat(calls, ","):find("com.t.two", 1, true), "peer kesenggol: " .. table.concat(calls, ","))
 local probe = table.concat(calls, ",")
 assert(probe:find("probe:4242", 1, true), "bukti pid tidak dicatat: " .. probe)
 
--- Every other restart path uses the same PID stop.
-calls, pidsOne = {}, { "4242" }
+-- Every other restart path breathes and waits for RAM too.
+calls, pidsOne, sleeps = {}, { "4242" }, {}
 assert(Recovery.relaunch(inst) and calls[1] == "stop:com.t.one")
-calls, pidsOne = {}, { "4242" }
+assert(sleeps[1] == 3 and calls[2] == "memory:250/45", "relaunch tanpa jeda/gate: " .. table.concat(calls, ","))
+calls, pidsOne, sleeps = {}, { "4242" }, {}
 assert(Recovery.checkAndRecover(inst) and calls[1] == "stop:com.t.one")
-print("PASS: restart hanya stop target + tunggu RAM, peer tidak kesenggol")
+assert(sleeps[1] == 3 and calls[2] == "memory:250/45", "recovery tanpa jeda/gate: " .. table.concat(calls, ","))
+-- Login screen reopen also waits: even a login screen can trigger LMK on a tight box.
+package.loaded["managers.auth"] = { isLoggedIn = function() return false end }
+calls, pidsOne, sleeps = {}, {}, {}
+assert(Recovery.reopenNoLogin(inst))
+assert(sleeps[1] == 3 and calls[1] == "memory:250/45", "layar login tanpa gate RAM: " .. table.concat(calls, ","))
+print("PASS: restart hanya stop target + jeda 3s + tunggu RAM, peer tidak kesenggol")

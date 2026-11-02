@@ -27,6 +27,22 @@ local function isHealthy(instance)
     return ok and res
 end
 
+-- Breathing room + RAM gate shared by every restart path. A kill frees RAM for a
+-- moment, but the load right after (Roblox boot) is what makes LMK sweep peers;
+-- never stack the two spikes in the same second.
+local function settleAndWaitMemory(why)
+    pcall(Timer.sleep, 3)
+    local okC, cfg = pcall(Config.get)
+    local minMb = tonumber((okC and type(cfg) == "table" and cfg.launchMinFreeMb)) or 0
+    local freeWait = tonumber((okC and type(cfg) == "table" and cfg.launchFreeWait)) or 0
+    if minMb > 0 then
+        local okW, resW = pcall(APK.waitForMemory, minMb, freeWait)
+        if not (okW and resW) then
+            Logger.warn("Recovery: RAM belum lega, " .. tostring(why) .. " tetap jalan")
+        end
+    end
+end
+
 -- Build the proven auto-join deep link (roblox://placeId=<id>) for any public-style
 -- link, self-contained so it never depends on utils/roblox_link syncing to the device.
 -- Private-server /share links must stay untouched (no placeId).
@@ -162,10 +178,7 @@ function Recovery.launchAndJoin(instance)
         end
         -- Let the killed clone's CPU spike die down and make sure there is room before
         -- another Roblox instance starts loading.
-        local minMb = tonumber((Config.get() or {}).launchMinFreeMb) or 0
-        if minMb > 0 and not APK.waitForMemory(minMb, tonumber((Config.get() or {}).launchFreeWait) or 0) then
-            Logger.warn("Recovery: RAM belum lega, link game tetap dibuka")
-        end
+        settleAndWaitMemory("link game")
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
@@ -280,6 +293,7 @@ function Recovery.relaunch(instance)
         return false
     end
 
+    settleAndWaitMemory("relaunch")
     WindowLayout.applyForInstance(instance)
     Heartbeat.markLaunched(instance)
 
@@ -297,6 +311,7 @@ end
 -- Gentle on purpose: never force-stops (that loop is what used to push other clones
 -- out of memory), no game link (there is no account to join with), no retries; the
 -- monitor rate-limits calls. A dead process gets its window slot first.
+-- Still waits for free RAM first: on a tight box even a login screen can trigger LMK.
 function Recovery.reopenNoLogin(instance)
     local pkg = instance and instance.package
     if not pkg then return false end
@@ -304,6 +319,7 @@ function Recovery.reopenNoLogin(instance)
     if okR and not alive then
         WindowLayout.applyForInstance(instance)
     end
+    settleAndWaitMemory("layar login")
     Heartbeat.markLaunched(instance)
     local ok, err = APK.launch(pkg)
     if not ok then
@@ -346,6 +362,7 @@ function Recovery.checkAndRecover(instance)
             return false
         end
 
+        settleAndWaitMemory("recovery")
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
 
