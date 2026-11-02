@@ -49,14 +49,15 @@ package.loaded["core.config"] = { get = function() return { launchMinFreeMb = 25
 local Recovery = require("managers.recovery")
 local inst = { id = 1, name = "Clone1", package = "com.t.one", preset = "A" }
 
--- Autojoin a running target: PID stop, breathing room, RAM wait, then the game link.
--- No force-stop.
+-- Autojoin a running target: PID stop, breathing room, RAM wait, settle + retry,
+-- then the game link. No force-stop.
 calls, sleeps = {}, {}
 assert(Recovery.launchAndJoin(inst))
 assert(calls[1] == "stop:com.t.one", "target tidak di-stop dulu: " .. table.concat(calls, ","))
 assert(sleeps[1] == 3, "tidak ada jeda napas abis kill: " .. table.concat(sleeps, ","))
 assert(calls[3] == "memory:250/45", "RAM tidak dicek sebelum join: " .. table.concat(calls, ","))
-assert(calls[4] == "openURL", "link game tidak dibuka: " .. table.concat(calls, ","))
+assert(calls[#calls] == "openURL", "link game tidak dibuka: " .. table.concat(calls, ","))
+assert(not table.concat(calls, ","):find("com.t.two", 1, true), "peer kesenggol: " .. table.concat(calls, ","))
 assert(not table.concat(calls, ","):find("com.t.two", 1, true), "peer kesenggol: " .. table.concat(calls, ","))
 local probe = table.concat(calls, ",")
 assert(probe:find("probe:4242", 1, true), "bukti pid tidak dicatat: " .. probe)

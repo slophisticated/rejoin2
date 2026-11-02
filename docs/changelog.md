@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Cold start settle + retry (`trial/coldstart-settle-retry`)**: di device lega (RAM
+  2852 MB bebas) gate RAM lolos instan padahal app abis di-kill belum siap, `am start`
+  VIEW ditolak (`Starting: Intent` tanpa resolve). `launchAndJoin` sekarang tunggu
+  proses balik (maks 15 dtk, `launch` biasa kalau belum nongol) sebelum intent, dan
+  retry intent sekali jeda 5 dtk kalau ditolak. Tes stop_target dilonggarkan
+  (openURL terakhir, bukan ke-4).
+
 - **Autofocus minimize**: `APK.focus` bawa jendela clone yang hidup tapi ketutup balik
   ke depan (`REORDER_TO_FRONT`, terbukti di device), tanpa kill / load ulang; yang mati
   fallback `launch` biasa, yang keliatan ga disentuh. Monitor tiap siklus nge-focus

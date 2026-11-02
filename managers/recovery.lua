@@ -177,12 +177,34 @@ function Recovery.launchAndJoin(instance)
             if not stopped then return false, "stop target gagal: " .. tostring(stopErr) end
         end
         -- Let the killed clone's CPU spike die down and make sure there is room before
-        -- another Roblox instance starts loading.
+        -- another Roblox instance starts loading. On a roomy box the RAM gate passes
+        -- instantly while the app is still settling, so wait for the process to come
+        -- back (or a short settle) before firing the VIEW intent; retry once, because
+        -- Android rejects an intent aimed at a package that is not ready yet.
         settleAndWaitMemory("link game")
+        if not APK.isRunning(pkg) then
+            local waited, ready = 0, false
+            while waited < 15 do
+                pcall(Timer.sleep, 1)
+                waited = waited + 1
+                local okR, up = pcall(APK.isRunning, pkg)
+                if okR and up then ready = true; break end
+                if waited >= 3 then
+                    local okL = pcall(APK.launch, pkg)
+                    if okL then break end
+                end
+            end
+            if not ready then pcall(Timer.sleep, 2) end
+        end
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
         local opened, openErr = openGameLink(instance)
+        if not opened then
+            Logger.warn("Recovery: link pertama ditolak, coba lagi 5 dtk: " .. tostring(openErr))
+            pcall(Timer.sleep, 5)
+            opened, openErr = openGameLink(instance)
+        end
         if not opened then return false, "buka link game gagal: " .. tostring(openErr) end
     else
         if WindowLayout.isEnabled() and not APK.isRunning(pkg) then
