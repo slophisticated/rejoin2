@@ -102,7 +102,16 @@ volume() {
     if [ "$have" = "$want" ]; then ok "$label (sudah)"; return; fi
     root "$tool volume --stream $stream --set $want" >/dev/null
     have=$(get)
-    if [ "$have" = "$want" ]; then ok "$label"; else warn "$label gagal (sekarang: ${have:-tidak terbaca})"; fi
+    if [ "$have" = "$want" ]; then
+        ok "$label"
+    else
+        warn "$label belum berhasil (sekarang: ${have:-tidak terbaca}); instalasi tetap lanjut"
+        printf '       Android/ROM mungkin membatasi volume, atau perintah volume tidak didukung. Ini bukan error Roblox.\n'
+        printf '       Cara manual: buka Setelan Android > Suara/Volume, lalu atur %s.\n' "$label"
+        printf '       Cek di Termux: su -c "%s volume --stream %s --get" </dev/null\n' "$tool" "$stream"
+        printf '       Coba ulang: su -c "%s volume --stream %s --set %s" </dev/null\n' "$tool" "$stream" "$want"
+        printf '       Kalau tetap tidak berubah, kirim hasil cek tadi; tidak perlu install ulang Rejoin.\n'
+    fi
 }
 VOLUMES="3 volume media/game
 2 volume dering

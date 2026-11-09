@@ -1,5 +1,25 @@
 ## 📝 Rejoin Installation Guide
 
+## Volume gagal diatur saat install
+
+Kalau langkah **5/8 Setting device** menampilkan `[!!] Suara: volume alarm 0`
+tetapi nilainya tetap (contoh: 6), itu peringatan pengaturan volume saja.
+Instalasi tetap lanjut; tidak perlu install ulang Rejoin.
+
+1. Buka **Setelan Android > Suara/Volume > Alarm**, lalu coba turunkan manual.
+2. Cek dari Termux (izinkan root jika diminta):
+   ```sh
+   su -c "media volume --stream 4 --get" </dev/null
+   su -c "media volume --stream 4 --set 0" </dev/null
+   su -c "media volume --stream 4 --get" </dev/null
+   ```
+3. Kalau `media` tidak tersedia, ganti `media` dengan `cmd media_session` pada
+   ketiga perintah di atas. Installer terbaru menampilkan perintah sesuai device.
+4. Kalau nilainya tetap atau muncul error, kirim output perintahnya. Bisa karena
+   batasan Android/ROM atau perintah volume tidak didukung; penyebab pastinya perlu
+   dilihat dari hasil cek, bukan dari angka volume saja. Volume alarm yang belum
+   berhasil dimatikan tidak berarti volume media/game juga gagal.
+
 ## Antrean launch / Delta minta key
 
 ### Trial logout proses target

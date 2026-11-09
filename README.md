@@ -58,6 +58,12 @@ Tunggu sampai muncul **SELESAI**, lalu **reboot sekali**. Tiap langkah ditandai 
 **Yang otomatis di-allow:** dialog *"Let app always run in background?"*, aktivasi Termux:Boot, dan Developer options.
 **Yang tetap perlu tap sekali:** izin root di Magisk (pilih *Grant*) dan izin storage (`termux-setup-storage`).
 
+**Kalau muncul `[!!] Suara: volume alarm 0` tetapi nilainya tetap (misalnya 6):**
+yang belum berhasil cuma pengaturan volume, bukan install Rejoin/Roblox. Installer
+tetap lanjut. Buka **Setelan Android > Suara/Volume > Alarm** dan coba turunkan manual.
+Android/ROM bisa membatasi volume atau tidak mendukung perintahnya. Output installer
+sekarang menyertakan perintah cek dan coba ulang; lihat juga [panduan cek volume](setup.md#volume-gagal-diatur-saat-install).
+
 Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak perlu `git pull` lagi**: setiap boot, Rejoin update sendiri dari GitHub, lalu langsung jalan.
 
 ---

@@ -2,6 +2,11 @@
 
 ## Unreleased / Bug fixes
 
+- **Petunjuk saat volume device gagal diatur**: peringatan installer menjelaskan
+  bahwa instalasi tetap lanjut, memberi langkah Setelan Android, perintah cek/coba
+  ulang sesuai tool dan stream device, serta meminta output jika tetap gagal.
+  README/setup memuat contoh alarm tetap 6; tidak memaksa bypass batasan ROM.
+
 - **Cold start settle + retry**: di device lega gate RAM lolos instan padahal app abis
   di-kill belum siap, `am start` VIEW ditolak (`Starting: Intent` tanpa resolve,
   terbukti di device). `launchAndJoin` sekarang tunggu proses balik (maks 15 dtk)
