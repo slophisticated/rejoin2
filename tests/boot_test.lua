@@ -42,7 +42,7 @@ stub("utils.file", {
     write = function(p, s) files[p] = s; return true end,
 })
 stub("utils.shell", { exec = function(cmd) execs[#execs + 1] = cmd; return true, "line\n" end })
-stub("managers.heartbeat", { workspaceDir = function() return "/sdcard/Workspace" end })
+stub("core.config", { get = function() return { appAutoExecutePath = "/sdcard/Delta/Autoexecute" } end })
 
 local function reset()
     files, execs = {}, {}
@@ -145,7 +145,7 @@ end)
 test("uninstall lists boot, heartbeat, config and data, and says the repo stays", function()
     reset()
     files[SCRIPT] = "x"
-    files["/sdcard/Workspace/rejoin/rejoin_heartbeat.lua"] = "hb"
+    files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
     files["/repo/config/config.lua"] = "cfg"
     files["/repo/data"] = "d"
     local Uninstall = fresh("uninstall")
@@ -163,7 +163,7 @@ end)
 test("uninstall runAll removes its targets but keeps the repo and termux-boot.sh", function()
     reset()
     files[SCRIPT] = "x"
-    files["/sdcard/Workspace/rejoin/rejoin_heartbeat.lua"] = "hb"
+    files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
     files["/repo/config/config.lua"] = "cfg"
     files["/repo/data"] = "d"
     local Uninstall = fresh("uninstall")
@@ -177,6 +177,30 @@ test("uninstall runAll removes its targets but keeps the repo and termux-boot.sh
     assert(text:find("Folder repo tetap"), "kept repo not reported")
     -- other Autoexecute scripts are never touched
     assert(not table.concat(results, "\n"):find("Workspace/rejoin/other.lua"))
+end)
+
+test("a same-named heartbeat script rejoin did not write is left alone", function()
+    reset()
+    files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- my own\n"
+    local Uninstall = fresh("uninstall")
+    local targets = Uninstall.targets()
+    local text = {}
+    for _, t in ipairs(targets) do text[#text + 1] = t.what end
+    assert(not table.concat(text, "\n"):find("heartbeat"))
+    Uninstall.runAll()
+    assert(files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] == "-- my own\n")
+end)
+
+test("every found executor loses its copy, not just the configured one", function()
+    reset()
+    files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
+    files["/sdcard/Other/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
+    package.loaded["managers.executor"] = { found = { { path = "/sdcard/Other/Autoexecute" } } }
+    local Uninstall = fresh("uninstall")
+    Uninstall.runAll()
+    assert(not files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"])
+    assert(not files["/sdcard/Other/Autoexecute/rejoin_heartbeat.lua"])
+    package.loaded["managers.executor"] = nil
 end)
 
 test("nothing to remove is reported honestly", function()

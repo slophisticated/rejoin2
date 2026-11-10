@@ -20,12 +20,40 @@ local function quote(s)
     return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'"
 end
 
-local function heartbeatScriptPath()
+local MARKER = "REJOIN_HEARTBEAT"
+local SCRIPT_NAME = "rejoin_heartbeat.lua"
+
+-- Every copy of rejoin's heartbeat script: the configured executor plus every other
+-- executor that was found, mirroring what Heartbeat.install() writes.
+local function heartbeatScripts()
+    local paths = {}
     local ok, Heartbeat = pcall(require, "managers.heartbeat")
-    if not ok or type(Heartbeat.workspaceDir) ~= "function" then return nil end
-    local okDir, dir = pcall(Heartbeat.workspaceDir)
-    if not okDir or not dir then return nil end
-    return dir .. "/rejoin/rejoin_heartbeat.lua"
+    if ok and type(Heartbeat.install) == "function" then
+        local okCfg, config = pcall(require, "core.config")
+        if okCfg and type(config.get) == "function" then
+            local okGet, c = pcall(config.get)
+            local dir = okGet and type(c) == "table" and c.appAutoExecutePath or nil
+            if type(dir) == "string" and dir ~= "" then
+                paths[#paths + 1] = (dir:gsub("/+$", "")) .. "/" .. SCRIPT_NAME
+            end
+        end
+        local okE, Executor = pcall(require, "managers.executor")
+        if okE and type(Executor.found) == "table" then
+            for _, e in ipairs(Executor.found) do
+                if type(e.path) == "string" then
+                    paths[#paths + 1] = (e.path:gsub("/+$", "")) .. "/" .. SCRIPT_NAME
+                end
+            end
+        end
+    end
+    return paths
+end
+
+-- Only rejoin's own copy (identified by the marker), so a same-named user script
+-- that rejoin did not write is left alone.
+local function ownHeartbeat(path)
+    local content = File.read(path)
+    return content ~= nil and content:find(MARKER, 1, true) ~= nil
 end
 
 -- Everything that would be deleted, for the confirmation screen.
@@ -35,9 +63,10 @@ function Uninstall.targets()
     if File.exists(boot) then
         table.insert(list, { path = boot, what = "auto-boot (Termux:Boot)" })
     end
-    local hb = heartbeatScriptPath()
-    if hb and File.exists(hb) then
-        table.insert(list, { path = hb, what = "script heartbeat di Autoexecute" })
+    for _, path in ipairs(heartbeatScripts()) do
+        if File.exists(path) and ownHeartbeat(path) then
+            table.insert(list, { path = path, what = "script heartbeat di Autoexecute" })
+        end
     end
     local cfg, data = Paths.config(), Paths.dataDir()
     if File.exists(cfg) then table.insert(list, { path = cfg, what = "config (semua setting)" }) end
@@ -62,16 +91,22 @@ function Uninstall.runAll()
     results[#results + 1] = okBoot and ("Auto-boot dihapus: " .. tostring(infoBoot))
         or ("Auto-boot: " .. tostring(infoBoot))
 
-    local hb = heartbeatScriptPath()
-    if hb then
-        if File.exists(hb) then
-            results[#results + 1] = os.remove(hb) and ("Script heartbeat dihapus: " .. hb)
-                or ("GAGAL hapus script heartbeat: " .. hb)
-        else
-            results[#results + 1] = "Script heartbeat: tidak ada di Autoexecute"
+    local scripts = heartbeatScripts()
+    local removedHb = 0
+    for _, path in ipairs(scripts) do
+        if File.exists(path) and ownHeartbeat(path) then
+            if os.remove(path) then
+                removedHb = removedHb + 1
+                results[#results + 1] = "Script heartbeat dihapus: " .. path
+            else
+                results[#results + 1] = "GAGAL hapus script heartbeat: " .. path
+            end
         end
-    else
-        results[#results + 1] = "Script heartbeat: folder executor tidak diketahui, dilewati"
+    end
+    if removedHb == 0 then
+        results[#results + 1] = #scripts == 0
+            and "Script heartbeat: folder executor tidak diketahui, dilewati"
+            or "Script heartbeat: tidak ada di Autoexecute"
     end
 
     local base = Paths.base()
