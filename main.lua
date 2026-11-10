@@ -85,6 +85,9 @@ if dryRun then
     Logger.info("Runtime: dry-run mode enabled")
 end
 
+-- Say where state lives once, so a surprising working directory is obvious up front.
+if not headless then Paths.announce() end
+
 -- Root handler: stop right away when Termux has no root (everything else needs it,
 -- the setup wizard's clone detection included). Skipped for --dry-run, for the
 -- installer's one-shot flags (they do not need root) and with useRoot = false.
