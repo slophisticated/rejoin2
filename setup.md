@@ -212,6 +212,9 @@ cd ~/rejoin && lua main.lua
 
 ## 🔁 Auto Start & Update
 
+Launch All tidak menunggu jendela/heartbeat clone yang belum login: cukup jeda
+`launchEmptyDelay` (default 5 detik), lalu lanjut clone berikutnya tanpa force-stop.
+
 Di langkah 8/8, installer membuka Termux:Boot otomatis pada user/profile Termux.
 Kalau muncul **“Auto-start siap; boleh reboot”**, lu bisa langsung reboot.
 Status harus `installed=true` dan `stopped=false` pada user yang sama; error membuka

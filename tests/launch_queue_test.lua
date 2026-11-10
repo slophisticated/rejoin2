@@ -324,11 +324,11 @@ reset()
 windowVisible = false
 loginProbe = function() return false end
 onWait = function()
-    assert(#events == 1, "missing login window released the next target")
-    if now - starts[1] >= 20 then Control.request("cancel") end
+    assert(now - starts[events[#events]] <= 5, "missing window held the login slot")
 end
 launch(conf)
-assert(#events == 1, "missing login window must hold the slot")
+assert(#events == 3, "missing login windows blocked the remaining clones")
+assert(starts[2] - starts[1] == 5 and starts[3] - starts[2] == 5)
 reset()
 windowVisible = false
 set(reopen, "noLoginLast", {})
@@ -336,7 +336,7 @@ set(reopen, "noWindowChecks", {})
 assert(not reopen(instances[1], 1, "A", instances[1].package))
 assert(reopen(instances[1], 1, "A", instances[1].package))
 assert(#events == 0 and #up(Monitor.requestRejoin, "rejoinQueue") == 1)
-print("PASS: absent login windows hold the slot and require two checks to queue")
+print("PASS: absent login windows release after the short delay; recovery still requires two checks")
 
 reset()
 local loggedOut = {}

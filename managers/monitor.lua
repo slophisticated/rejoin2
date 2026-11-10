@@ -450,9 +450,9 @@ local function launchInOrder(conf, only)
             Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
             if loggedIn == false then
                 wasNoLogin[pkg] = true
-                local reason = "Menunggu jendela/ikon floating layar login"
+                local reason = "Belum login; jeda " .. emptyDelay .. " detik lalu lanjut"
                 local loginToken = LaunchControl.publish(inst, reason)
-                local visibleAt, lastProbe = nil, os.time()
+                local loginWaitAt, lastProbe = os.time(), os.time()
                 while running do
                     if logoutQueue[pkg] then
                         if performLogout(inst) then
@@ -470,15 +470,9 @@ local function launchInOrder(conf, only)
                     if launchSlot.restart then
                         launchSlot.restart = nil
                         pcall(recoveryManager.launchAndJoin, instanceManager.find(id) or inst)
-                        visibleAt = nil
                     end
-                    local okW, visible = pcall(apkManager.hasWindow, pkg)
-                    if okW and visible == true then
-                        visibleAt = visibleAt or os.time()
-                        if os.time() - visibleAt >= emptyDelay then break end
-                    else
-                        visibleAt = nil
-                    end
+                    -- Login screens have no heartbeat; window detection must not hold the batch.
+                    if os.time() - loginWaitAt >= emptyDelay then break end
                     -- Manual login while held must return to the game heartbeat gate.
                     if os.time() - lastProbe >= 30 then
                         lastProbe = os.time()

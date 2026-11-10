@@ -1,5 +1,9 @@
 # Rejoin Engine
 
+Clone yang belum login hanya menunggu `launchEmptyDelay` (default 5 detik), lalu
+antrean lanjut meskipun jendela floating tidak terdeteksi. Tidak ada force-stop
+untuk clone yang belum login.
+
 Installer membuka Termux:Boot otomatis pada user/profile yang sama dengan Termux.
 Reboot untuk auto-start baru dinyatakan siap setelah activity berhasil dibuka dan
 status user tersebut `installed=true` serta `stopped=false`. Kalau belum siap,

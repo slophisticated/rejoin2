@@ -2,6 +2,10 @@
 
 ## Unreleased / Bug fixes
 
+- **Clone belum login tidak lagi menahan antrean karena jendela tidak terbaca**:
+  jeda `launchEmptyDelay` dihitung sejak masuk penanganan belum login, bukan sejak
+  jendela floating berhasil terdeteksi. Default 5 detik lalu lanjut, tanpa force-stop.
+
 - **Validasi aktivasi Termux:Boot per user Android**: installer membuka activity
   dengan `am start -W --user <user Termux>`, menampilkan kegagalan, dan memeriksa
   `installed=true` + `stopped=false` pada baris user tersebut. Status user lain atau
