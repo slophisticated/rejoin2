@@ -211,6 +211,14 @@ cd ~/rejoin && lua main.lua
 *Clone yang sudah login dibuka duluan, satu per satu: tiap clone ditunggu sampai heartbeat-nya bilang masuk game, baru clone berikutnya. Clone yang belum login dibuka paling akhir dan tidak ditunggu.*
 
 ## 🔁 Auto Start & Update
+
+**Clone dari pembuat lain:** installer mencoba mendeteksi dari package dan activity
+Roblox, bukan wajib bernama `com.apengjers.*`. Config dengan package yang hilang
+otomatis dipasangkan ke clone yang terdeteksi dan belum digunakan. Bisa diulang:
+`cd ~/rejoin && lua main.lua --fix-clones`. Cek pasangan di Menu 2 sebelum Launch All;
+scan tidak bisa menebak akun/preset mana yang seharusnya cocok. Backup config lama:
+`data/config-before-clone-scan.lua`. Kalau tidak ditemukan, config tidak dipaksa berubah.
+
 Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan sendiri (±10 detik setelah boot, tanpa jendela Termux). Config kamu tidak tertimpa.
 
 | Perlu | Perintah |

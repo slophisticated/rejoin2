@@ -161,6 +161,13 @@ cd ~/rejoin && lua main.lua
 
 Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.
 
+Installer sekarang mendeteksi clone Roblox walau package-nya bukan `com.apengjers.*`.
+Package config yang hilang dipasangkan ke clone terdeteksi yang belum dipakai;
+package yang masih ada tidak diubah. Untuk menjalankan ulang deteksi:
+`cd ~/rejoin && lua main.lua --fix-clones`. Cek hasil pasangan lewat Menu 2 sebelum
+Launch All, terutama kalau tiap clone punya preset berbeda. Config sebelumnya
+dibackup ke `data/config-before-clone-scan.lua` sebelum disimpan.
+
 Menu `9` → `11` hanya mengecek autentikasi bot, tanpa mengambil atau menjalankan
 antrean command. Tes ini membutuhkan bot terbaru (`POST /api/ping`); kalau bot lama
 membalas 404, update deployment bot. Di Menu `2` → `3`, pilihan `d` (ikut default)

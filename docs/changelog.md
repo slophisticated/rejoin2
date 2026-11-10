@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Deteksi clone lintas nama package saat install**: package config yang hilang
+  dicocokkan dengan clone Roblox terdeteksi yang belum digunakan, bukan hanya
+  menampilkan peringatan `com.apengjers.*` tidak terpasang. Wizard memakai scanner
+  yang sama; `--fix-clones` untuk mengulang. Config dibackup sebelum disimpan,
+  package yang masih terpasang dipertahankan, dan path cookie/username lama dibuang
+  ketika package diganti. Pasangan akun/preset tetap perlu dicek lewat Menu 2.
+
 - **Menu Auto-boot (15) dan Uninstall (16)**: dulu satu-satunya cara pasang/lepas
   auto-start boot itu jalanin `install.sh` lagi (atau ngedit
   `~/.termux/boot/start-rejoin.sh` pakai tangan), dan uninstall cuma ada di versi

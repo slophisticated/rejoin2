@@ -24,6 +24,7 @@ BRANCH=${REJOIN_BRANCH:-main}
 DIR=${REJOIN_DIR:-$HOME/rejoin}
 BACKUP="$HOME/.rejoin-backup"
 PROBLEMS=0
+MISSING=""
 
 ok()   { printf '  [OK] %s\n' "$*"; }
 warn() { printf '  [!!] %s\n' "$*"; PROBLEMS=$((PROBLEMS + 1)); }
@@ -145,6 +146,10 @@ NEED_REBOOT=1
 
 # ---------------------------------------------------------------------------
 step "6/8 Cek clone di config"
+# A config can come from another device (or another user space), so a package that
+# `pm list packages` does not show is not proof that the clone is gone. The Lua side
+# probes several sources and, when a clone really is missing, repoints it at a free
+# detected clone instead of just complaining.
 PKGS=$(cd "$DIR" && lua -e '
     local ok, c = pcall(dofile, "config/config.lua")
     if ok and type(c) == "table" then
@@ -160,9 +165,24 @@ else
         if printf '%s\n' "$INSTALLED" | grep -qx "package:$p"; then
             ok "$p"
         else
-            warn "$p TIDAK terpasang di device ini -> ubah lewat menu 2) Instances Manager"
+            # Not in the bulk list: ask the Lua probe (dumpsys / data dir) before
+            # calling it missing, since the bulk list is user-scoped.
+            if (cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --check-clone "$p" </dev/null 2>/dev/null | tail -1 | grep -qx "OK"); then
+                ok "$p (terdeteksi lewat probe lain)"
+            else
+                MISSING="$MISSING $p"
+            fi
         fi
     done
+    if [ -n "$MISSING" ]; then
+        warn "clone tidak terpasang:$MISSING"
+        FIX=$(cd "$DIR" && REJOIN_WRAPPER=1 lua main.lua --fix-clones </dev/null 2>/dev/null | tail -1)
+        case "$FIX" in
+            OK:*) ok "config diperbaiki otomatis -> ${FIX#OK: } (cek: menu 2)" ;;
+            NONE) warn "tidak ada clone lain yang bisa dipakai; atur manual lewat menu 2) Instances Manager" ;;
+            *)    warn "perbaikan otomatis tidak jalan (${FIX:-tidak ada output}); atur manual lewat menu 2) Instances Manager" ;;
+        esac
+    fi
 fi
 
 # Floating window grid on by default (a kept config from an older install may have it off).

@@ -53,6 +53,8 @@ local reportFlag = false
 local installHeartbeatFlag = false
 local migratePresetsFlag = false
 local enableWindowLayoutFlag = false
+local checkClonePkg = nil
+local fixClonesFlag = false
 for i = 1, #args do
     local a = args[i]
     if a == "--headless" or a == "--no-interactive" then headless = true end
@@ -65,6 +67,11 @@ for i = 1, #args do
     if a == "--install-heartbeat" then installHeartbeatFlag = true end
     if a == "--enable-window-layout" then enableWindowLayoutFlag = true end
     if a == "--migrate-presets" then migratePresetsFlag = true end
+    if a == "--fix-clones" then fixClonesFlag = true end
+    if a == "--check-clone" then
+        local nextArg = args[i+1]
+        if nextArg and nextArg:sub(1,2) ~= "--" then checkClonePkg = nextArg end
+    end
     if a == "--hwid" then
         -- Print this device's HWID (for a bot key) and stop; needs no root.
         print(require("managers.remote").deviceId())
@@ -95,7 +102,8 @@ do
     local okC, c = pcall(dofile, Paths.config())
     local rootOff = okC and type(c) == "table" and c.useRoot == false
     -- --report must work exactly when something (root included) is broken.
-    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or reportFlag or rootOff) then
+    if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or reportFlag
+            or checkClonePkg or fixClonesFlag or rootOff) then
         local RootCheck = require("core.root_check")
         if not RootCheck.ok() then
             Logger.error("Root belum aktif; rejoin berhenti")
@@ -111,7 +119,7 @@ local ok, created_or_err = Setup.ensureConfig(configSource)
 if not ok then
     Logger.error("Failed to ensure config: " .. tostring(created_or_err))
 else
-    if created_or_err == true and not skipWizard and not headless then
+    if created_or_err == true and not skipWizard and not headless and not checkClonePkg and not fixClonesFlag then
         -- config was just created from template; run the interactive setup wizard
         local Wizard = require("core.setup_wizard")
         local wok, werr = Wizard.run()
@@ -154,6 +162,55 @@ if doctorFlag then
     print("\n===== DOCTOR REPORT (jalankan di KEDUA device, diff outputnya) =====")
     print(report)
     print("====================================================================")
+    os.exit(0)
+end
+
+-- One-shot (installer): is one configured clone actually installed here? Prints OK /
+-- MISSING / UNKNOWN on the last line. The bulk `pm list packages` the installer runs is
+-- user-scoped, so this asks the deeper probes before a clone is called missing.
+if checkClonePkg then
+    local CloneScan = require("managers.clone_scan")
+    local state = CloneScan.isInstalled(checkClonePkg, CloneScan.listInstalled())
+    print(state == true and "OK" or (state == false and "MISSING" or "UNKNOWN"))
+    os.exit(state == false and 1 or 0)
+end
+
+-- One-shot (installer): a config copied from another device names clones that do not
+-- exist here. Repoint those at free clones detected on this device. Prints OK: <count>
+-- when it changed something, NONE when nothing usable was found.
+if fixClonesFlag then
+    local CloneScan = require("managers.clone_scan")
+    local c = Config.get() or {}
+    local results, err = CloneScan.fix(c)
+    if not results then
+        print("GAGAL: " .. tostring(err))
+        os.exit(1)
+    end
+    local fixed = 0
+    for _, r in ipairs(results) do
+        if r.kind == "fix" then fixed = fixed + 1 end
+    end
+    if fixed == 0 then
+        print("NONE")
+        os.exit(2)
+    end
+    local File = require("utils.file")
+    local backup, backupErr = File.copy(Paths.config(), Paths.data("config-before-clone-scan.lua"))
+    if not backup then
+        print("GAGAL backup config: " .. tostring(backupErr))
+        os.exit(1)
+    end
+    for _, r in ipairs(results) do
+        if r.kind == "fix" then print("Clone: " .. tostring(r.from) .. " -> " .. r.to) end
+        if r.kind == "missing" then print("Belum ditemukan: " .. tostring(r.pkg)) end
+    end
+    local saved, saveErr = Config.save(c)
+    if not saved then
+        print("GAGAL simpan: " .. tostring(saveErr))
+        os.exit(1)
+    end
+    InstanceManager.load(c)
+    print("OK: " .. fixed .. " clone dipindah")
     os.exit(0)
 end
 
