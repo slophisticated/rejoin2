@@ -15,6 +15,14 @@ end
 function CLI.run()
     local targets = Uninstall.targets()
 
+    -- A boot engine writes to data/ and would recreate files right after the wipe.
+    local okM, Monitor = pcall(require, "managers.monitor")
+    local other = okM and type(Monitor.otherEngine) == "function" and Monitor.otherEngine() or nil
+    if other then
+        print(string.format("\nPERINGATAN: engine lain masih jalan (pid %d, biasanya dari boot).", other))
+        print("Stop dulu biar data/ ga dibikin ulang: kill -TERM " .. other)
+    end
+
     print("\nUninstall rejoin")
     print("  Folder repo : " .. Paths.base())
     print("")
