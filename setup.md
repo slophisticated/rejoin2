@@ -219,6 +219,8 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 | Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
 | Pindah folder data (mis. ke SD card) | `export REJOIN_HOME=/sdcard/rejoin` sebelum start |
 | Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
+| Pasang / lepas auto-boot tanpa installer | menu `15` (Auto-boot), atau `cat ~/.termux/boot/start-rejoin.sh` buat cek isinya |
+| Uninstall bersih | menu `16` (Uninstall) — hapus script boot, script heartbeat, `config/` + `data/`; folder repo tetap. Lewat terminal: hapus `~/.termux/boot/start-rejoin.sh`, `~/rejoin/config`, `~/rejoin/data`, lalu `rm -rf ~/rejoin` |
 | Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` (volume balik ke setengah, setting senyap balik ke bawaan Android) |
 | Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |
 | Install ulang (config tetap) | perintah di Step 2 |

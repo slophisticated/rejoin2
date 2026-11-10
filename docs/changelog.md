@@ -2,6 +2,16 @@
 
 ## Unreleased / Bug fixes
 
+- **Menu Auto-boot (15) dan Uninstall (16)**: dulu satu-satunya cara pasang/lepas
+  auto-start boot itu jalanin `install.sh` lagi (atau ngedit
+  `~/.termux/boot/start-rejoin.sh` pakai tangan), dan uninstall cuma ada di versi
+  publish. Sekarang keduanya ada di menu. Auto-boot nulis script boot yang sama
+  seperti installer (update dulu kecuali `data/no-auto-update`, lalu serah ke
+  `termux-boot.sh`), punya status (script, aplikasi Termux:Boot, log boot) dan bisa
+  lihat `boot.log`. Uninstall nampilin daftar dulu dan wajib ngetik `HAPUS`: yang
+  dihapus cuma milik rejoin (script boot, script heartbeat di Autoexecute,
+  `config/`, `data/`), folder repo sengaja tetap biar checkout ga ikut kebakar.
+
 - **Path state jadi absolut (`core/paths.lua`)**: semua state (`config/config.lua`,
   `data/*`) sekarang dialamatkan lewat satu root = folder repo, bukan path relatif.
   Dulu log/pid/config meleset begitu engine dijalankan dari folder lain (CLI, menu

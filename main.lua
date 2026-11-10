@@ -254,7 +254,7 @@ local function takeOverEngine()
 end
 
 while true do
-    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) Logs & Report Error\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n 13) Install APK dari GoFile\n 14) Antrean Launch (status / lewati satu / batalkan sisa)\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
+    print('\n' .. infoLine .. '\nMain Menu:\n  1) Start Monitor (clone yang jalan ga di-launch ulang)\n  2) Instances Manager\n  3) Settings\n  4) Logs & Report Error\n  5) Launch All + Monitor\n  6) Script Manager (Scripts & Autoexecute)\n  7) Inject Cookie\n  8) Dump Cookies (debug)\n  9) Discord (Webhook & Bot)\n 10) Jendela & Mode Hemat\n 11) Preset Game\n 12) Input Key Delta\n 13) Install APK dari GoFile\n 14) Antrean Launch (status / lewati satu / batalkan sisa)\n 15) Auto-boot (Termux:Boot)\n 16) Uninstall\n  0) Exit\n  (tekan Ctrl+C untuk berhenti)\n')
     local choice = prompt("Choose: ") or ""
     choice = choice:match("^%s*(.-)%s*$")
     if choice == "5" then
@@ -315,6 +315,11 @@ while true do
         prompt("Tekan Enter untuk kembali ke menu utama")
     elseif choice == "14" then
         require("core.launch_control_cli").run()
+        prompt("Tekan Enter untuk kembali ke menu utama")
+    elseif choice == "15" then
+        require("core.boot_cli").run()
+    elseif choice == "16" then
+        require("core.uninstall_cli").run()
         prompt("Tekan Enter untuk kembali ke menu utama")
     elseif choice == "0" then
         print("Exiting main")
