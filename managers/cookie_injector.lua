@@ -3,6 +3,7 @@ local Shell = require("utils.shell")
 local Timer = require("utils.timer")
 local APK = require("managers.apk")
 local Auth = require("managers.auth")
+local Paths = require("core.paths")
 
 -- Injects a `.ROBLOSECURITY` token into a clone's WebView cookie DB (SQLite), so the
 -- chosen account becomes logged in on that clone without going through the browser.
@@ -491,7 +492,7 @@ function CookieInjector.logout(instance)
 
     -- Tell a running engine (another process when called from Menu 7) to drop its
     -- cached "logged in" answer, so it does not rejoin the clone it now sees closed.
-    local sig = io.open("data/auth_forget.txt", "a")
+    local sig = io.open(Paths.data("auth_forget.txt"), "a")
     if sig then sig:write(pkg, "\n"); sig:close() end
     -- One stop only (old code killed up to 4x with sleeps; each kill spikes load and
     -- risks sweeping peers on a tight box). The DB writes below re-check death first.

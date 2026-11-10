@@ -10,6 +10,7 @@ local Webhook = require("managers.webhook")
 local DeltaKey = require("managers.delta_key")
 local Remote = require("managers.remote")
 local LaunchControl = require("managers.launch_control")
+local Paths = require("core.paths")
 
 local Monitor = {}
 local running = false
@@ -52,7 +53,7 @@ end
 -- Only one engine may drive the clones: the boot engine runs hidden in the
 -- background, and a second one started from the menu would force-stop and relaunch
 -- the same clones. The running engine's pid is kept in data/monitor.pid.
-local PID_FILE = "data/monitor.pid"
+local PID_FILE = Paths.data("monitor.pid")
 
 local function selfPid()
     -- The shell spawned by popen is our child, so its $PPID is this Lua process.
@@ -114,7 +115,7 @@ end
 local function performLogout(inst)
     local pkg = inst.package
     logoutBlocked[pkg] = true
-    local saved = require("utils.file").write("data/logout_hold_" .. pkg .. ".txt", "Logout belum terverifikasi; ulang logout untuk melepas hold.\n")
+    local saved = require("utils.file").write(Paths.data("logout_hold_" .. pkg .. ".txt"), "Logout belum terverifikasi; ulang logout untuk melepas hold.\n")
     if not saved then
         logoutQueue[pkg] = nil
         Logger.error("[LOGOUT] gagal menyimpan hold; logout dibatalkan sebelum proses/cookie diubah")
@@ -137,7 +138,7 @@ local function performLogout(inst)
         if done then
             logoutBlocked[pkg] = nil
             pausedJoin[pkg] = nil
-            os.remove("data/logout_hold_" .. pkg .. ".txt")
+            os.remove(Paths.data("logout_hold_" .. pkg .. ".txt"))
             local opened, result = pcall(require("managers.recovery").reopenNoLogin, inst)
             if not opened or not result then Logger.warn("[LOGOUT] layar login gagal dibuka; monitor akan coba lagi") end
         end
@@ -178,15 +179,19 @@ local monitorConf = {}
 
 -- A freshly launched process may dip below minRss while its game loads. With heartbeat
 -- enabled, RSS alone never restarts it before its first signal (including after skip).
--- Explicit kicks, stale heartbeats and dead processes must still be recovered.
+-- Explicit kicks, stale heartbeats and dead processes must still be recovered: a
+-- definite `alive` answer (true OR false) is a verdict, so the clone is not "loading".
 local function isLoading(inst)
     local at = Heartbeat.launchedAt(inst)
     if not at then return false end
     local grace = math.max(60, tonumber(monitorConf.gracePeriod) or 60)
     local age = os.time() - at
     if age < 0 then return false end
-    if not Heartbeat.isEnabled() and age >= grace then return false end
+    -- false = kicked / heartbeat stopped: recover now instead of after the grace.
     if Heartbeat.alive(inst) ~= nil then return false end
+    -- No verdict from the game at all: protect the app only for the grace window, so a
+    -- clone that never produces a heartbeat is still recovered instead of held forever.
+    if age >= grace then return false end
     local ok, up = pcall(apkManager.isRunning, inst.package)
     return ok and up == true
 end
@@ -521,7 +526,12 @@ local function launchInOrder(conf, only)
             --    confirmed logout or an explicit manual action can also release it.
             local settled = 0
             local useHb = hbEnabled
-            local limit = useHb and joinTimeout or settle
+            -- Two clones read as the same account share one heartbeat file, so it cannot
+            -- tell them apart (alive is forced to nil below). Such a clone must not wait
+            -- the whole join timeout for a signal it can never get: fall back to the
+            -- plain settle delay and move on, otherwise Launch All hangs forever.
+            local hbGate = useHb and not sharedName[pkg]
+            local limit = hbGate and joinTimeout or settle
             local sawHeartbeat = false
             local warnedFast = false
             -- A low RSS reading is not a crash. Two absent-process checks explain a hold.
@@ -534,7 +544,7 @@ local function launchInOrder(conf, only)
                 token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")
                 if not launched then heldReason = "Launch gagal; antrean ditahan" end
             end
-            while active and running and (useHb or settled < limit) do
+            while active and running and (hbGate or settled < limit) do
                 if logoutQueue[pkg] then
                     if performLogout(inst) then
                         wasNoLogin[pkg] = true
@@ -606,8 +616,18 @@ local function launchInOrder(conf, only)
                     pausedJoin[pkg] = nil
                     why = "masuk game (heartbeat)"
                     break
-                elseif alive == false and tostring(hbWhy):find("^kicked") then
-                    heldReason = "Kick saat join: " .. tostring(hbWhy)
+                elseif alive == false then
+                    -- Kicked or this session's heartbeat stopped while joining. Do not
+                    -- keep the loading slot forever: leave it, the next monitor cycle
+                    -- sees the clone unhealthy and queues it straight back in.
+                    sawHeartbeat = false
+                    heldReason = tostring(hbWhy):find("^kicked")
+                        and ("Kick saat join: " .. tostring(hbWhy))
+                        or ("Heartbeat berhenti saat join: " .. tostring(hbWhy))
+                    why = heldReason
+                    pausedJoin[pkg] = nil
+                    Logger.warn("Monitor: " .. name .. ": " .. heldReason .. "; recovery diantrekan")
+                    break
                 end
                 if useHb and (settled >= limit or heldReason) then
                     local reason = sharedName[pkg] and "Username bentrok; heartbeat tidak bisa dibedakan"
@@ -620,7 +640,7 @@ local function launchInOrder(conf, only)
                     end
                     Status.setLaunchNotice(name .. ": " .. reason)
                 end
-                local step = useHb and poll or math.min(poll, limit - settled)
+                local step = hbGate and poll or math.min(poll, limit - settled)
                 launchWait(step, stopped)
                 settled = settled + step
                 keepRemoteAlive()
@@ -629,8 +649,16 @@ local function launchInOrder(conf, only)
                 if okR and isUp then retryAt = nil end
                 if okR and isUp == false then goneChecks = goneChecks + 1 else goneChecks = 0 end
                 if goneChecks >= 2 then
-                    heldReason = "Clone tertutup saat loading; antrean ditahan"
-                    if not useHb then why = heldReason; break end
+                    -- Process gone while the slot is held. Verify the login state first
+                    -- (the check above runs at goneChecks == 2): a logged-out clone gets
+                    -- the short login pause, only a still-logged-in one hands the slot
+                    -- back so the recovery is queued instead of blocking the batch.
+                    if os.time() - lastLoginCheck <= 2 and launched then
+                        why = "Clone tertutup saat loading; recovery diantrekan"
+                        Logger.warn("Monitor: " .. name .. ": " .. why)
+                        pausedJoin[pkg] = nil
+                        break
+                    end
                 end
             end
             LaunchControl.clear()
@@ -639,6 +667,8 @@ local function launchInOrder(conf, only)
             Status.setLaunchNotice(nil)
             if not useHb and launched and active and not sawHeartbeat then
                 why = "jeda tetap (heartbeat dimatikan)"
+            elseif sharedName[pkg] and launched and not sawHeartbeat then
+                why = "username kembar; jeda settle"
             elseif launched and not active then
                 why = "ga aktif dalam " .. timeout .. "s"
             end
@@ -681,8 +711,8 @@ end
 -- batch at a time by the monitor loop with the Launch All rules, so loading peaks
 -- do not pile up. Another process (the menu while the boot engine runs) asks through
 -- data/rejoin_request.txt: one instance id per line, or "all".
-local REQUEST_FILE = "data/rejoin_request.txt"
-local AUTH_FORGET_FILE = "data/auth_forget.txt" -- written by CookieInjector.logout
+local REQUEST_FILE = Paths.data("rejoin_request.txt")
+local AUTH_FORGET_FILE = Paths.data("auth_forget.txt") -- written by CookieInjector.logout
 
 -- Packages just logged out (maybe from Menu 7 in another process): forget their cached
 -- login state before deciding whether a closed clone gets rejoined.
@@ -779,7 +809,7 @@ end
 -- Menu 9 (webhook / bot: device name, URLs, secret) runs in another process and only
 -- writes config/config.lua. Copy those sections into the running engine when the file
 -- changes, so a renamed device or a new bot secret applies without a restart.
-local CONFIG_FILE = "config/config.lua"
+local CONFIG_FILE = Paths.config()
 local configText = nil
 
 local function readConfigText()
@@ -826,7 +856,7 @@ function Monitor.start(conf, opts)
     instanceManager = require("managers.instance")
     logoutBlocked = {}
     for _, inst in ipairs(instanceManager.getAll()) do
-        if require("utils.file").read("data/logout_hold_" .. inst.package .. ".txt") then
+        if require("utils.file").read(Paths.data("logout_hold_" .. inst.package .. ".txt")) then
             logoutBlocked[inst.package] = true
             Logger.warn("[LOGOUT] " .. inst.package .. " ditahan dari sesi sebelumnya; ulang logout")
         end

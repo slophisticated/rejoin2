@@ -1,5 +1,6 @@
 local Logger = require("core.logger")
 local Shell = require("utils.shell")
+local Paths = require("core.paths")
 
 -- Status reports to a Discord webhook.
 --
@@ -28,19 +29,33 @@ local firstReportAt = nil
 local warned = {}
 local cpuPrev = nil      -- { total, idle }
 local procPrev = {}      -- pkg -> { proc, total }
-local PIDS_FILE = "data/clone_pids.txt"
+local PIDS_FILE = Paths.data("clone_pids.txt")
 local pidSeen = nil      -- pkg -> { pid, since }: when this engine first saw the pid
-local STATE_FILE = "data/webhook_msg.txt"
+local STATE_FILE = Paths.data("webhook_msg.txt")
 local TMP = (os.getenv("PREFIX") or "/data/data/com.termux/files/usr") .. "/tmp"
 local SHOT = TMP .. "/rejoin_ss.png"
 local PAYLOAD = TMP .. "/rejoin_webhook.json"
-local HZ = 100
+local HZ = nil
 
 local function warnOnce(key, msg)
     if warned[key] then return end
     warned[key] = true
     Logger.warn("Webhook: " .. msg)
 end
+
+-- User-Hz of /proc starttime. Hardcoding 100 mis-scales uptime on a device whose
+-- kernel differs, so ask the system once and fall back to 100.
+local function clockTicks()
+    if HZ then return HZ end
+    local ok, out = pcall(Shell.exec, "getconf CLK_TCK 2>/dev/null")
+    HZ = ok and tonumber(tostring(out or ""):match("(%d+)")) or 100
+    if not HZ or HZ <= 0 then HZ = 100 end
+    return HZ
+end
+
+-- Anchored so a truncated paste is rejected, but the token charset is the real
+-- Discord one (base64url: letters, digits, `-` and `_`).
+local URL_OK = "^https://[%w%.%-%_]+/api/webhooks/%S+$"
 
 function Webhook.configure(c)
     local w = type(c) == "table" and type(c.webhook) == "table" and c.webhook or {}
@@ -51,7 +66,7 @@ function Webhook.configure(c)
         hideNames = w.hideNames ~= false,
         deviceName = type(w.deviceName) == "string" and w.deviceName:gsub("^%s+", ""):gsub("%s+$", "") or "",
     }
-    if not conf.url:match("^https://[%w%.%-]+/api/webhooks/") then conf.url = "" end
+    if not conf.url:match(URL_OK) then conf.url = "" end
     lastReport = 0
     firstReportAt = os.time() + 30
 end
@@ -237,7 +252,7 @@ local function procStats(pkg, sys)
     -- after ") ": state is field 3, utime 14, stime 15, starttime 22 (1-based in /proc docs)
     local utime, stime, start = tonumber(f[12]), tonumber(f[13]), tonumber(f[20])
     local r = {}
-    local fromProc = (start and sys.uptime) and (sys.uptime - start / HZ) or nil
+    local fromProc = (start and sys.uptime) and (sys.uptime - start / clockTicks()) or nil
     local since = seenSince(pkg, pid)
     if fromProc and fromProc >= 0 and fromProc <= sys.uptime + 60 then
         r.uptime = fromProc

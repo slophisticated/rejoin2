@@ -233,6 +233,11 @@ rejoin/
 └── data/               # log & status runtime (rejoin.log, boot.log, monitor.pid)
 ```
 
+Semua state (`config/`, `data/`) selalu dialamatkan **absolut** ke folder repo, jadi
+engine aman dijalankan dari folder mana pun (`lua ~/rejoin/main.lua`). Mau pindah root
+(misal ke SD card)? Set `REJOIN_HOME=/sdcard/rejoin`. Jangan pindahin `data/` pas
+engine masih jalan.
+
 ---
 
 ## Lisensi / Kontribusi

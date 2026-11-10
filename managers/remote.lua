@@ -1,6 +1,7 @@
 local Logger = require("core.logger")
 local Config = require("core.config")
 local JSON = require("utils.json")
+local Paths = require("core.paths")
 
 -- Remote control through the user's Discord bot (see docs/discord_bot_prd.md).
 --
@@ -23,7 +24,7 @@ local Remote = {}
 local REMOTE_URL_FILE = "https://raw.githubusercontent.com/slophisticated/rejoin2/main/remote_url.txt"
 local PROTOCOL = 1
 
-local DEVICE_ID_FILE = "data/device_id.txt"
+local DEVICE_ID_FILE = Paths.data("device_id.txt")
 local deviceIdCache = nil
 local lastSync = 0
 local fastUntil = 0      -- poll every FAST_INTERVAL s until then (right after a command)
@@ -161,7 +162,7 @@ local SCHEMA = {
     { key = "heartbeat.saver.fpsCap", type = "int", min = 0, max = 240, label = "Batas FPS mode hemat" },
     { key = "heartbeat.saver.disable3d", type = "bool", label = "Render 3D mati (mode hemat)" },
     { key = "webhook.url", type = "string", secret = true, max = 300,
-      pattern = "^https://[%w%.%-]+/api/webhooks/", label = "URL Discord webhook" },
+      pattern = "^https://[%w%.%-%_]+/api/webhooks/%S+$", label = "URL Discord webhook" },
     { key = "webhook.interval", type = "int", min = 60, max = 3600, label = "Interval laporan webhook (dtk)" },
     { key = "webhook.screenshot", type = "bool", label = "Screenshot di laporan" },
     { key = "webhook.hideNames", type = "bool", label = "Sembunyikan nama akun" },
@@ -525,7 +526,7 @@ function H.report()
     local Report = require("managers.report")
     local okB, text = pcall(Report.build)
     if not okB then return false, "report gagal dibuat: " .. tostring(text) end
-    pcall(function() require("utils.file").write("data/report.txt", text) end)
+    pcall(function() require("utils.file").write(Paths.data("report.txt"), text) end)
     local okW, Webhook = pcall(require, "managers.webhook")
     local label = okW and Webhook.deviceLabel and Webhook.deviceLabel() or "device"
     return true, "report terlampir (rahasia disensor)",

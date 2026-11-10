@@ -1,5 +1,6 @@
 local Logger = require("core.logger")
 local File = require("utils.file")
+local Paths = require("core.paths")
 
 -- Main Menu 4: one error report for everything (copied to the clipboard), or a raw
 -- look at a single log.
@@ -53,9 +54,9 @@ function CLI.run()
         elseif choice == "2" then
             showTail(Logger.getLogPath(), 200)
         elseif choice == "3" then
-            showTail("data/boot.log", 100)
+            showTail(Paths.data("boot.log"), 100)
         elseif choice == "4" then
-            showTail("data/crash.log", 100)
+            showTail(Paths.data("crash.log"), 100)
         else
             print("Pilihan tidak dikenal.")
         end

@@ -65,6 +65,8 @@ run_migrations() {
 
 cd "$DIR" || exit 0
 mkdir -p data 2>/dev/null
+# Lua resolves config/ and data/ absolutely (core/paths.lua, root = repo dir), so the
+# cd above is only for git and the relative shell paths in this script.
 
 # Second pass started by the update below: the files are already new, so this runs
 # the migrations of the NEW version (a migration added in an update applies on the

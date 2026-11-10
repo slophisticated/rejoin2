@@ -2,13 +2,14 @@ local Logger = require("core.logger")
 local File = require("utils.file")
 local Shell = require("utils.shell")
 local Auth = require("managers.auth")
+local Paths = require("core.paths")
 
 local Username = {}
 
 local cache = {}
 local TTL_OK   = 600  -- seconds before re-resolving a successful result
 local TTL_FAIL = 60   -- seconds before retrying after a failure / nil
-local LOG_PATH = "data/username_scan.log"
+local LOG_PATH = Paths.data("username_scan.log")
 
 local function trim(s)  return (s or ""):match("^%s*(.-)%s*$") end
 

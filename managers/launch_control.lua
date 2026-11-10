@@ -1,9 +1,10 @@
 -- Session-scoped controls shared by the dashboard and a second Termux menu.
 local File = require("utils.file")
 local Json = require("utils.json")
+local Paths = require("core.paths")
 local Control = {}
-local STATE = "data/launch_wait.json"
-local ACTION = "data/launch_action.json"
+local STATE = Paths.data("launch_wait.json")
+local ACTION = Paths.data("launch_action.json")
 local serial = 0
 
 function Control.clear()

@@ -30,6 +30,9 @@ end
 
 local Logger = require("core.logger")
 local State = require("core.state")
+local Paths = require("core.paths")
+
+Paths.ensure()
 
 Logger.info(State.get())
 
@@ -86,7 +89,7 @@ end
 -- the setup wizard's clone detection included). Skipped for --dry-run, for the
 -- installer's one-shot flags (they do not need root) and with useRoot = false.
 do
-    local okC, c = pcall(dofile, "config/config.lua")
+    local okC, c = pcall(dofile, Paths.config())
     local rootOff = okC and type(c) == "table" and c.useRoot == false
     -- --report must work exactly when something (root included) is broken.
     if not (dryRun or installHeartbeatFlag or enableWindowLayoutFlag or migratePresetsFlag or reportFlag or rootOff) then

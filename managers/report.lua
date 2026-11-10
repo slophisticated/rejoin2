@@ -1,5 +1,6 @@
 local Config = require("core.config")
 local File = require("utils.file")
+local Paths = require("core.paths")
 
 -- One error report for everything (Main Menu 4 -> 1, or `lua main.lua --report`).
 --
@@ -13,7 +14,7 @@ local File = require("utils.file")
 local Report = {}
 
 local MAX_CHARS = 60000
-local SAVE_PATHS = { "data/report.txt", "/sdcard/Download/rejoin-report.txt" }
+local SAVE_PATHS = { Paths.data("report.txt"), "/sdcard/Download/rejoin-report.txt" }
 
 local function sh(cmd)
     local p = io.popen(cmd .. " 2>/dev/null")
@@ -89,11 +90,11 @@ function Report.redact(text, secrets)
 end
 
 local function deviceId()
-    return (File.read("data/device_id.txt") or ""):gsub("%s+", "")
+    return (File.read(Paths.data("device_id.txt")) or ""):gsub("%s+", "")
 end
 
 local function engineRunning()
-    local pid = tonumber((File.read("data/monitor.pid") or ""):match("%d+") or "")
+    local pid = tonumber((File.read(Paths.data("monitor.pid")) or ""):match("%d+") or "")
     if not pid then return "tidak" end
     local cmd = File.read("/proc/" .. pid .. "/cmdline")
     return (cmd and cmd:find("main.lua", 1, true)) and ("jalan (pid " .. pid .. ")") or "tidak"
@@ -140,7 +141,7 @@ function Report.build()
     local hb = type(conf.heartbeat) == "table" and conf.heartbeat or {}
     local okW, Webhook = pcall(require, "managers.webhook")
     local label = okW and Webhook.deviceLabel and select(2, pcall(Webhook.deviceLabel)) or "-"
-    local logPath = conf.logPath or "data/rejoin.log"
+    local logPath = Paths.resolve(conf.logPath or "data/rejoin.log")
     local launchLog = conf.launchLogPath or "launch.log"
 
     local out = {
@@ -194,11 +195,11 @@ function Report.build()
     local main = lines(logPath)
     section(out, "ERROR / WARN terakhir (" .. logPath .. ", yang sama digabung)",
         Report.collapse(tail(main, 2000, isProblem), 40))
-    section(out, "Crash Lua (data/crash.log)", tail(lines("data/crash.log"), 40))
-    section(out, "Boot + update (data/boot.log)", tail(lines("data/boot.log"), 40))
+    section(out, "Crash Lua (data/crash.log)", tail(lines(Paths.data("crash.log")), 40))
+    section(out, "Boot + update (data/boot.log)", tail(lines(Paths.data("boot.log")), 40))
     section(out, "Aktivitas terakhir (" .. logPath .. ")", tail(main, 80))
     section(out, "Launch (" .. launchLog .. ")", tail(lines(launchLog), 25))
-    section(out, "Username scan (data/username_scan.log)", tail(lines("data/username_scan.log"), 10, isProblem))
+    section(out, "Username scan (data/username_scan.log)", tail(lines(Paths.data("username_scan.log")), 10, isProblem))
 
     local text = Report.redact(table.concat(out, "\n"), {
         secret = remote.secret, hwid = deviceId(), webhook = webhook.url,

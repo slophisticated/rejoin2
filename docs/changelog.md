@@ -2,6 +2,33 @@
 
 ## Unreleased / Bug fixes
 
+- **Path state jadi absolut (`core/paths.lua`)**: semua state (`config/config.lua`,
+  `data/*`) sekarang dialamatkan lewat satu root = folder repo, bukan path relatif.
+  Dulu log/pid/config meleset begitu engine dijalankan dari folder lain (CLI, menu
+  dari `/sdcard`, shell editor), dan `--report` bisa nulis ke tempat acak. Root bisa
+  ditimpa `REJOIN_HOME`; folder `config/` dan `data/` dibikin otomatis. Path log di
+  config relatif tetap dihormati dan diselesaikan ke root, path absolut dibiarkan.
+
+- **Fix Launch All nyangkut kalau ada username kembar**: dua clone yang kebaca akun
+  sama berbagi satu file heartbeat, jadi sinyalnya tidak bisa dibedakan dan dulu
+  antrean nunggu tanpa pernah lanjut. Sekarang clone seperti itu pakai jeda settle
+  lalu lanjut, dengan alasan `username kembar; jeda settle`.
+
+- **Fix slot loading ditahan clone yang sudah mati/kick**: clone yang kena kick,
+  heartbeat-nya berhenti, atau prosesnya hilang saat menunggu join dulu menahan slot
+  sampai timeout (semua clone di belakangnya ikut nyangkut). Sekarang slotnya
+  dilepas dan clone itu diantrekan ulang lewat siklus monitor.
+
+- **Fix masa loading tanpa batas**: `isLoading` dulu melindungi clone yang tidak
+  pernah mengirim heartbeat selamanya. Sekarang dibatasi `gracePeriod`, jadi clone
+  yang heartbeat-nya tidak pernah masuk tetap dipulihkan.
+
+- **Webhook: `CLK_TCK` dibaca dari sistem** (`getconf CLK_TCK`, fallback 100) saat
+  menghitung uptime proses; `HZ = 100` yang di-hardcode bikin uptime ngaco di device
+  dengan nilai beda. Regex URL webhook sekarang di-anchor `$` dan menerima `_`
+  (token Discord base64url), jadi URL kepotong/garbage ditolak sejak awal, bukan
+  gagal pas kirim.
+
 - **Petunjuk saat volume device gagal diatur**: peringatan installer menjelaskan
   bahwa instalasi tetap lanjut, memberi langkah Setelan Android, perintah cek/coba
   ulang sesuai tool dan stream device, serta meminta output jika tetap gagal.

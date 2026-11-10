@@ -217,6 +217,7 @@ Cukup **reboot** cloud phone: Rejoin otomatis **update dari GitHub** lalu jalan 
 |---|---|
 | Update manual tanpa reboot | `sh ~/rejoin/update.sh` |
 | Stop engine yang jalan dari boot | `kill $(cat ~/rejoin/data/monitor.pid)` |
+| Pindah folder data (mis. ke SD card) | `export REJOIN_HOME=/sdcard/rejoin` sebelum start |
 | Matikan auto-update | `touch ~/rejoin/data/no-auto-update` |
 | Setting device ulang / kembalikan | `sh ~/rejoin/device_setup.sh` / `sh ~/rejoin/device_setup.sh --undo` (volume balik ke setengah, setting senyap balik ke bawaan Android) |
 | Tampilan kekecilan / kegedean (default 600, angka tersimpan) | `SMALLEST_WIDTH=800 sh ~/rejoin/device_setup.sh` lalu buka ulang clone |

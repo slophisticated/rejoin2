@@ -44,6 +44,21 @@ local function sandbox()
         return value
     end
     env.package.preload["core.logger"] = dummy
+    -- The harness runs from the repo root, and sandboxed modules would otherwise probe
+    -- the real tree. Pin the data root to relative paths so file keys stay "data/...".
+    env.package.preload["core.paths"] = function()
+        return {
+            base = function() return "." end,
+            config = function() return "config/config.lua" end,
+            template = function() return "config/template.lua" end,
+            dataDir = function() return "data" end,
+            data = function(name) return "data/" .. tostring(name) end,
+            resolve = function(p) p = tostring(p or "") if p == "" then return "data/rejoin.log" end
+                if p:match("^/") then return p end return "./" .. p end,
+            ensure = function() return "." end,
+            announce = noop,
+        }
+    end
     return env
 end
 
@@ -160,7 +175,9 @@ local function monitorScenario(opts)
     env.package.preload["managers.heartbeat"] = function()
         return {
             install = function() return true end,
-            isEnabled = function() return false end,
+            -- Heartbeat on = strict join gate (kick / dead process are detected from it).
+            -- Off = the old RSS grace path, used by the low-RSS tests.
+            isEnabled = function() return opts.hb == true end,
             launchedAt = function() return lastLaunch end,
             isUp = function() return false end,
             alive = function()
@@ -172,13 +189,20 @@ local function monitorScenario(opts)
     end
     env.package.preload["managers.recovery"] = function()
         return {
+            -- The monitor no longer calls checkAndRecover directly: it queues a rejoin
+            -- and the queue ends up in launchAndJoin, so that is what a "recovery" is
+            -- observed as now.
             checkAndRecover = function()
                 recoveries[#recoveries + 1] = clock
                 recovered, lastLaunch = true, clock
                 return true
             end,
             launchAndJoin = function()
+                -- Recovery is now observed here (the monitor queues instead of calling
+                -- checkAndRecover), but a game join is also tracked separately.
+                recoveries[#recoveries + 1] = clock
                 relaunches[#relaunches + 1] = "join@" .. clock
+                recovered, lastLaunch = true, clock
                 return true
             end,
             relaunch = function()
@@ -194,13 +218,17 @@ local function monitorScenario(opts)
             if clock >= 1000 + (opts.duration or 15) then env.require("managers.monitor").stop() end
         end }
     end
-    env.require("managers.monitor").start({ monitorInterval = 5, gracePeriod = opts.grace or 30 })
+    -- Keep the queued launch's own settle wait short: these tests are about how fast the
+    -- monitor decides to recover again, not about the launch pause.
+    env.require("managers.monitor").start({ monitorInterval = 5, gracePeriod = opts.grace or 30,
+        launchSettleDelay = 1, launchWaitInterval = 1, launchJoinTimeout = 5 })
     return recoveries, relaunches
 end
 
 test("low RSS after recovery waits at least 60 seconds, then retries", function()
     local times = monitorScenario({ duration = 75 })
     assert(times[1] == 1000)
+    -- The 60s loading grace still protects the clone after it was recovered.
     assert(#times == 2 and times[2] >= 1060, "clone was recovered again while loading")
 end)
 
@@ -215,17 +243,19 @@ test("a fresh launch is protected from freeze relaunch and RSS recovery", functi
 end)
 
 test("a fresh kick is recovered immediately during loading grace", function()
-    local times = monitorScenario({ kicked = true, duration = 10 })
-    assert(times[1] == 1000 and times[2] == 1005)
+    local times = monitorScenario({ kicked = true, duration = 10, hb = true })
+    assert(times[1] == 1000 and times[2] and times[2] <= 1015, "no quick recovery: " .. table.concat(times, ","))
 end)
 
 test("a dead process is recovered immediately during loading grace", function()
-    local times = monitorScenario({ dead = true, duration = 10 })
-    assert(times[1] == 1000 and times[2] == 1005)
+    local times = monitorScenario({ dead = true, duration = 10, hb = true })
+    -- Two absent-process checks explain the hold; the slot is then handed back so the
+    -- clone is queued again right away instead of waiting out the 60s grace.
+    assert(times[1] == 1000 and times[2] and times[2] <= 1015, "no quick recovery: " .. table.concat(times, ","))
 end)
 
 test("a stopped session heartbeat is not hidden by loading grace", function()
-    local times = monitorScenario({ stale = true, duration = 15 })
+    local times = monitorScenario({ stale = true, duration = 15, hb = true })
     assert(times[1] == 1000 and times[2] <= 1010)
 end)
 
@@ -612,6 +642,11 @@ local function recoveryScenario(loggedIn, running)
     env.package.preload["managers.apk"] = function()
         return { forceStop = function() calls[#calls + 1] = "forceStop"; return true end,
             isRunning = function() return running end,
+            -- A logged-out clone is left alone only while its window is actually there.
+            hasWindow = function() return running end,
+            stopProcesses = function() calls[#calls + 1] = "stopProcesses"; return true end,
+            waitForMemory = function() return true end,
+            pids = function() return {} end,
             launch = function() calls[#calls + 1] = "launch"; return true end }
     end
     env.package.preload["utils.android"] = function()
@@ -644,7 +679,8 @@ test("a logged-out clone is never force-stopped or sent to the game link", funct
     ok, calls = recoveryScenario(false, false)
     assert(ok and calls == "launch", "closed: opened gently only, got " .. calls)
     ok, calls = recoveryScenario(true, true)
-    assert(calls:find("forceStop", 1, true) and calls:find("openURL", 1, true), "logged in still joins: " .. calls)
+    -- A logged-in clone is restarted with a PID kill (stopProcesses), not am force-stop.
+    assert(calls:find("stopProcesses", 1, true) and calls:find("openURL", 1, true), "logged in still joins: " .. calls)
 end)
 
 test("logout ends the Roblox session (CSRF round) without the token on a command line", function()

@@ -5,6 +5,13 @@ os.time = function() return now end
 local function stub(name, value) package.loaded[name] = value end
 local noop = function() end
 stub("core.logger", { info = function(s) logs[#logs + 1] = s end, warn = noop, error = noop, debug = noop })
+-- Keep state keys relative so the assertions can look them up by name.
+stub("core.paths", { base = function() return "." end, config = function() return "config/config.lua" end,
+    template = function() return "config/template.lua" end, dataDir = function() return "data" end,
+    data = function(n) return "data/" .. tostring(n) end,
+    resolve = function(p) p = tostring(p or "") if p == "" then return "data/rejoin.log" end
+        if p:match("^/") then return p end return "./" .. p end,
+    ensure = function() return "." end, announce = noop })
 stub("utils.file", { read = function(p) return files[p] end,
     write = function(p, s) files[p] = s; return true end })
 os.remove = function(p) files[p] = nil end

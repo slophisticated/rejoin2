@@ -4,7 +4,9 @@
 --
 -- Usage: lua utils/crash_guard.lua main.lua [args...]   (arg / ... look as usual)
 
-local LOG = "data/crash.log"
+local Paths = require("core.paths")
+
+local LOG = Paths.data("crash.log")
 local script = arg and arg[1]
 if not script then
     io.stderr:write("usage: lua utils/crash_guard.lua <script.lua> [args...]\n")

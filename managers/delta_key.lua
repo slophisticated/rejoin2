@@ -2,6 +2,7 @@ local Logger = require("core.logger")
 local Config = require("core.config")
 local File = require("utils.file")
 local Shell = require("utils.shell")
+local Paths = require("core.paths")
 
 -- Is Delta's key still there?
 --
@@ -20,7 +21,7 @@ local Shell = require("utils.shell")
 
 local DeltaKey = {}
 
-local REMEMBER = "data/delta_license_path.txt"
+local REMEMBER = Paths.data("delta_license_path.txt")
 local cached = nil
 local warnedMissing = false
 

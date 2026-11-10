@@ -1,9 +1,10 @@
 local File = require("utils.file")
 local Logger = require("core.logger")
+local Paths = require("core.paths")
 
 local Setup = {}
-local configPath = "config/config.lua"
-local templatePath = "config/template.lua"
+local configPath = Paths.config()
+local templatePath = Paths.template()
 
 -- Ensure a usable config exists. If config/config.lua is missing, copy template to config/config.lua
 -- Optionally, pass a sourcePath to copy from instead of the packaged template
