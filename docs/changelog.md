@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Validasi aktivasi Termux:Boot per user Android**: installer membuka activity
+  dengan `am start -W --user <user Termux>`, menampilkan kegagalan, dan memeriksa
+  `installed=true` + `stopped=false` pada baris user tersebut. Status user lain atau
+  `installed=false stopped=false` tidak lagi dianggap siap. Instruksi reboot untuk
+  auto-start hanya diberikan setelah pemeriksaan berhasil.
+
 - **Deteksi clone lintas nama package saat install**: package config yang hilang
   dicocokkan dengan clone Roblox terdeteksi yang belum digunakan, bukan hanya
   menampilkan peringatan `com.apengjers.*` tidak terpasang. Wizard memakai scanner

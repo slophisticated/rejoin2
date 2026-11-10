@@ -226,22 +226,40 @@ chmod +x "$BOOT_SCRIPT"
 ok "terpasang: $BOOT_SCRIPT (auto-update tiap boot)"
 
 # ---------------------------------------------------------------------------
-step "8/8 Termux:Boot"
-if printf '%s\n' "$INSTALLED" | grep -qx "package:com.termux.boot"; then
-    state=$(su -c "dumpsys package com.termux.boot" </dev/null 2>/dev/null | grep -o 'stopped=[a-z]*' | head -1)
-    if [ "$state" = "stopped=true" ]; then
-        su -c "am start -n com.termux.boot/.BootActivity" </dev/null >/dev/null 2>&1
-        sleep 3
-        state=$(su -c "dumpsys package com.termux.boot" </dev/null 2>/dev/null | grep -o 'stopped=[a-z]*' | head -1)
+activate_termux_boot() {
+    BOOT_READY=0
+    # Android UID encodes the app's user/profile; do not read another user's state.
+    termux_uid=$(id -u)
+    case "$termux_uid" in
+        ''|*[!0-9]*) warn "gagal membaca user Termux; auto-start belum terverifikasi"; return ;;
+    esac
+    boot_user=$((termux_uid / 100000))
+    boot_state=$(su -c "dumpsys package com.termux.boot" </dev/null 2>/dev/null |
+        grep -E "^[[:space:]]*User ${boot_user}:" | head -1)
+    if ! printf '%s\n' "$boot_state" | grep -Eq '(^|[[:space:]])installed=true([[:space:]]|$)'; then
+        warn "Termux:Boot belum terpasang untuk user $boot_user. Pasang dari sumber yang sama dengan Termux di profile ini, lalu ulang installer. Auto-start BELUM siap."
+        return
     fi
-    if [ "$state" = "stopped=false" ]; then
-        ok "Termux:Boot aktif (kembali ke Termux kalau layar Termux:Boot terbuka)"
+    boot_open=$(su -c "am start -W --user $boot_user -n com.termux.boot/.BootActivity" </dev/null 2>&1)
+    boot_rc=$?
+    if [ "$boot_rc" -ne 0 ] || printf '%s\n' "$boot_open" | grep -Eiq 'error|exception|permission denial'; then
+        warn "gagal membuka Termux:Boot (user $boot_user): $boot_open. Auto-start BELUM siap."
+        return
+    fi
+    sleep 3
+    boot_state=$(su -c "dumpsys package com.termux.boot" </dev/null 2>/dev/null |
+        grep -E "^[[:space:]]*User ${boot_user}:" | head -1)
+    if printf '%s\n' "$boot_state" | grep -Eq '(^|[[:space:]])installed=true([[:space:]]|$)' &&
+       printf '%s\n' "$boot_state" | grep -Eq '(^|[[:space:]])stopped=false([[:space:]]|$)'; then
+        BOOT_READY=1
+        ok "Termux:Boot terbuka dan aktif di user $boot_user. Auto-start siap; boleh reboot."
     else
-        warn "Termux:Boot belum aktif ($state). Tap ikon Termux:Boot sekali, lalu jalankan installer lagi."
+        warn "Termux:Boot belum aktif di user $boot_user ($boot_state). Buka ikonnya sekali lalu ulang installer. Auto-start BELUM siap."
     fi
-else
-    warn "aplikasi Termux:Boot belum terpasang. Install APK-nya (sumber sama dengan Termux), tap ikonnya sekali, lalu jalankan installer lagi."
-fi
+}
+
+step "8/8 Termux:Boot"
+activate_termux_boot
 
 # ---------------------------------------------------------------------------
 echo
@@ -250,7 +268,11 @@ if [ "$PROBLEMS" -eq 0 ]; then
 else
     echo "SELESAI dengan $PROBLEMS peringatan [!!] di atas. Beresin dulu, lalu jalankan ulang installer."
 fi
-[ -n "$NEED_REBOOT" ] && echo "Reboot sekali supaya freeform / resizable aktif."
+if [ "$BOOT_READY" != 1 ]; then
+    echo "Auto-start BELUM siap. Beresin Termux:Boot dulu sebelum reboot untuk menjalankan Rejoin otomatis."
+elif [ -n "$NEED_REBOOT" ]; then
+    echo "Reboot sekali supaya freeform / resizable aktif dan Rejoin mulai otomatis."
+fi
 echo "Jalankan manual: cd ~/rejoin && lua main.lua   |   Update manual: sh ~/rejoin/update.sh"
 # Bot Discord: the per-device key is issued for this HWID (/hwid redeem), then entered
 # in Menu 9 -> 10. Skipped when the device is already connected.

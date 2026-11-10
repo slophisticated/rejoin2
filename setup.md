@@ -212,6 +212,12 @@ cd ~/rejoin && lua main.lua
 
 ## 🔁 Auto Start & Update
 
+Di langkah 8/8, installer membuka Termux:Boot otomatis pada user/profile Termux.
+Kalau muncul **“Auto-start siap; boleh reboot”**, lu bisa langsung reboot.
+Status harus `installed=true` dan `stopped=false` pada user yang sama; error membuka
+activity sekarang ditampilkan. Kalau muncul **“Auto-start BELUM siap”**, pasang
+Termux:Boot dari sumber yang sama dengan Termux di profile itu, lalu ulang installer.
+
 **Clone dari pembuat lain:** installer mencoba mendeteksi dari package dan activity
 Roblox, bukan wajib bernama `com.apengjers.*`. Config dengan package yang hilang
 otomatis dipasangkan ke clone yang terdeteksi dan belum digunakan. Bisa diulang:

@@ -1,5 +1,10 @@
 # Rejoin Engine
 
+Installer membuka Termux:Boot otomatis pada user/profile yang sama dengan Termux.
+Reboot untuk auto-start baru dinyatakan siap setelah activity berhasil dibuka dan
+status user tersebut `installed=true` serta `stopped=false`. Kalau belum siap,
+pasang Termux:Boot dari sumber yang sama dengan Termux di profile itu, lalu ulang installer.
+
 Trial logout PID: logout bot menghentikan hanya proses package target (termasuk
 subproses), tanpa `am force-stop`, memverifikasi penghapusan cookie, lalu membuka
 launcher biasa ke layar login tanpa link game. Logout gagal menahan target dari
