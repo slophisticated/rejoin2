@@ -2,6 +2,13 @@
 
 ## Unreleased / Bug fixes
 
+- **Antrean Launch All tidak lagi nahan selamanya & clone FC langsung di-recovery**:
+  saat menunggu heartbeat Delta, jika waktu melebihi `launchJoinTimeout` (default
+  diturunkan dari 240 dtk ke 60 dtk), engine otomatis lanjut membuka clone berikutnya.
+  Jika clone terdeteksi Force Close (FC) / mati saat loading, clone tersebut langsung
+  dimasukkan ke antrean recovery/rejoin dan engine langsung melanjutkan antrean ke
+  clone berikutnya tanpa menahan seluruh batch.
+
 - **Uninstall bersih total hapus folder repo (Menu 16)**: uninstall sekarang
   menghapus folder repo `~/rejoin` sekalian (termasuk config dan data), mematikan
   engine background jika masih jalan dari boot, serta konfirmasi `HAPUS` tidak lagi

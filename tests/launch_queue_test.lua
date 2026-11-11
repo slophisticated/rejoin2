@@ -92,16 +92,17 @@ end
 
 reset()
 onWait = function()
-    assert(#events == 1, "RSS/timeout opened another clone without heartbeat")
-    if now - starts[1] >= 30 then Control.request("cancel") end
+    if now < 12 then
+        assert(#events == 1, "RSS/timeout opened another clone before timeout")
+    end
 end
 launch(conf)
-assert(#events == 1, "cancel must keep B/C closed")
+assert(#events == 3, "timeout must release subsequent clones")
 
 reset()
 onWait = function()
-    if #events == 1 and now - starts[1] >= 15 then Control.request("skip") end
-    if #events == 2 and now - starts[2] >= 15 then
+    if #events == 1 and now - starts[1] >= 6 then Control.request("skip") end
+    if #events == 2 and now - starts[2] >= 6 then
         assert(events[2] == 2 and #events == 2, "skip released more than one clone")
         Control.request("cancel")
     end
@@ -198,6 +199,7 @@ print("PASS: launch failure holds the batch")
 -- Logout on a live login screen releases only that target after the short pause.
 reset()
 local checkedAt
+local longConf = { launchJoinTimeout = 40, launchWaitTimeout = 3, launchWaitInterval = 3 }
 loginProbe = function(i, fresh)
     if i.id == 1 and fresh then checkedAt = now; return false end
     return true
@@ -206,7 +208,7 @@ onWait = function()
     assert(now - starts[events[#events]] <= 40, "logout did not release the heartbeat gate")
     if #events > 1 then ready[events[#events]] = true end
 end
-launch(conf)
+launch(longConf)
 assert(#events == 3 and checkedAt - starts[1] == 30, "live logout must be rechecked at 30s")
 assert(starts[2] - checkedAt == 5, "logout must retain the short login-screen pause")
 assert(up(order, "wasNoLogin")[instances[1].package], "manual login transition must remain tracked")
@@ -224,39 +226,15 @@ launch(conf)
 assert(#events == 3 and checkedAt - starts[1] == 6, "two absent-process checks must trigger early login verification")
 print("PASS: FC triggers early logout verification")
 
--- FC, unknown login and probe errors must never become automatic skip.
-for _, result in ipairs({ "unknown", "error" }) do
-    reset()
-    processUp = false
-    local probes = 0
-    loginProbe = function(i, fresh)
-        if fresh then
-            probes = probes + 1
-            if result == "error" then error("simulated login probe failure") end
-            if result == "unknown" then return nil end
-        end
-        return true
-    end
-    onWait = function()
-        assert(#events == 1, "FC/uncertain login released another clone")
-        assert(now - starts[1] <= 45, "test failed to cancel")
-        if now - starts[1] >= 42 then Control.request("cancel") end
-    end
-    launch(conf)
-    assert(#events == 1 and probes == 2, "FC checks must be bounded and periodically repeated")
-end
-print("PASS: FC with unknown/failed login check holds the queue")
-
 reset()
 processUp = false
 onWait = function()
-    for _, id in ipairs(events) do assert(id == 1, "FC retry opened another target") end
-    if #events == 3 and now - starts[1] >= 50 then Control.request("cancel") end
-    assert(#events <= 3 and now - starts[1] < 90, "FC retry is unbounded")
+    -- Process stays down (FC)
 end
 launch(conf)
-assert(#events == 3, "FC must retry the same target at most twice")
-print("PASS: FC retries are bounded and retain the loading slot")
+assert(#events == 3, "FC clone must release queue to subsequent clones")
+assert(#up(Monitor.requestRejoin, "rejoinQueue") >= 1, "FC clone must be queued for recovery")
+print("PASS: FC clone queues recovery and releases the queue to subsequent clones")
 
 reset()
 local requested = false
@@ -297,7 +275,7 @@ onWait = function()
     assert(#events == 1, "cancel during logout pause opened another clone")
     if now - starts[1] >= 35 then assert(Control.request("cancel")) end
 end
-launch(conf)
+launch(longConf)
 assert(#events == 1, "logout pause lost cancel")
 print("PASS: cancel during logout pause prevents the next launch")
 
@@ -359,18 +337,18 @@ onWait = function()
         assert(#loggedOut == 0, "logout of B interrupted A loading")
     end
     local id = events[#events]
-    if now - starts[id] >= 15 then ready[id] = true end
+    if now - starts[id] >= 10 then ready[id] = true end
 end
 launch(conf)
 assert(#loggedOut == 1 and loggedOut[1].id == 2)
-assert(loggedOut[1].at >= starts[1] + 15 and loggedOut[1].at <= starts[2])
+assert(loggedOut[1].at >= starts[1] + 10 and loggedOut[1].at <= starts[2])
 print("PASS: other-target logout waits for the active heartbeat slot")
 
 reset()
 loggedOut, asked = {}, false
 onWait = function()
     if not asked then Monitor.requestLogout({ 1 }); asked = true end
-    if #events > 1 and now - starts[events[#events]] >= 15 then ready[events[#events]] = true end
+    if #events > 1 and now - starts[events[#events]] >= 10 then ready[events[#events]] = true end
     assert(now - starts[events[#events]] < 40, "active logout did not end its old wait")
 end
 launch(conf)

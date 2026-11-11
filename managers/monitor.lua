@@ -340,11 +340,9 @@ local function launchInOrder(conf, only)
     if settle < 0 then settle = 0 end
     local emptyDelay = tonumber(conf and conf.launchEmptyDelay) or 5
     if emptyDelay < 0 then emptyDelay = 0 end
-    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 240
-    if joinTimeout < 0 then joinTimeout = 0 end
-    -- Heartbeat mode never falls back to RSS or a fixed delay after a timeout.
+    local joinTimeout = tonumber(conf and conf.launchJoinTimeout) or 60
+    if joinTimeout <= 0 then joinTimeout = 60 end
     local hbEnabled = Heartbeat.isEnabled()
-    if hbEnabled and joinTimeout == 0 then joinTimeout = 240 end
     local function stopped() return not running end
     -- Heartbeat files are per username: two clones read as the same account would see
     -- each other's heartbeat ("in game" at once) and the next clone would not wait.
@@ -531,14 +529,13 @@ local function launchInOrder(conf, only)
             -- A low RSS reading is not a crash. Two absent-process checks explain a hold.
             local goneChecks = 0
             local lastLoginCheck = os.time()
-            local retries, retryAt = 0, nil
             local token, heldReason
             if useHb and loggedIn ~= false then
                 active = true -- RSS cannot bypass the heartbeat gate.
                 token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")
                 if not launched then heldReason = "Launch gagal; antrean ditahan" end
             end
-            while active and running and (hbGate or settled < limit) do
+            while active and running and settled < limit do
                 if logoutQueue[pkg] then
                     if performLogout(inst) then
                         wasNoLogin[pkg] = true
@@ -557,9 +554,8 @@ local function launchInOrder(conf, only)
                     Logger.warn("Monitor: " .. name .. ": " .. why)
                     break
                 end
-                if useHb and (launchSlot.restart or (retryAt and os.time() >= retryAt)) then
+                if useHb and launchSlot.restart then
                     launchSlot.restart = nil
-                    retryAt = nil
                     local latest = instanceManager.find(id) or inst
                     inst = latest
                     started = os.time()
@@ -571,29 +567,6 @@ local function launchInOrder(conf, only)
                     why = "percobaan ulang target"
                     Logger.info("Monitor: " .. name .. " dibuka ulang di slot loading yang sama")
                     LaunchControl.publish(inst, "Menunggu heartbeat sesi baru", token)
-                end
-                -- Logout can happen after launch; a dead process alone is not logout.
-                if useHb and (os.time() - lastLoginCheck >= 30 or goneChecks == 2) then
-                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
-                    lastLoginCheck = os.time()
-                    if okLogin and stillLoggedIn == false then
-                        wasNoLogin[pkg] = true
-                        launched = false
-                        why = "belum login saat menunggu heartbeat"
-                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
-                        launchWait(emptyDelay, stopped)
-                        keepRemoteAlive()
-                        local lateAction = token and LaunchControl.take(token)
-                        if lateAction == "cancel" then
-                            cancelBatch = true
-                            why = "sisa antrean dibatalkan"
-                        end
-                        break
-                    elseif okLogin and stillLoggedIn == true and goneChecks >= 2 and not retryAt and retries < 2 then
-                        retries = retries + 1
-                        retryAt = os.time() + 10
-                        Logger.warn(string.format("Monitor: %s proses mati; retry %d/2 dalam 10s (slot tetap ditahan)", name, retries))
-                    end
                 end
                 local alive, hbWhy = Heartbeat.alive(inst)
                 if not useHb or sharedName[pkg] then alive = nil end
@@ -611,19 +584,21 @@ local function launchInOrder(conf, only)
                     why = "masuk game (heartbeat)"
                     break
                 elseif alive == false then
-                    -- Kicked or this session's heartbeat stopped while joining. Do not
-                    -- keep the loading slot forever: leave it, the next monitor cycle
-                    -- sees the clone unhealthy and queues it straight back in.
+                    -- Kicked or this session's heartbeat stopped while joining.
                     sawHeartbeat = false
                     heldReason = tostring(hbWhy):find("^kicked")
                         and ("Kick saat join: " .. tostring(hbWhy))
                         or ("Heartbeat berhenti saat join: " .. tostring(hbWhy))
                     why = heldReason
-                    pausedJoin[pkg] = nil
                     Logger.warn("Monitor: " .. name .. ": " .. heldReason .. "; recovery diantrekan")
+                    launchSlot = nil
+                    batchTargets[pkg] = nil
+                    pendingJoin[pkg] = true
+                    rejoinQueue[#rejoinQueue + 1] = id
+                    pausedJoin[pkg] = nil
                     break
                 end
-                if useHb and (settled >= limit or heldReason) then
+                if useHb and heldReason then
                     local reason = sharedName[pkg] and "Username bentrok; heartbeat tidak bisa dibedakan"
                         or heldReason or (DeltaKey.present() == false and "Delta minta key; antrean ditahan"
                         or "Heartbeat belum masuk; cek executor/loading")
@@ -634,26 +609,62 @@ local function launchInOrder(conf, only)
                     end
                     Status.setLaunchNotice(name .. ": " .. reason)
                 end
-                local step = hbGate and poll or math.min(poll, limit - settled)
+                if useHb and (os.time() - lastLoginCheck >= 30) then
+                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
+                    lastLoginCheck = os.time()
+                    if okLogin and stillLoggedIn == false then
+                        wasNoLogin[pkg] = true
+                        launched = false
+                        why = "belum login saat menunggu heartbeat"
+                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
+                        launchWait(emptyDelay, stopped)
+                        keepRemoteAlive()
+                        local lateAction = token and LaunchControl.take(token)
+                        if lateAction == "cancel" then
+                            cancelBatch = true
+                            why = "sisa antrean dibatalkan"
+                        end
+                        break
+                    end
+                end
+                local step = math.min(poll, limit - settled)
                 launchWait(step, stopped)
                 settled = settled + step
                 keepRemoteAlive()
                 if running then Status.printSummary(instanceManager.getAll()) end
+
                 local okR, isUp = pcall(function() return apkManager.isRunning(pkg) end)
-                if okR and isUp then retryAt = nil end
-                if okR and isUp == false then goneChecks = goneChecks + 1 else goneChecks = 0 end
+                if okR and isUp == false then
+                    goneChecks = goneChecks + 1
+                else
+                    goneChecks = 0
+                end
                 if goneChecks >= 2 then
-                    -- Process gone while the slot is held. Verify the login state first
-                    -- (the check above runs at goneChecks == 2): a logged-out clone gets
-                    -- the short login pause, only a still-logged-in one hands the slot
-                    -- back so the recovery is queued instead of blocking the batch.
-                    if os.time() - lastLoginCheck <= 2 and launched then
-                        why = "Clone tertutup saat loading; recovery diantrekan"
-                        Logger.warn("Monitor: " .. name .. ": " .. why)
+                    local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
+                    lastLoginCheck = os.time()
+                    if okLogin and stillLoggedIn == false then
+                        wasNoLogin[pkg] = true
+                        launched = false
+                        why = "belum login saat menunggu heartbeat"
+                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
+                        launchWait(emptyDelay, stopped)
+                        break
+                    else
+                        why = "Clone FC/mati saat loading; recovery diantrekan"
+                        Logger.warn(string.format("Monitor: %s FC/mati saat loading; lanjut clone berikutnya & recovery diantrekan", name))
+                        launchSlot = nil
+                        batchTargets[pkg] = nil
+                        pendingJoin[pkg] = true
+                        rejoinQueue[#rejoinQueue + 1] = id
                         pausedJoin[pkg] = nil
                         break
                     end
                 end
+            end
+            if useHb and not sawHeartbeat and (why == "selesai" or settled >= limit) then
+                why = string.format("timeout heartbeat %ds; lanjut clone berikutnya", limit)
+                Logger.warn(string.format("Monitor: %s belum ada heartbeat setelah %ds; lanjut clone berikutnya", name, limit))
+                pausedJoin[pkg] = nil
             end
             LaunchControl.clear()
             launchSlot = nil

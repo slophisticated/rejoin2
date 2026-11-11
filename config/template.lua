@@ -55,12 +55,12 @@ return {
     -- A clone that is not logged in is opened but not waited for.
     -- launchWaitInterval: how often (s) to check while waiting.
     -- launchWaitTimeout:  max wait (s) for one clone to start before moving on.
-    -- launchJoinTimeout:  seconds before showing a held-queue diagnosis, NOT permission
-    --                     to launch the next clone. Zero uses 240 when heartbeat is on.
+    -- launchJoinTimeout:  maksimal detik menunggu clone masuk game (heartbeat Delta)
+    --                     sebelum lanjut ke clone berikutnya (default 60 detik).
     -- launchSettleDelay:  with heartbeat disabled: wait (s) after a clone is running.
     launchWaitInterval = 3,
     launchWaitTimeout = 60,
-    launchJoinTimeout = 240,
+    launchJoinTimeout = 60,
     launchSettleDelay = 20,
     -- launchEmptyDelay: short wait (s) after a clone with no account, so its window
     -- can appear before the next clone starts.

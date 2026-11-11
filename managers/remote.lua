@@ -196,7 +196,7 @@ end
 
 -- Effective value (with the same defaults the modules use).
 local DEFAULTS = {
-    launchJoinTimeout = 240, launchSettleDelay = 20, launchEmptyDelay = 5, launchWaitTimeout = 60,
+    launchJoinTimeout = 60, launchSettleDelay = 20, launchEmptyDelay = 5, launchWaitTimeout = 60,
     launchWaitInterval = 3, monitorInterval = 5, freezeTimeout = 300, minRss = 300,
     relaunchNoLogin = true, noLoginCooldown = 120, launchMinFreeMb = 250, launchFreeWait = 45,
     ["windowLayout.enabled"] = false, ["windowLayout.columns"] = 0, ["windowLayout.gap"] = 0,

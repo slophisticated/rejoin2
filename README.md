@@ -81,18 +81,16 @@ Perintah yang sama aman dijalankan ulang kapan saja. Setelah install, **tidak pe
 
 ### Antrean launch aman
 
-Saat heartbeat aktif, RSS/timeout **tidak** membuka clone berikutnya. Setelah
-`launchJoinTimeout`, antrean ditahan dengan alasan (Delta minta key, heartbeat belum
-masuk, clone tertutup/kick, atau username bentrok). Heartbeat sesi baru melanjutkan
-antrean otomatis. `launchJoinTimeout = 0` memakai 240 detik, bukan mematikan gate.
-Selama menunggu heartbeat, login dicek ulang tiap 30 detik, atau lebih cepat setelah
-proses mati terdeteksi dua kali berturut-turut. Jika terkonfirmasi belum login,
-engine memberi jeda `launchEmptyDelay` (default 5 detik) lalu lanjut clone berikutnya,
-tanpa force-stop. FC saja, hasil login tidak pasti, atau cek gagal tidak melepas antrean.
-Branch percobaan `trial/single-loading-slot`: FC yang terkonfirmasi masih login
-memakai satu slot. Layar login kini menunggu jendela/overlay terdeteksi + jeda 5 detik,
-bukan proses hidup saja. Dua pemeriksaan tanpa jendela mengantrekan buka ulang tanpa
-force-stop; bila jendela tak muncul slot ditahan (Menu 14 untuk tindakan manual).
+Tiap clone ditunggu sampai masuk ke dalam game lewat heartbeat Delta (maksimal
+`launchJoinTimeout`, default 60 detik). Jika heartbeat belum masuk setelah batas waktu
+tersebut, engine otomatis melanjutkan antrean ke clone berikutnya tanpa menahan batch
+selamanya. Jika clone mengalami Force Close (FC) atau proses mati saat loading, clone
+tersebut otomatis diantrekan untuk recovery/buka ulang, dan antrean langsung berlanjut
+ke clone berikutnya.
+
+Clone yang belum login hanya menunggu jeda singkat `launchEmptyDelay` (default 5 detik),
+lalu antrean lanjut tanpa force-stop. Tindakan manual (lewati satu / batalkan antrean)
+tetap tersedia lewat Menu 14.
 Referensi focus lama di dumpsys tidak dihitung sebagai jendela aktif.
 Ikon floating yang terdeteksi tetap dibiarkan. Proses mati tidak dianggap sehat
 dari heartbeat lama.

@@ -59,7 +59,7 @@ function CLI.run()
     conf.anrCheckEnabled = conf.anrCheckEnabled ~= false
     conf.launchWaitInterval = conf.launchWaitInterval or 3
     conf.launchWaitTimeout = conf.launchWaitTimeout or 60
-    conf.launchJoinTimeout = conf.launchJoinTimeout or 240
+    conf.launchJoinTimeout = conf.launchJoinTimeout or 60
     conf.launchSettleDelay = conf.launchSettleDelay or 5
     conf.launchEmptyDelay = conf.launchEmptyDelay or 5
     if conf.useRoot == nil then conf.useRoot = true end
@@ -119,7 +119,7 @@ function CLI.run()
                 local n = tonumber(v)
                 if n and (n > 0 or (allowZero and n == 0)) then conf[key] = n else print("Invalid number") end
             end
-            askNumber("launchJoinTimeout", "Batas tunggu sebelum antrean ditahan + diagnosis (detik; 0 = default 240, tidak lanjut otomatis)", true)
+            askNumber("launchJoinTimeout", "Batas tunggu clone masuk game lewat heartbeat (detik; default 60)", true)
             askNumber("launchSettleDelay", "Jeda sebelum clone berikutnya kalau heartbeat DIMATIKAN (detik)", true)
             askNumber("launchEmptyDelay", "Jeda setelah clone KOSONG (belum login) dibuka (detik)", true)
             askNumber("launchWaitTimeout", "Maks tunggu Roblox kebuka per clone (detik)", false)
