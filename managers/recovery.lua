@@ -73,12 +73,12 @@ local function gameLink(instance)
     local okI, Instances = pcall(require, "managers.instance")
     if okI and Instances.gameLink then return Instances.gameLink(instance) end
     local l = instance and instance.privateServer
-    return (type(l) == "string" and l ~= "") and l or nil
+    return (type(l) == "string" and l ~= "") and l or nil, nil
 end
 
 local function openGameLink(instance)
     local pkg = instance and instance.package
-    local target = gameLink(instance)
+    local target, presetObj = gameLink(instance)
     if not target then
         return true
     end
@@ -89,9 +89,22 @@ local function openGameLink(instance)
         link = target
     else
         local placeId = extractPlaceIdLenient(target)
+        local existingJobId = target:match("gameInstanceId=([%w%-]+)") or target:match("gameinstanceid=([%w%-]+)")
         if placeId then
-            -- The one form proven (on-device) to auto-join a clone and reach its account.
-            link = "roblox://placeId=" .. placeId
+            if existingJobId then
+                link = "roblox://placeId=" .. placeId .. "&gameInstanceId=" .. existingJobId
+            elseif presetObj and presetObj.lowPlayer then
+                local okSF, ServerFinder = pcall(require, "managers.server_finder")
+                local jobId = okSF and ServerFinder.findLowPlayerServer(placeId, instance)
+                if jobId then
+                    link = "roblox://placeId=" .. placeId .. "&gameInstanceId=" .. jobId
+                else
+                    link = "roblox://placeId=" .. placeId
+                end
+            else
+                -- The one form proven (on-device) to auto-join a clone and reach its account.
+                link = "roblox://placeId=" .. placeId
+            end
         else
             -- Unknown shape: keep as-is (letting Android/any handler decide).
             link = target

@@ -46,21 +46,27 @@ function InstanceManager.presetOf(inst)
     local own = (type(inst.privateServer) == "string" and inst.privateServer ~= "") and inst.privateServer or nil
     local function link(key)
         local p = ps[key]
-        return (type(p) == "table" and type(p.link) == "string" and p.link ~= "") and p.link or nil
+        return (type(p) == "table" and type(p.link) == "string" and p.link ~= "") and p.link or nil, p
     end
     local key = inst.preset
-    if key == "-" then return nil, own and "link" or "none", own end
-    if type(key) == "string" and key ~= "" and link(key) then return key, "khusus", link(key) end
+    if key == "-" then return nil, own and "link" or "none", own, nil end
+    if type(key) == "string" and key ~= "" then
+        local l, p = link(key)
+        if l then return key, "khusus", l, p end
+    end
     local def = conf.defaultPreset
-    if type(def) == "string" and def ~= "" and link(def) then return def, "default", link(def) end
-    if own then return nil, "link", own end
-    return nil, "none", nil
+    if type(def) == "string" and def ~= "" then
+        local l, p = link(def)
+        if l then return def, "default", l, p end
+    end
+    if own then return nil, "link", own, nil end
+    return nil, "none", nil, nil
 end
 
 -- Game link of an instance (see presetOf). nil = no link (launch the app only).
 function InstanceManager.gameLink(inst)
-    local _, _, link = InstanceManager.presetOf(inst)
-    return link
+    local _, _, link, presetObj = InstanceManager.presetOf(inst)
+    return link, presetObj
 end
 
 -- Readable game name for a link: ".../games/123/Steal-an-Egg" -> "Steal an Egg".

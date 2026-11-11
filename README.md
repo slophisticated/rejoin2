@@ -158,7 +158,7 @@ cd ~/rejoin && lua main.lua
 | `8` Dump Cookies (debug) | Cek baris cookie clone (value tidak ditampilkan) |
 | `9` Discord (Webhook & Bot) | URL webhook, interval, screenshot, kirim tes, nama device, pakai pesan status lama, URL + secret bot, tes koneksi bot |
 | `10` Jendela & Mode Hemat | Grid, heartbeat, mode hemat, batas FPS, tinggi tambahan baris atas |
-| `11` Preset Game | Tambah/ubah/hapus preset, set preset default, atur clone (khusus / ikut default / link sendiri), semua clone ikut default (+ rejoin) |
+| `11` Preset Game | Tambah/ubah/hapus preset, set preset default, toggle cari server sepi otomatis (pemain paling sedikit, tiap clone mencar ke server beda), atur clone (khusus / ikut default / link sendiri), semua clone ikut default (+ rejoin) |
 | `12` Input Key Delta | Masukkan key Delta yang kamu dapat sendiri (ketikan disembunyikan, ga disimpan di config/log), juga bisa dari bot `/delta input-key`. Abis itu semua clone dibuka ulang satu per satu biar Delta baca key-nya |
 | `13` Install APK dari GoFile | Tempel link GoFile yang kamu percaya, pilih APK (`1-3`, `1,3`, `all`), di-download ke `/sdcard/Download/Rejoin` terus dipasang pake root (`pm install`). Cuma gofile.io + https, file harus APK beneran |
 | `14` Antrean Launch | Lihat status antrean, lewati satu clone, atau batalkan sisa antrean |

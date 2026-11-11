@@ -74,7 +74,8 @@ local function show(conf)
     if #keys == 0 then print("  (belum ada preset)") end
     for _, k in ipairs(keys) do
         local p = ps[k]
-        print(string.format("  [%s] %s%s\n      %s", k, tostring(p.name or ""),
+        local tag = p.lowPlayer and " [Server Sepi]" or ""
+        print(string.format("  [%s] %s%s%s\n      %s", k, tostring(p.name or ""), tag,
             k == def and "  <- DEFAULT" or "", tostring(p.link or "")))
     end
     print("Clone:")
@@ -102,6 +103,7 @@ function CLI.run()
         print("  3) Set preset DEFAULT (semua clone yang ikut default pindah)")
         print("  4) Atur satu clone (preset khusus / ikut default / link sendiri)")
         print("  5) Semua clone ikut default")
+        print("  6) Toggle server sepi otomatis (pemain paling sedikit)")
         print("  0) Kembali")
         local choice = trim(prompt("Pilih: ") or "0")
 
@@ -121,7 +123,10 @@ function CLI.run()
                 if not validLink(link) then
                     print("Link harus link roblox.com (games/... atau share?code=...) atau roblox://")
                 else
-                    ps[key] = { name = name, link = link }
+                    local lowP = old.lowPlayer and "y" or "n"
+                    local askLow = trim(prompt("Cari server sepi otomatis (pemain paling sedikit)? (y/n) [" .. lowP .. "]: "))
+                    local isLow = (askLow == "" and old.lowPlayer) or (askLow:lower() == "y")
+                    ps[key] = { name = name, link = link, lowPlayer = isLow and true or nil }
                     local firstOne = (conf.defaultPreset == nil or conf.defaultPreset == "")
                     if firstOne then
                         conf.defaultPreset = key
@@ -135,6 +140,14 @@ function CLI.run()
                         offerRejoin(used)
                     end
                 end
+            end
+        elseif choice == "6" then
+            local key = pickPreset(conf, "Kode preset untuk toggle server sepi: ")
+            if key then
+                local p = presets(conf)[key]
+                p.lowPlayer = not p.lowPlayer and true or nil
+                print(string.format("Preset [%s] mode server sepi: %s", key, p.lowPlayer and "AKTIF" or "NONAKTIF"))
+                save(conf)
             end
         elseif choice == "2" then
             local key = pickPreset(conf, "Kode preset yang dihapus: ")

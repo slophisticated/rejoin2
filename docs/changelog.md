@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Opsi Cari Server Sepi Otomatis pada Preset Game (Menu 11)**: preset kini
+  mendukung opsi `lowPlayer` (Server Sepi). Cukup masukkan link game biasa atau
+  Place ID, engine akan otomatis mencari server publik dengan pemain paling sedikit
+  (1 pemain) via API resmi Roblox, dan mendistribusikan masing-masing clone ke server
+  sepi yang berbeda (mencar). Tersedia tombol toggle cepat di Menu 11 pilihan 6.
+
 - **Antrean Launch All tidak lagi nahan selamanya & clone FC langsung di-recovery**:
   saat menunggu heartbeat Delta, jika waktu melebihi `launchJoinTimeout` (default
   diturunkan dari 240 dtk ke 60 dtk), engine otomatis lanjut membuka clone berikutnya.
