@@ -5,14 +5,13 @@ local Boot = require("managers.boot")
 
 -- Menu "Uninstall": remove what rejoin owns, and nothing else.
 --
---  1. the Termux:Boot script, so a reboot does not start the engine again
---  2. the heartbeat script from the executor's Autoexecute folder (rejoin's own
+--  1. stop any background engine (e.g. from Termux:Boot) so it cannot resurrect
+--  2. the Termux:Boot script, so a reboot does not start the engine again
+--  3. the heartbeat script from the executor's Autoexecute folder (rejoin's own
 --     file only; anything the user added there stays)
---  3. the engine state (config/ + data/) inside the repo
+--  4. the repository folder itself (including config/ and data/)
 --
--- The repo checkout itself, clone app data and the user's other scripts are left
--- alone: deleting the tree from inside a running main.lua is not worth the risk, so
--- the menu prints how to remove the folder by hand.
+-- Clone app data and user scripts in other folders are left alone.
 
 local Uninstall = {}
 
@@ -56,6 +55,15 @@ local function ownHeartbeat(path)
     return content ~= nil and content:find(MARKER, 1, true) ~= nil
 end
 
+local function safeRepoBase()
+    local base = Paths.base()
+    local home = os.getenv("HOME")
+    if not base or base == "" or base == "/" or base == "." or base == home then
+        return nil
+    end
+    return base
+end
+
 -- Everything that would be deleted, for the confirmation screen.
 function Uninstall.targets()
     local list = {}
@@ -68,10 +76,14 @@ function Uninstall.targets()
             table.insert(list, { path = path, what = "script heartbeat di Autoexecute" })
         end
     end
-    local cfg, data = Paths.config(), Paths.dataDir()
-    if File.exists(cfg) then table.insert(list, { path = cfg, what = "config (semua setting)" }) end
-    if File.exists(data) then table.insert(list, { path = data, what = "data (log, pid, antrian, laporan)" }) end
-    table.insert(list, { path = nil, what = "folder repo " .. Paths.base() .. ": TIDAK dihapus" })
+    local base = safeRepoBase()
+    if base and File.exists(base) then
+        table.insert(list, { path = base, what = "folder repo (semua file rejoin, config/ & data/)" })
+    else
+        local cfg, data = Paths.config(), Paths.dataDir()
+        if File.exists(cfg) then table.insert(list, { path = cfg, what = "config (semua setting)" }) end
+        if File.exists(data) then table.insert(list, { path = data, what = "data (log, pid, antrian, laporan)" }) end
+    end
     return list
 end
 
@@ -86,6 +98,14 @@ end
 -- Do the removal. Returns human-readable results, one per target.
 function Uninstall.runAll()
     local results = {}
+
+    -- Stop any running background engine so it cannot recreate data/
+    local okM, Monitor = pcall(require, "managers.monitor")
+    local other = okM and type(Monitor.otherEngine) == "function" and Monitor.otherEngine() or nil
+    if other then
+        os.execute("kill -TERM " .. other .. " 2>/dev/null")
+        results[#results + 1] = "Engine background dihentikan (pid " .. other .. ")"
+    end
 
     local okBoot, infoBoot = Boot.uninstall()
     results[#results + 1] = okBoot and ("Auto-boot dihapus: " .. tostring(infoBoot))
@@ -109,18 +129,24 @@ function Uninstall.runAll()
             or "Script heartbeat: tidak ada di Autoexecute"
     end
 
-    local base = Paths.base()
-    for _, name in ipairs({ "config", "data" }) do
-        local target = base .. "/" .. name
-        if File.exists(target) then
-            os.execute("rm -rf " .. quote(target))
-            results[#results + 1] = File.exists(target) and ("GAGAL hapus " .. target)
-                or ("Dihapus: " .. target)
+    local base = safeRepoBase()
+    if base and File.exists(base) then
+        local home = os.getenv("HOME") or "/data/data/com.termux/files/home"
+        os.execute("cd " .. quote(home) .. " 2>/dev/null; rm -rf " .. quote(base))
+        results[#results + 1] = File.exists(base) and ("GAGAL hapus folder repo: " .. base)
+            or ("Dihapus: folder repo " .. base)
+    else
+        local curBase = Paths.base()
+        for _, name in ipairs({ "config", "data" }) do
+            local target = curBase .. "/" .. name
+            if File.exists(target) then
+                os.execute("rm -rf " .. quote(target))
+                results[#results + 1] = File.exists(target) and ("GAGAL hapus " .. target)
+                    or ("Dihapus: " .. target)
+            end
         end
     end
 
-    results[#results + 1] = "Folder repo tetap: " .. base .. " (hapus manual: rm -rf " .. base .. ")"
-    Logger.info("Uninstall: " .. table.concat(results, " | "))
     return results
 end
 

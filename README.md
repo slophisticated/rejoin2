@@ -165,7 +165,7 @@ cd ~/rejoin && lua main.lua
 | `13` Install APK dari GoFile | Tempel link GoFile yang kamu percaya, pilih APK (`1-3`, `1,3`, `all`), di-download ke `/sdcard/Download/Rejoin` terus dipasang pake root (`pm install`). Cuma gofile.io + https, file harus APK beneran |
 | `14` Antrean Launch | Lihat status antrean, lewati satu clone, atau batalkan sisa antrean |
 | `15` Auto-boot (Termux:Boot) | Pasang/lepas script auto-start boot dari menu, atau lihat 10 baris terakhir `boot.log`. Ga perlu jalanin `install.sh` lagi |
-| `16` Uninstall | Hapus yang punya rejoin aja (script boot, script heartbeat di Autoexecute, `config/` + `data/`). Daftarnya ditampilin dulu, wajib ketik `HAPUS`. Folder repo ga dihapus; data clone & script lain aman |
+| `16` Uninstall | Hapus bersih total yang punya rejoin (script boot, script heartbeat di Autoexecute, dan folder repo `~/rejoin` beserta `config/` + `data/`). Daftarnya ditampilin dulu, wajib ketik `HAPUS`. Data clone & script lain di HP aman |
 | `0` Exit | |
 
 Baris paling atas menu menampilkan versi, apakah device di-install pakai cara instan, dan apakah auto-start boot aktif. Keluar dari monitor: **Ctrl+C**. Perubahan di menu 9 dan 10 langsung tersimpan.

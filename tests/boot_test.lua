@@ -59,7 +59,7 @@ local realExecute, realRemove = os.execute, os.remove
 os.execute = function(cmd)
     execs[#execs + 1] = cmd
     -- Simulate `rm -rf <path>` so the post-check sees the target gone.
-    local target = tostring(cmd):match("^rm %-rf '(.+)'$")
+    local target = tostring(cmd):match("rm %-rf '([^']+)'")
     if target then
         files[target] = nil
         for key in pairs(files) do
@@ -142,7 +142,7 @@ test("status reports the app, script and log state", function()
     assert(st.path == SCRIPT and st.log == "/repo/data/boot.log")
 end)
 
-test("uninstall lists boot, heartbeat, config and data, and says the repo stays", function()
+test("uninstall lists boot, heartbeat, and repo folder", function()
     reset()
     files[SCRIPT] = "x"
     files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
@@ -155,12 +155,11 @@ test("uninstall lists boot, heartbeat, config and data, and says the repo stays"
     local text = table.concat(joined, "\n")
     assert(text:find("auto%-boot"))
     assert(text:find("heartbeat"))
-    assert(text:find("config"))
-    assert(text:find("TIDAK dihapus"), "repo must be announced as kept")
+    assert(text:find("folder repo"), "repo must be listed for removal")
     assert(Uninstall.removable())
 end)
 
-test("uninstall runAll removes its targets but keeps the repo and termux-boot.sh", function()
+test("uninstall runAll removes its targets including repo folder", function()
     reset()
     files[SCRIPT] = "x"
     files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
@@ -171,16 +170,16 @@ test("uninstall runAll removes its targets but keeps the repo and termux-boot.sh
     local text = table.concat(results, "\n")
     assert(not files[SCRIPT], "boot script kept")
     assert(not files["/sdcard/Workspace/rejoin/rejoin_heartbeat.lua"], "heartbeat kept")
-    assert(text:find("Dihapus: /repo/config", 1, true), "config not wiped")
-    assert(text:find("Dihapus: /repo/data", 1, true), "data not wiped")
-    assert(files["/repo/termux-boot.sh"], "termux-boot.sh deleted")
-    assert(text:find("Folder repo tetap"), "kept repo not reported")
+    assert(not files["/repo/config/config.lua"], "config not wiped")
+    assert(not files["/repo/termux-boot.sh"], "repo not wiped")
+    assert(text:find("Dihapus: folder repo /repo", 1, true), "repo deletion not reported")
     -- other Autoexecute scripts are never touched
     assert(not table.concat(results, "\n"):find("Workspace/rejoin/other.lua"))
 end)
 
 test("a same-named heartbeat script rejoin did not write is left alone", function()
     reset()
+    files = {} -- no repo, only user script
     files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- my own\n"
     local Uninstall = fresh("uninstall")
     local targets = Uninstall.targets()
@@ -193,6 +192,7 @@ end)
 
 test("every found executor loses its copy, not just the configured one", function()
     reset()
+    files = {} -- no repo
     files["/sdcard/Delta/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
     files["/sdcard/Other/Autoexecute/rejoin_heartbeat.lua"] = "-- REJOIN_HEARTBEAT\n"
     package.loaded["managers.executor"] = { found = { { path = "/sdcard/Other/Autoexecute" } } }
@@ -205,6 +205,7 @@ end)
 
 test("nothing to remove is reported honestly", function()
     reset()
+    files = {} -- nothing exists at all
     local Uninstall = fresh("uninstall")
     assert(not Uninstall.removable())
     local results = Uninstall.runAll()

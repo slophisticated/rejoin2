@@ -20,7 +20,7 @@ function CLI.run()
     local other = okM and type(Monitor.otherEngine) == "function" and Monitor.otherEngine() or nil
     if other then
         print(string.format("\nPERINGATAN: engine lain masih jalan (pid %d, biasanya dari boot).", other))
-        print("Stop dulu biar data/ ga dibikin ulang: kill -TERM " .. other)
+        print("Engine tersebut akan otomatis dihentikan saat uninstall.")
     end
 
     print("\nUninstall rejoin")
@@ -38,17 +38,17 @@ function CLI.run()
     print("")
     print("  TIDAK disentuh: data app/clone, script AutoExecute lain, file lain di HP.")
 
-    print("\n  1) Hapus semua (butuh ketik HAPUS)")
+    print("\n  1) Hapus semua (bersih total)")
     print("  2) Batal")
 
     local choice = (prompt("Choose: ") or ""):match("^%s*(.-)%s*$")
-    if choice ~= "1" then
+    if choice ~= "1" and choice:upper() ~= "HAPUS" then
         print("\nDibatalkan.")
         return
     end
 
-    local typed = (prompt("Ketik HAPUS untuk konfirmasi: ") or ""):match("^%s*(.-)%s*$")
-    if typed ~= "HAPUS" then
+    local typed = choice:upper() == "HAPUS" and "HAPUS" or ((prompt("Ketik HAPUS untuk konfirmasi: ") or ""):match("^%s*(.-)%s*$"))
+    if typed:upper() ~= "HAPUS" then
         print("\nDibatalkan (konfirmasi tidak cocok).")
         return
     end
@@ -56,7 +56,9 @@ function CLI.run()
     print("\nMenghapus...")
     local results = Uninstall.runAll()
     for _, line in ipairs(results) do print("  " .. line) end
-    print("\nSelesai. Engine mati (menu tidak lanjut).")
+    print("\nSelesai. Rejoin sudah di-uninstall bersih total.")
+    print("Folder repo sudah dihapus. Jika ingin install lagi, jalankan installer install.sh.")
+    print("Ketik 'cd' untuk kembali ke folder home Termux.")
     io.stdout:flush()
     os.exit(0)
 end

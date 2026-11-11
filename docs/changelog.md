@@ -2,6 +2,12 @@
 
 ## Unreleased / Bug fixes
 
+- **Uninstall bersih total hapus folder repo (Menu 16)**: uninstall sekarang
+  menghapus folder repo `~/rejoin` sekalian (termasuk config dan data), mematikan
+  engine background jika masih jalan dari boot, serta konfirmasi `HAPUS` tidak lagi
+  sensitif huruf kecil/besar (`hapus` / `HAPUS`). Jika ingin memasang lagi, cukup
+  jalankan installer `install.sh`.
+
 - **Clone belum login tidak lagi menahan antrean karena jendela tidak terbaca**:
   jeda `launchEmptyDelay` dihitung sejak masuk penanganan belum login, bukan sejak
   jendela floating berhasil terdeteksi. Default 5 detik lalu lanjut, tanpa force-stop.
