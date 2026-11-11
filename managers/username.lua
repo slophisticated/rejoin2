@@ -86,7 +86,7 @@ function Username.get(instance)
     local ev = string.format("[%s] pkg=%s", os.date("%H:%M:%S"), pkg)
 
     -- Reuse the name from Auth's Roblox check so the token is not sent twice.
-    local fromAuth = Auth.remoteName(pkg)
+    local fromAuth = (type(Auth.remoteName) == "function") and Auth.remoteName(pkg) or nil
     if fromAuth then
         ev = ev .. " auth=" .. fromAuth
         username = fromAuth

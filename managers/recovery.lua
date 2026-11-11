@@ -129,15 +129,20 @@ function Recovery.launchAndJoin(instance)
     -- No logged-in account: never force-stop it and never open the game link (it would
     -- hang on the loading screen). Closed = opened gently at its login screen, open =
     -- left alone. Launch All / rejoins then treat it as "belum login" (short pause).
-    if Auth.isLoggedIn(instance, true) == false then
+    local okU, Username = pcall(require, "managers.username")
+    local username = okU and type(Username.get) == "function" and Username.get(instance) or nil
+    local hasUser = (username ~= nil and username ~= "")
+    local loggedIn = Auth.isLoggedIn(instance, true)
+    local isNoLogin = (loggedIn == false) or (loggedIn ~= true and not hasUser)
+    if isNoLogin then
         local name = tostring(instance.name or pkg)
         local okR, up = pcall(APK.isRunning, pkg)
         local okW, hasWindow = pcall(APK.hasWindow, pkg)
         if okR and up and okW and hasWindow == true then
-            Logger.info("[NOLOGIN] " .. name .. " belum login; ga dibuka ke game (dibiarin di layar login)")
+            Logger.info("[NOLOGIN] " .. name .. " belum login / no username; ga dibuka ke game (dibiarin di layar login)")
             return true
         end
-        Logger.info("[NOLOGIN] " .. name .. " belum login; dibuka ke layar login aja, tanpa link game")
+        Logger.info("[NOLOGIN] " .. name .. " belum login / no username; dibuka ke layar login aja, tanpa link game")
         return Recovery.reopenNoLogin(instance)
     end
 
@@ -375,8 +380,12 @@ function Recovery.checkAndRecover(instance)
 
     -- Never recover/relaunch a clone that has no logged-in account: low RSS / inactivity
     -- is expected on the login screen, and recovering it only wastes resources.
-    if Auth.isLoggedIn(instance, true) == false then
-        Logger.info("Recovery: skipped recovery (" .. tostring(pkg) .. ") not logged in")
+    local okU, Username = pcall(require, "managers.username")
+    local username = okU and type(Username.get) == "function" and Username.get(instance) or nil
+    local hasUser = (username ~= nil and username ~= "")
+    local loggedIn = Auth.isLoggedIn(instance, true)
+    if loggedIn == false or (loggedIn ~= true and not hasUser) then
+        Logger.info("Recovery: skipped recovery (" .. tostring(pkg) .. ") not logged in / no username")
         return false
     end
 

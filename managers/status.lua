@@ -187,8 +187,12 @@ classify = function(instance)
         -- freeze/relaunch clock. On a failed detection (nil) we fall back to the normal
         -- freeze handling so existing behavior is preserved.
         local loggedIn = Auth.isLoggedIn(instance)
+        local okU, Username = pcall(require, "managers.username")
+        local username = okU and type(Username.get) == "function" and Username.get(instance) or nil
+        local hasUser = (username ~= nil and username ~= "")
+        local isNoLogin = (loggedIn == false) or (loggedIn ~= true and not hasUser)
         s.lastLogin = loggedIn
-        if loggedIn == false then
+        if isNoLogin then
             s.status = "nologin"
             s.stuckSince = nil
             s.healthySince = nil
@@ -206,8 +210,12 @@ classify = function(instance)
     -- (logged out / kicked) with enough RSS to pass minRss, so check the login here
     -- too; otherwise it would keep showing Running.
     local loggedIn = Auth.isLoggedIn(instance)
+    local okU, Username = pcall(require, "managers.username")
+    local username = okU and type(Username.get) == "function" and Username.get(instance) or nil
+    local hasUser = (username ~= nil and username ~= "")
+    local isNoLogin = (loggedIn == false) or (loggedIn ~= true and not hasUser)
     s.lastLogin = loggedIn
-    if loggedIn == false then
+    if isNoLogin then
         s.status = "nologin"
         s.stuckSince = nil
         s.healthySince = nil

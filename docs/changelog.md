@@ -2,6 +2,15 @@
 
 ## Unreleased / Bug fixes
 
+- **Validasi No Login / No Username pada Launch All**: clone yang belum login
+  atau belum terdeteksi username-nya (`username == nil`) kini otomatis diidentifikasi
+  sebagai unlogged / no-username. Clone tersebut tidak lagi dimasukkan ke antrean
+  tunggu heartbeat (karena script heartbeat di Delta membutuhkan username untuk
+  menulis `hb_<username>.txt`), tidak di-force-stop, dan hanya diberi jeda 5 detik
+  (`launchEmptyDelay`) untuk membuka layarnya lalu engine langsung lanjut membuka
+  clone berikutnya tanpa membuat antrean stuck. Pada urutan launch, clone dengan akun
+  login tetap dijalankan duluan dan clone tanpa akun ditaruh di urutan paling akhir.
+
 - **Opsi Cari Server Sepi Otomatis pada Preset Game (Menu 11)**: preset kini
   mendukung opsi `lowPlayer` (Server Sepi). Cukup masukkan link game biasa atau
   Place ID, engine akan otomatis mencari server publik dengan pemain paling sedikit

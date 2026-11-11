@@ -321,8 +321,12 @@ local function launchInOrder(conf, only)
     local instances, later, names, laterNames = {}, {}, {}, {}
     for _, inst in ipairs(only or instanceManager.getAll()) do
         local okL, li = pcall(Auth.isLoggedIn, inst)
+        local okU, Username = pcall(require, "managers.username")
+        local u = okU and type(Username.get) == "function" and Username.get(inst) or nil
+        local hasUser = (u ~= nil and u ~= "")
+        local isNoLogin = (okL and li == false) or (not hasUser) or (li ~= true and not hasUser)
         local label = tostring(inst.name or inst.id or "?")
-        if okL and li == false then
+        if isNoLogin then
             later[#later + 1] = inst
             laterNames[#laterNames + 1] = label
         else
@@ -332,7 +336,7 @@ local function launchInOrder(conf, only)
     end
     for _, inst in ipairs(later) do instances[#instances + 1] = inst end
     Logger.info("Monitor: urutan launch: " .. (#names > 0 and table.concat(names, ", ") or "-")
-        .. (#laterNames > 0 and (" | belum login: " .. table.concat(laterNames, ", ")) or ""))
+        .. (#laterNames > 0 and (" | belum login / no username: " .. table.concat(laterNames, ", ")) or ""))
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
     local poll = tonumber(conf and conf.launchWaitInterval) or 3
     if poll <= 0 then poll = 3 end
@@ -443,12 +447,17 @@ local function launchInOrder(conf, only)
                 Logger.error(string.format("Monitor: launch failed for %s: %s", name, tostring(p_ok and (l_err or l_ok) or l_ok)))
                 why = "launch gagal"
             end
+            local okU, Username = pcall(require, "managers.username")
+            local username = okU and type(Username.get) == "function" and Username.get(inst) or nil
+            local hasUser = (username ~= nil and username ~= "")
             local loggedIn = Auth.isLoggedIn(inst)
+            local isNoLogin = (loggedIn == false) or (not hasUser) or (loggedIn ~= true and not hasUser)
             local cancelBatch
-            Logger.info(string.format("Monitor: %s login check = %s", name, tostring(loggedIn)))
-            if loggedIn == false then
+            Logger.info(string.format("Monitor: %s login check = %s (username = %s)", name, tostring(loggedIn), tostring(username or "none")))
+            if isNoLogin then
                 wasNoLogin[pkg] = true
-                local reason = "Belum login; jeda " .. emptyDelay .. " detik lalu lanjut"
+                local reason = (not hasUser) and ("No username / belum login; jeda " .. emptyDelay .. " detik lalu lanjut")
+                    or ("Belum login; jeda " .. emptyDelay .. " detik lalu lanjut")
                 local loginToken = LaunchControl.publish(inst, reason)
                 local loginWaitAt, lastProbe = os.time(), os.time()
                 while running do
@@ -475,7 +484,8 @@ local function launchInOrder(conf, only)
                     if os.time() - lastProbe >= 30 then
                         lastProbe = os.time()
                         local okL, li = pcall(Auth.isLoggedIn, inst, true, true)
-                        if okL and li == true then
+                        local okU2, u2 = pcall(Username.get, inst)
+                        if okL and li == true and okU2 and u2 and u2 ~= "" then
                             wasNoLogin[pkg] = true
                             joinAfterLogin(inst, id, name, pkg, "starting")
                             break
@@ -488,7 +498,7 @@ local function launchInOrder(conf, only)
                 LaunchControl.clear()
                 Status.setLaunchNotice(nil)
                 launched = false
-                why = "belum login"
+                why = (not hasUser) and "no username / belum login" or "belum login"
             end
 
             local function isActiveNow()
@@ -530,7 +540,7 @@ local function launchInOrder(conf, only)
             local goneChecks = 0
             local lastLoginCheck = os.time()
             local token, heldReason
-            if useHb and loggedIn ~= false then
+            if useHb and not isNoLogin and loggedIn == true and hasUser then
                 active = true -- RSS cannot bypass the heartbeat gate.
                 token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")
                 if not launched then heldReason = "Launch gagal; antrean ditahan" end
@@ -611,12 +621,13 @@ local function launchInOrder(conf, only)
                 end
                 if useHb and (os.time() - lastLoginCheck >= 30) then
                     local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
+                    local okU3, u3 = pcall(Username.get, inst)
                     lastLoginCheck = os.time()
-                    if okLogin and stillLoggedIn == false then
+                    if (okLogin and stillLoggedIn == false) or not (okU3 and u3 and u3 ~= "") then
                         wasNoLogin[pkg] = true
                         launched = false
-                        why = "belum login saat menunggu heartbeat"
-                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
+                        why = "belum login / no username saat menunggu heartbeat"
+                        Logger.info(string.format("[NOLOGIN] %s logout / no username saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
                         launchWait(emptyDelay, stopped)
                         keepRemoteAlive()
                         local lateAction = token and LaunchControl.take(token)
@@ -641,12 +652,13 @@ local function launchInOrder(conf, only)
                 end
                 if goneChecks >= 2 then
                     local okLogin, stillLoggedIn = pcall(Auth.isLoggedIn, inst, true, true)
+                    local okU3, u3 = pcall(Username.get, inst)
                     lastLoginCheck = os.time()
-                    if okLogin and stillLoggedIn == false then
+                    if (okLogin and stillLoggedIn == false) or not (okU3 and u3 and u3 ~= "") then
                         wasNoLogin[pkg] = true
                         launched = false
-                        why = "belum login saat menunggu heartbeat"
-                        Logger.info(string.format("[NOLOGIN] %s logout saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
+                        why = "belum login / no username saat menunggu heartbeat"
+                        Logger.info(string.format("[NOLOGIN] %s logout / no username saat menunggu heartbeat; lanjut clone berikutnya setelah %ds", name, emptyDelay))
                         launchWait(emptyDelay, stopped)
                         break
                     else

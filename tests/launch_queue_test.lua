@@ -460,3 +460,13 @@ loginProbe = function() return false end
 assert(performLogout(instances[1]) and reopened == 1)
 assert(not files["data/logout_hold_" .. instances[1].package .. ".txt"])
 print("PASS: failed logout blocks target/rejoin persistently; verified logout reopens login once")
+
+reset()
+stub("managers.username", { get = function(i) return i.id == 2 and nil or i.name end })
+onWait = function()
+    if events[#events] == 1 then ready[1] = true end
+    if events[#events] == 3 then ready[3] = true end
+end
+launch(conf)
+assert(#events == 3, "no-username clone must not block queue")
+print("PASS: clone with no username is treated as nologin and releases subsequent clones")

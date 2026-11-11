@@ -162,7 +162,12 @@ local function monitorScenario(opts)
         return status
     end
     env.package.preload["managers.auth"] = function()
-        return { isLoggedIn = function() if opts.loggedIn then return opts.loggedIn(clock) end return true end }
+        return { isLoggedIn = function() if opts.loggedIn then return opts.loggedIn(clock) end return true end,
+            remoteName = function() return "Clone1" end }
+    end
+    env.package.preload["managers.username"] = function()
+        return { get = function(i) return i and (i.username or i.name or "Clone1") end,
+            reset = noop, prefetch = noop }
     end
     env.package.preload["managers.instance"] = function()
         local list = {{ id = 1, name = "Clone1", package = "com.test.clone" }}
@@ -653,7 +658,12 @@ local function recoveryScenario(loggedIn, running)
         return { openURL = function() calls[#calls + 1] = "openURL"; return true end }
     end
     env.package.preload["managers.auth"] = function()
-        return { isLoggedIn = function(_, fresh) freshAsked = fresh; return loggedIn end }
+        return { isLoggedIn = function(_, fresh) freshAsked = fresh; return loggedIn end,
+            remoteName = function() return "Clone1" end }
+    end
+    env.package.preload["managers.username"] = function()
+        return { get = function(i) return i and (i.username or i.name or "Clone1") end,
+            reset = noop, prefetch = noop }
     end
     env.package.preload["managers.instance"] = function()
         return { gameLink = function() return "https://www.roblox.com/games/1" end,
