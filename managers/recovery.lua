@@ -200,20 +200,10 @@ function Recovery.launchAndJoin(instance)
         -- back (or a short settle) before firing the VIEW intent; retry once, because
         -- Android rejects an intent aimed at a package that is not ready yet.
         settleAndWaitMemory("link game")
-        if not APK.isRunning(pkg) then
-            local waited, ready = 0, false
-            while waited < 15 do
-                pcall(Timer.sleep, 1)
-                waited = waited + 1
-                local okR, up = pcall(APK.isRunning, pkg)
-                if okR and up then ready = true; break end
-                if waited >= 3 then
-                    local okL = pcall(APK.launch, pkg)
-                    if okL then break end
-                end
-            end
-            if not ready then pcall(Timer.sleep, 2) end
-        end
+        -- Never fire the MAIN/LAUNCHER intent here: it boots the clone warm on its home
+        -- screen and the deep link below then only shows the game page (no auto-join).
+        -- The VIEW intent itself cold-starts the stopped clone; openGameLink retries once.
+        pcall(Timer.sleep, 2)
         -- Clone is stopped: place its floating window before it opens.
         WindowLayout.applyForInstance(instance)
         Heartbeat.markLaunched(instance)
