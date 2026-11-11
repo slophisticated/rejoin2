@@ -324,7 +324,7 @@ local function launchInOrder(conf, only)
         local okU, Username = pcall(require, "managers.username")
         local u = okU and type(Username.get) == "function" and Username.get(inst) or nil
         local hasUser = (u ~= nil and u ~= "")
-        local isNoLogin = (okL and li == false) or (not hasUser) or (li ~= true and not hasUser)
+        local isNoLogin = (okL and li == false) or (li ~= true and not hasUser)
         local label = tostring(inst.name or inst.id or "?")
         if isNoLogin then
             later[#later + 1] = inst
@@ -336,7 +336,7 @@ local function launchInOrder(conf, only)
     end
     for _, inst in ipairs(later) do instances[#instances + 1] = inst end
     Logger.info("Monitor: urutan launch: " .. (#names > 0 and table.concat(names, ", ") or "-")
-        .. (#laterNames > 0 and (" | belum login / no username: " .. table.concat(laterNames, ", ")) or ""))
+        .. (#laterNames > 0 and (" | belum login: " .. table.concat(laterNames, ", ")) or ""))
     local timeout = tonumber(conf and conf.launchWaitTimeout) or 60
     local poll = tonumber(conf and conf.launchWaitInterval) or 3
     if poll <= 0 then poll = 3 end
@@ -451,13 +451,12 @@ local function launchInOrder(conf, only)
             local username = okU and type(Username.get) == "function" and Username.get(inst) or nil
             local hasUser = (username ~= nil and username ~= "")
             local loggedIn = Auth.isLoggedIn(inst)
-            local isNoLogin = (loggedIn == false) or (not hasUser) or (loggedIn ~= true and not hasUser)
+            local isNoLogin = (loggedIn == false) or (loggedIn ~= true and not hasUser)
             local cancelBatch
             Logger.info(string.format("Monitor: %s login check = %s (username = %s)", name, tostring(loggedIn), tostring(username or "none")))
             if isNoLogin then
                 wasNoLogin[pkg] = true
-                local reason = (not hasUser) and ("No username / belum login; jeda " .. emptyDelay .. " detik lalu lanjut")
-                    or ("Belum login; jeda " .. emptyDelay .. " detik lalu lanjut")
+                local reason = "Belum login; jeda " .. emptyDelay .. " detik lalu lanjut"
                 local loginToken = LaunchControl.publish(inst, reason)
                 local loginWaitAt, lastProbe = os.time(), os.time()
                 while running do
@@ -532,7 +531,7 @@ local function launchInOrder(conf, only)
             -- tell them apart (alive is forced to nil below). Such a clone must not wait
             -- the whole join timeout for a signal it can never get: fall back to the
             -- plain settle delay and move on, otherwise Launch All hangs forever.
-            local hbGate = useHb and not sharedName[pkg]
+            local hbGate = useHb and not sharedName[pkg] and hasUser
             local limit = hbGate and joinTimeout or settle
             local sawHeartbeat = false
             local warnedFast = false
@@ -540,9 +539,9 @@ local function launchInOrder(conf, only)
             local goneChecks = 0
             local lastLoginCheck = os.time()
             local token, heldReason
-            if useHb and not isNoLogin and loggedIn == true and hasUser then
+            if useHb and not isNoLogin and loggedIn == true then
                 active = true -- RSS cannot bypass the heartbeat gate.
-                token = LaunchControl.publish(inst, "Menunggu heartbeat sesi baru")
+                token = LaunchControl.publish(inst, hasUser and "Menunggu heartbeat sesi baru" or "Menunggu jeda muat game")
                 if not launched then heldReason = "Launch gagal; antrean ditahan" end
             end
             while active and running and settled < limit do
@@ -673,9 +672,14 @@ local function launchInOrder(conf, only)
                     end
                 end
             end
-            if useHb and not sawHeartbeat and (why == "selesai" or settled >= limit) then
-                why = string.format("timeout heartbeat %ds; lanjut clone berikutnya", limit)
-                Logger.warn(string.format("Monitor: %s belum ada heartbeat setelah %ds; lanjut clone berikutnya", name, limit))
+            if useHb and not sawHeartbeat and not isNoLogin and (why == "selesai" or settled >= limit) then
+                if hasUser then
+                    why = string.format("timeout heartbeat %ds; lanjut clone berikutnya", limit)
+                    Logger.warn(string.format("Monitor: %s belum ada heartbeat setelah %ds; lanjut clone berikutnya", name, limit))
+                else
+                    why = "jeda settle (username belum terbaca)"
+                    Logger.info(string.format("Monitor: %s jeda settle %ds selesai; lanjut clone berikutnya", name, limit))
+                end
                 pausedJoin[pkg] = nil
             end
             LaunchControl.clear()
@@ -686,6 +690,8 @@ local function launchInOrder(conf, only)
                 why = "jeda tetap (heartbeat dimatikan)"
             elseif sharedName[pkg] and launched and not sawHeartbeat then
                 why = "username kembar; jeda settle"
+            elseif not hasUser and launched and not sawHeartbeat then
+                why = "jeda settle (username belum terbaca)"
             elseif launched and not active then
                 why = "ga aktif dalam " .. timeout .. "s"
             end

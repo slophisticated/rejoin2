@@ -2,14 +2,10 @@
 
 ## Unreleased / Bug fixes
 
-- **Validasi No Login / No Username pada Launch All**: clone yang belum login
-  atau belum terdeteksi username-nya (`username == nil`) kini otomatis diidentifikasi
-  sebagai unlogged / no-username. Clone tersebut tidak lagi dimasukkan ke antrean
-  tunggu heartbeat (karena script heartbeat di Delta membutuhkan username untuk
-  menulis `hb_<username>.txt`), tidak di-force-stop, dan hanya diberi jeda 5 detik
-  (`launchEmptyDelay`) untuk membuka layarnya lalu engine langsung lanjut membuka
-  clone berikutnya tanpa membuat antrean stuck. Pada urutan launch, clone dengan akun
-  login tetap dijalankan duluan dan clone tanpa akun ditaruh di urutan paling akhir.
+- **Perbaikan Deteksi Username & Validasi Settle Saat Login Check**:
+  - Token `.ROBLOSECURITY` di-extract langsung via SQLite WebView reader `Auth.readToken` dan verifikasi API curl dijalankan di environment Termux dengan User-Agent agar tidak terblokir Cloudflare. Fallback XML Android `shared_prefs` kini membaca tag `<string name="userName">`.
+  - Clone yang sudah login (`loggedIn == true`) tetapi username-nya belum terbaca tetap membuka game secara normal dan menggunakan jeda `launchSettleDelay` (bukan timeout 240s dan tidak lagi keliru dianggap unlogged).
+  - Clone yang memang belum login (`loggedIn == false` / tanpa akun) tetap diberi jeda 5 detik tanpa force-stop dan antrean langsung lanjut ke clone berikutnya.
 
 - **Opsi Cari Server Sepi Otomatis pada Preset Game (Menu 11)**: preset kini
   mendukung opsi `lowPlayer` (Server Sepi). Cukup masukkan link game biasa atau

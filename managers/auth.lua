@@ -170,6 +170,11 @@ local function readToken(base)
     return nil, "not_found"
 end
 
+-- Export readToken so Username manager can reuse the exact token reader.
+function Auth.readToken(base)
+    return readToken(base)
+end
+
 -- Returns true (Roblox accepts the token), false (Roblox rejects it), or nil when it
 -- could not be checked (no token, no curl, no network, unexpected answer).
 -- `fresh` (a launch is about to open the game link): ask Roblox again unless the last
@@ -186,15 +191,23 @@ local function remoteCheck(pkg, base, fresh)
     end
 
     local result, code, name, note = nil, nil, nil, nil
-    local bin = resolveCurl()
     if not token then
         note = "token tidak ketemu (" .. source .. ")"
-    elseif not bin then
-        note = "curl tidak ada (pkg install curl)"
     else
-        local out = shellOut(string.format(
-            "%s -s --max-time 8 -w '\n%%{http_code}' -H 'Cookie: .ROBLOSECURITY=%s' https://users.roblox.com/v1/users/authenticated",
-            bin, token))
+        local qTok = token:gsub("'", "'\\''")
+        local cmd = "curl -s --max-time 8 -w '\\n%{http_code}' "
+            .. "-H 'User-Agent: Mozilla/5.0 (Linux; Android 10)' "
+            .. "-H 'Cookie: .ROBLOSECURITY=" .. qTok .. "' "
+            .. "https://users.roblox.com/v1/users/authenticated </dev/null 2>/dev/null"
+        local p = io.popen(cmd)
+        local out = nil
+        if p then
+            out = p:read("*a")
+            p:close()
+        end
+        if not out or out == "" then
+            out = shellOut(cmd)
+        end
         local body, codeStr = (out or ""):match("^(.-)\n?(%d%d%d)$")
         code = tonumber(codeStr)
         if code == 200 and body and body:find('"id"', 1, true) then

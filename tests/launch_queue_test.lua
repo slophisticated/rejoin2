@@ -468,5 +468,16 @@ onWait = function()
     if events[#events] == 3 then ready[3] = true end
 end
 launch(conf)
-assert(#events == 3, "no-username clone must not block queue")
-print("PASS: clone with no username is treated as nologin and releases subsequent clones")
+assert(#events == 3, "logged-in clone with unknown username must settle and not block queue")
+print("PASS: logged-in clone with unknown username settles and releases subsequent clones")
+
+reset()
+loginProbe = function(i) return i and i.id ~= 2 end
+stub("managers.username", { get = function(i) return i.name end })
+onWait = function()
+    if events[#events] == 1 then ready[1] = true end
+    if events[#events] == 3 then ready[3] = true end
+end
+launch(conf)
+assert(#events == 3, "unlogged clone must release subsequent clones")
+print("PASS: unlogged clone is skipped gracefully without blocking queue")

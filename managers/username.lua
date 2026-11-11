@@ -20,25 +20,49 @@ local function logLine(str)
 end
 
 -- Extract the .ROBLOSECURITY token from the clone's data dir (root required).
--- The token value is `_|WARNING:-DO-NOT-SHARE!<random>`, so we grab from "WARNING:" on.
 local function extractToken(base)
-    local cmd = "grep -a -r -o -E 'WARNING:-DO-NOT-SHARE![A-Za-z0-9_=:.-]{10,}' '" .. base .. "' 2>/dev/null | head -1"
+    if type(Auth.readToken) == "function" then
+        local tok = Auth.readToken(base)
+        if tok and tok ~= "" then return tok end
+    end
+    local cmd = "grep -a -r -h -o -E '_[|]WARNING:-DO-NOT-SHARE[A-Za-z.-]*[|]_[A-Za-z0-9+/=_-]{20,}' --exclude='*.bak-*' '" .. base .. "' 2>/dev/null | head -1"
     local ok, _, raw = pcall(function() return Shell.exec(cmd) end)
     if not ok or not raw or raw == "" or raw == "(dry-run)" then return nil end
-    return raw:match("(WARNING%-DO%-NOT%-SHARE%![A-Za-z0-9_=:%.:%-]+)")
+    return raw:match("(WARNING%-DO%-NOT%-SHARE[A-Za-z0-9_=:.-]+)") or raw:match("(_[|]WARNING[A-Za-z0-9_=:.-|]+)")
 end
 
 -- Resolve the username from the Roblox public authenticated-user API.
 local function resolveViaApi(token)
-    local cmd = "curl -s --max-time 3 -H 'Cookie: .ROBLOSECURITY=" .. token .. "' https://users.roblox.com/v1/users/authenticated"
-    local ok, _, out = pcall(function() return Shell.exec(cmd) end)
-    if not ok or not out or out == "" or out == "(dry-run)" then return nil end
+    if not token or token == "" then return nil end
+    local qTok = token:gsub("'", "'\\''")
+    local cmd = "curl -s --max-time 5 "
+        .. "-H 'User-Agent: Mozilla/5.0 (Linux; Android 10)' "
+        .. "-H 'Cookie: .ROBLOSECURITY=" .. qTok .. "' "
+        .. "https://users.roblox.com/v1/users/authenticated </dev/null 2>/dev/null"
+    local p = io.popen(cmd)
+    local out = nil
+    if p then
+        out = p:read("*a")
+        p:close()
+    end
+    if not out or out == "" then
+        local ok, _, raw = pcall(function() return Shell.exec(cmd) end)
+        out = ok and raw or nil
+    end
+    if not out or out == "" or out == "(dry-run)" then return nil end
     return out:match('"name"%s*:%s*"([^"]*)"') or out:match('"displayName"%s*:%s*"([^"]*)"')
 end
 
 -- Fallback: scan known light dirs for username/account keys.
 local function resolveLocal(base)
     local q = "[\"']"
+    -- 1) Android shared_prefs XML: <string name="userName">Player1</string>
+    local cmdXml = "grep -a -r -i -E '<string%s+name=" .. q .. "(userName|username|displayName|accountName|playerName)" .. q .. ">[A-Za-z0-9_]{3,32}</string>' '" .. base .. "/shared_prefs' 2>/dev/null | head -1"
+    local ok1, _, out1 = pcall(function() return Shell.exec(cmdXml) end)
+    local val1 = ok1 and out1 and out1:match('>([A-Za-z0-9_]{3,32})</string>')
+    if val1 then return val1 end
+
+    -- 2) JSON / key-value files: "userName": "Player1"
     local cmd = "grep -a -r -i -E '(userName|username|displayName|accountName|playerName)[[:space:]]*[:=][[:space:]]*"
         .. q .. "?[A-Za-z0-9_]{3,32}" .. q .. "?' --include='*.xml' --include='*.json' --include='*.txt' --include='*.log' '"
         .. base .. "/shared_prefs' '" .. base .. "/files' 2>/dev/null | head -1"
